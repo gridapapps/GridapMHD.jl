@@ -1,6 +1,7 @@
 module GridapMHD
 
 using Gridap
+
 import .Gridap: ∇, divergence
 
 using Gridap.Arrays: Table
@@ -23,6 +24,8 @@ import Gridap.Geometry: _fill_cartesian_face_labeling!
 import Gridap.Geometry: CartesianDescriptor
 import Gridap.Geometry: CartesianDiscreteModel
 import Gridap.Geometry: UnstructuredGridTopology
+
+export main
 
 function CartesianDescriptor(domain,partition,periodic::Array{Int,1},map::Function=identity)
   D = length(partition)
@@ -267,108 +270,109 @@ function  _generate_cell_to_vertices_fill!(
 end
 
 
-#
-# function main()
-#
-# u(x) = VectorValue(2*x[1],x[1]+x[2])
-# divergence(::typeof(u)) = (x) -> 3
-#
-# p(x) = x[1]-x[2]
-#
-# ∇p(x) = VectorValue(1,-1)
-#
-# ∇(::typeof(p)) = ∇p
-#
-# f(x) = u(x) + ∇p(x)
-#
-# domain = (0,1,0,1)
-# partition = (4,4)
-# order = 2
-# model = CartesianDiscreteModel(domain,partition)
-#
-# Vu = FESpace(
-#      reffe=:Lagrangian, order=order, valuetype=Float64,
-#      conformity=:H1, model=model)
-#
-# Vp = FESpace(
-#      reffe=:QLagrangian, order=order-1, valuetype=Float64,
-#      conformity=:L2, model=model)
-#
-# Vj = FESpace(
-#      reffe=:RaviartThomas, order=order, valuetype=VectorValue{2,Float64},
-#      conformity=:Hdiv, model=model, dirichlet_tags=[5,6])
-#
-# Vφ = FESpace(
-#      reffe=:QLagrangian, order=order-1, valuetype=Float64,
-#      conformity=:L2, model=model)
-#
-# U = TrialFESpace(Vu,u)
-# P = TrialFESpace(Vp)
-# j = TrialFESpace(Vj,u)
-# φ = TrialFESpace(Vφ)
-#
-# Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
-# X = MultiFieldFESpace([U, P, j, φ])
-#
-# trian = Triangulation(model)
-# degree = 2
-# quad = CellQuadrature(trian,degree)
-#
-# neumanntags = [7,8]
-# btrian = BoundaryTriangulation(model,neumanntags)
-# degree = 2*order
-# bquad = CellQuadrature(btrian,degree)
-# nb = get_normal_vector(btrian)
-#
-# # B? uk?
-# x = get_physical_coordinate(trian)
-# uk = interpolate(Vu, u0)
-# B(x) = VectorValue(1,1)
-#
-# function a(x,y)
-#   u  , p  , j  , φ   = x
-#   v_u, v_p, v_j, v_φ = y
-#   uk*(∇(u)*v_u) + ν*(∇(u)*∇(v_u)) - p*(∇*v_u) + v_p*(∇*u) - 1/ρ * (j×B(x))*v_u +
-#   j*v_j + σ*(∇(φ)*v_j) - σ*(u×B(x))*v_j - ∇(v_φ)*j
-# end
-#
-# function l(y)
-#   v_u, v_p, v_j, v_φ = y
-#   v_u*f
-# end
-#
-# u_nbc =
-# p_nbc =
-# j_nbc =
-# φ_nbc =
-#
-# function l_Γ(y)
-#   v_u, v_p, v_j, v_φ = y
-#   u_nbc * v_u + p_nbc * v_p + j_nbc * v_j + φ_nbc * v_φ
-# end
-#
-# t_Ω = AffineFETerm(a,l,trian,quad)
-# t_Γ = FESource(l_Γ,btrian,bquad)
-# op  = AffineFEOperator(X,Y,t_Ω,t_Γ)
-#
-# ls = LUSolver()
-# solver = LinearFESolver(ls)
-#
-# while Δx > 1e-3
-#
-#   xh = solve(solver,op)
-#   uk, pk, jk, φk = xh
-#
-#   Δx = (xh - xk)*(xh - xk)/(xh*xh)
-#   xk = xh
-#
-#   # Update operator
-#   op = AffineFEOperator(X,Y,t_Ω,t_Γ)
-#   writevtk(trian,"results",cellfields=["u"=>uk, "p"=>pk, "j"=>jk, "phi"=>φk])
-# end
-#
-#
-#
-# end
 
+function main()
+
+domain = (0,1,0,1,0,0.01)
+partition = (10,10,2)
+order = 1
+model = CartesianDiscreteModel(domain,partition)
+
+Vu = FESpace(
+    reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
+    conformity=:H1, model=model, dirichlet_tags=collect(1:24))
+
+Vp = FESpace(
+    reffe=:QLagrangian, order=order-1, valuetype=Float64,
+    conformity=:L2, model=model)
+
+Vj = FESpace(
+    reffe=:RaviartThomas, order=order, valuetype=VectorValue{3,Float64},
+    conformity=:Hdiv, model=model, dirichlet_tags=collect(1:24))
+
+Vφ = FESpace(
+    reffe=:QLagrangian, order=order-1, valuetype=Float64,
+    conformity=:L2, model=model)
+
+u0(x) = VectorValue(0.0,0.0,0.0)
+gu(x) = VectorValue(0.0,0.0,0.0)
+gj(x) = VectorValue(0.0,0.0,0.0)
+
+U = TrialFESpace(Vu,gu)
+P = TrialFESpace(Vp)
+j = TrialFESpace(Vj,gj)
+φ = TrialFESpace(Vφ)
+
+Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
+X = MultiFieldFESpace([U, P, j, φ])
+
+trian = Triangulation(model)
+degree = 2
+quad = CellQuadrature(trian,degree)
+
+neumanntags = [7,8]
+btrian = BoundaryTriangulation(model,neumanntags)
+degree = 2*order
+bquad = CellQuadrature(btrian,degree)
+nb = get_normal_vector(btrian)
+
+# B? uk?
+x = get_physical_coordinate(trian)
+uk = interpolate(Vu, u0)
+B(x) = VectorValue(0.0,10.0,0.0)
+ρ = 1.0
+ν = 1.0
+σ = 1.0
+Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
+Ha = 10.0
+K = Ha / (1-0.825Ha^(1/2)-Ha^(-1))
+f(x) = VectorValue(0.0,0.0,K / Re)
+
+@law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
+
+function a(X,Y)
+ u  , p  , j  , φ   = X
+ v_u, v_p, v_j, v_φ = Y
+ uk*(∇(u)*v_u) + ν*(∇(u)*∇(v_u)) - p*(∇*v_u) + v_p*(∇*u) - 1/ρ * vprod(j,B(x))*v_u +
+ j*v_j + σ*(∇(φ)*v_j) - σ*vprod(u,B(x))*v_j - ∇(v_φ)*j
+end
+
+function l(y)
+ v_u, v_p, v_j, v_φ = y
+ v_u*f
+end
+
+u_nbc = 0.0
+p_nbc = 0.0
+j_nbc = 0.0
+φ_nbc = 0.0
+
+function l_Γ(y)
+ v_u, v_p, v_j, v_φ = y
+ u_nbc * v_u + p_nbc * v_p + j_nbc * v_j + φ_nbc * v_φ
+end
+
+t_Ω = AffineFETerm(a,l,trian,quad)
+# t_Γ = FESource(l_Γ,btrian,bquad)
+op  = AffineFEOperator(X,Y,t_Ω)
+
+ls = LUSolver()
+solver = LinearFESolver(ls)
+
+while Δx > 1e-3
+
+ xh = solve(solver,op)
+ uk, pk, jk, φk = xh
+
+ Δx = (xh - xk)*(xh - xk)/(xh*xh)
+ xk = xh
+ @show Δx
+ # Update operator
+ op = AffineFEOperator(X,Y,t_Ω,t_Γ)
+ writevtk(trian,"results",cellfields=["u"=>uk, "p"=>pk, "j"=>jk, "phi"=>φk])
+end
+
+
+
+end
 end # module
