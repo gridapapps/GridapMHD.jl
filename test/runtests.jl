@@ -15,7 +15,7 @@ using Test
 
 uh = GridapMHD.main()
 
-# model = CartesianDiscreteModel((0,1,0,1),(32,32))
+# model = CartesianDiscreteModel((0,1,0,1),(32,32),[1])
 #
 # labels = get_face_labeling(model)
 # add_tag_from_tags!(labels,"dirichlet",[1,2,3,4,5,6])

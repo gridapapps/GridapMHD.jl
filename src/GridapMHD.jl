@@ -25,7 +25,40 @@ import Gridap.Geometry: CartesianDescriptor
 import Gridap.Geometry: CartesianDiscreteModel
 import Gridap.Geometry: UnstructuredGridTopology
 
+using Gridap.FESpaces: get_local_item, find_local_index, length_to_ptrs!
+using Gridap.FESpaces: _generate_face_to_own_dofs_count_d!
+using Gridap.FESpaces: _generate_face_to_own_dofs
+import Gridap.FESpaces: _generate_face_to_own_dofs
+
 export main
+
+# Geometry/CartesianDiscreteModels.jl:1:31
+#
+# struct CartesianDiscreteModel2{D,T,F} <: CartesianDiscreteModel{D,T,F}
+#   # grid::CartesianGrid{D,T,F}
+#   # grid_topology::UnstructuredGridTopology{D,D,T,true}
+#   # face_labeling::FaceLabeling
+#   # @doc """
+#   #     CartesianDiscreteModel(desc::CartesianDescriptor)
+#   #
+#   # Inner constructor
+#   # """
+#   function CartesianDiscreteModel2(grid::CartesianGrid{D,T,F},topo::UnstructuredGridTopology{D,D,T,true},labels::FaceLabeling) where {D,T,F}
+#     new{D,T,F}(grid,topo,labels)
+#   end
+# end
+#
+#
+# function CartesianDiscreteModel2(desc::CartesianDescriptor{D,T,F}) where {D,T,F}
+#   grid = CartesianGrid(desc)
+#   _grid = UnstructuredGrid(grid)
+#   topo = UnstructuredGridTopology(_grid)
+#   nfaces = [num_faces(topo,d) for d in 0:num_cell_dims(topo)]
+#   labels = FaceLabeling(nfaces)
+#   _fill_cartesian_face_labeling!(labels,topo)
+#   CartesianDiscreteModel2(grid,topo,labels)
+# end
+
 
 function CartesianDescriptor(domain,partition,periodic::Array{Int,1},map::Function=identity)
   D = length(partition)
@@ -271,12 +304,71 @@ end
 
 
 
+
+
+function _generate_face_to_own_dofs(
+  n_faces,
+  cell_to_ctype,
+  d_to_cell_to_dfaces::Vector{Table{T,P}},
+  d_to_dface_to_cells::Vector{Table{T,P}},
+  d_to_offset,
+  d_to_ctype_to_ldface_to_own_ldofs) where {T,P}
+
+  face_to_own_dofs_ptrs = zeros(P,n_faces+1)
+
+  D = length(d_to_offset)-1
+
+  icell = 1
+  d_to_dface_to_cell = [ get_local_item(d_to_dface_to_cells[d+1],icell)  for d in 0:D ]
+
+  d_to_dface_to_ldface = [
+    find_local_index(d_to_dface_to_cell[d+1],d_to_cell_to_dfaces[d+1]) for d in 0:D ]
+
+  for d in 0:D
+    cell_to_dfaces = d_to_cell_to_dfaces[d+1]
+    dface_to_cells = d_to_dface_to_cells[d+1]
+    offset = d_to_offset[d+1]
+    ctype_to_ldface_to_own_ldofs = d_to_ctype_to_ldface_to_own_ldofs[d+1]
+    ctype_to_ldface_to_num_own_ldofs = map( (x) -> length.(x) ,ctype_to_ldface_to_own_ldofs)
+    dface_to_cell_owner = d_to_dface_to_cell[d+1]
+    dface_to_ldface = d_to_dface_to_ldface[d+1]
+
+    if any( ctype_to_ldface_to_num_own_ldofs .!= 0)
+      n = length(dface_to_ldface)
+      for i in 1:length(dface_to_ldface)
+        if !(isassigned(dface_to_ldface,i))
+          n = i - 1
+          break
+        end
+      end
+
+      _generate_face_to_own_dofs_count_d!(
+        face_to_own_dofs_ptrs,
+        offset,
+        cell_to_ctype,
+        dface_to_cell_owner,
+        dface_to_ldface[1:n],
+        ctype_to_ldface_to_num_own_ldofs)
+    end
+  end
+
+  length_to_ptrs!(face_to_own_dofs_ptrs)
+
+  n_dofs = face_to_own_dofs_ptrs[end]-1
+  face_to_own_dofs_data = collect(T(1):T(n_dofs))
+
+  face_to_own_dofs = Table(face_to_own_dofs_data,face_to_own_dofs_ptrs)
+  (face_to_own_dofs, n_dofs, d_to_dface_to_cell, d_to_dface_to_ldface)
+end
+
+
+
 function main()
 
 domain = (0,1,0,1,0,0.01)
 partition = (10,10,2)
 order = 1
-model = CartesianDiscreteModel(domain,partition)
+model = CartesianDiscreteModel(domain,partition,[3])
 
 Vu = FESpace(
     reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
