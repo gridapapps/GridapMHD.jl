@@ -370,9 +370,12 @@ partition = (10,10,2)
 order = 1
 model = CartesianDiscreteModel(domain,partition,[3])
 
+labels = get_face_labeling(model)
+add_tag_from_tags!(labels,"dirichlet",collect(1:24))
+
 Vu = FESpace(
     reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-    conformity=:H1, model=model, dirichlet_tags=collect(1:24))
+    conformity=:H1, model=model, dirichlet_tags="dirichlet")
 
 Vp = FESpace(
     reffe=:QLagrangian, order=order-1, valuetype=Float64,
@@ -380,27 +383,40 @@ Vp = FESpace(
 
 Vj = FESpace(
     reffe=:RaviartThomas, order=order, valuetype=VectorValue{3,Float64},
-    conformity=:Hdiv, model=model, dirichlet_tags=collect(1:24))
+    conformity=:Hdiv, model=model, dirichlet_tags="dirichlet")
 
 Vφ = FESpace(
     reffe=:QLagrangian, order=order-1, valuetype=Float64,
     conformity=:L2, model=model)
 
-u0(x) = VectorValue(0.0,0.0,0.0)
-gu(x) = VectorValue(0.0,0.0,0.0)
-gj(x) = VectorValue(0.0,0.0,0.0)
+u0 = VectorValue(0.0,0.0,0.0)
+gu = VectorValue(0.0,0.0,0.0)
+gj = VectorValue(0.0,0.0,0.0)
 
 U = TrialFESpace(Vu,gu)
 P = TrialFESpace(Vp)
 j = TrialFESpace(Vj,gj)
 φ = TrialFESpace(Vφ)
 
-Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
-X = MultiFieldFESpace([U, P, j, φ])
+# Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
+# X = MultiFieldFESpace([U, P, j, φ])
 
 trian = Triangulation(model)
 degree = 2
 quad = CellQuadrature(trian,degree)
+
+# xh = FEFunction(X,rand(num_free_dofs(X)))
+uh = FEFunction(U,rand(num_free_dofs(U)))
+ph = FEFunction(P,rand(num_free_dofs(P)))
+jh = FEFunction(j,rand(num_free_dofs(j)))
+φh = FEFunction(φ,rand(num_free_dofs(φ)))
+
+# uh, ph, jh, φh = xh
+
+# writevtk(trian,"results",cellfields=["u"=>uh, "p"=>ph, "j"=>jh, "phi"=>φh])
+writevtk(trian,"results",cellfields=["u"=>uh, "p"=>ph, "j"=>jh])#, "phi"=>φh])
+
+@assert false
 
 neumanntags = [7,8]
 btrian = BoundaryTriangulation(model,neumanntags)
@@ -425,7 +441,7 @@ f(x) = VectorValue(0.0,0.0,K / Re)
 function a(X,Y)
  u  , p  , j  , φ   = X
  v_u, v_p, v_j, v_φ = Y
- uk*(∇(u)*v_u) + ν*(∇(u)*∇(v_u)) - p*(∇*v_u) + v_p*(∇*u) - 1/ρ * vprod(j,B(x))*v_u +
+ uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + v_p*(∇*u) - 1/ρ * vprod(j,B(x))*v_u +
  j*v_j + σ*(∇(φ)*v_j) - σ*vprod(u,B(x))*v_j - ∇(v_φ)*j
 end
 
@@ -450,6 +466,8 @@ op  = AffineFEOperator(X,Y,t_Ω)
 
 ls = LUSolver()
 solver = LinearFESolver(ls)
+
+Δx = 1.0
 
 while Δx > 1e-3
 
