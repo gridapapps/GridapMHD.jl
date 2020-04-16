@@ -7,7 +7,11 @@ using .GridapMHD
 using Gridap
 using Test
 
-uh = GridapMHD.main()
+function run()
+    uh = GridapMHD.main()
+end
+
+run()
 
 @test 1==1 # check code gets here!
 
