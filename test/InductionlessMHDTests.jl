@@ -7,8 +7,8 @@ using .GridapMHD
 using Gridap
 using Test
 
-function run()
-    uh = GridapMHD.main()
+function run(partition=(4,4,3))
+  uh = GridapMHD.main(partition)
 end
 
 run()

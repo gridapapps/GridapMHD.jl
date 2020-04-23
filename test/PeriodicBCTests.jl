@@ -40,6 +40,57 @@ model = main()
 @show model.grid_topology.n_m_to_nface_to_mfaces[3,2]
 @show model.grid_topology.n_m_to_nface_to_mfaces[2,1]
 
+
+
+# using Gridap
+# using Gridap.Arrays: CompressedArray
+# using Gridap.Geometry: get_cell_type
+# using Test
+#
+#
+# model = CartesianDiscreteModel((0,1,0,1),(3,3),[2])
+#
+# labels = get_face_labeling(model)
+# add_tag_from_tags!(labels,"dirichlet",[1,2,3,4,5,6])
+#
+# trian = get_triangulation(model)
+#
+# itrian = SkeletonTriangulation(model)
+#
+# nb = get_normal_vector(itrian)
+#
+# s = CompressedArray([Point{1,Float64}[(0,)]],get_cell_type(itrian))
+#
+# normals = evaluate(nb,s)
+#
+# for (i,normal) in enumerate(normals)
+#     @show itrian.left.face_trian.cell_to_oldcell[i], normal
+# end
+#
+# btrian = BoundaryTriangulation(model)
+#
+# nb = get_normal_vector(btrian)
+#
+# s = CompressedArray([Point{1,Float64}[(0,)]],get_cell_type(btrian))
+#
+# normals = evaluate(nb,s)
+#
+# for (i,normal) in enumerate(normals)
+#     @show btrian.face_trian.cell_to_oldcell[i], normal
+# end
+#
+# order = 1
+# V = FESpace(
+#      reffe=:RaviartThomas, order=order, valuetype=VectorValue{2,Float64},
+#      conformity=:Hdiv, model=model)
+#
+# u(x) = VectorValue(1.0,1.0)
+# uh = interpolate(V,u)
+#
+# writevtk(trian,"test",cellfields=["u"=>uh])
+#
+# end #module
+
 # 3 1
 # [[1, 2, 4, 5], [2, 3, 5, 6], [3, 1, 6, 4], [4, 5, 7, 8], [5, 6, 8, 9], [6, 4, 9, 7], [7, 8, 10, 11], [8, 9, 11, 12], [9, 7, 12, 10]]
 

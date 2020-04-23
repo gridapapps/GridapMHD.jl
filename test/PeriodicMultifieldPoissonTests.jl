@@ -8,10 +8,12 @@ using Gridap
 using Test
 
 
-model = CartesianDiscreteModel((0,1,0,1),(32,32))
-order = 1
+model = CartesianDiscreteModel((0,1,0,1,0,0.01),(20,20,3),[3])
+order = 3
 labels = get_face_labeling(model)
-add_tag_from_tags!(labels,"dirichlet",[1,2,3,4,5,6])
+# add_tag_from_tags!(labels,"dirichlet",[1,2,3,4,5,6])
+add_tag_from_tags!(labels,"dirichlet",append!(collect(1:20),[23,24,25,26]))
+
 
 trian = get_triangulation(model)
 degree = 2*order
@@ -36,12 +38,12 @@ Y = MultiFieldFESpace([Vu, Vv])
 function aa(X,Y)
   u, v = X
   v_u, v_v = Y
-  inner(∇(v_u),∇(u)) + inner(∇(v_v),∇(v)) + v*v_u
+  inner(∇(v_u),∇(u)) + inner(∇(v_v),∇(v)) - 10.0*v_v*u
 end
 
 function l(Y)
   v_u, v_v = Y
-  v_v*f
+  v_v*f + v_u*0
 end
 
 t_Ω = AffineFETerm(aa,l,trian,quad)

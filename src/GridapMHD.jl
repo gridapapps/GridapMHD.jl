@@ -367,14 +367,33 @@ function _generate_face_to_own_dofs(
   (face_to_own_dofs, n_dofs, d_to_dface_to_cell, d_to_dface_to_ldface)
 end
 
+function writePVD(filename,timeSteps)
+  rm(filename,force=true,recursive=true)
+  mkdir(filename)
+  pvdcontent  = """<?xml version="1.0"?>
+<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
+  <Collection>\n"""
+  for t in timeSteps
+    pvdcontent *= """    <DataSet timestep=""" * '"'
+    pvdcontent *= string(t) * '"' * """ group="" part="0" file=""" * '"'
+    pvdcontent *= filename*"""/time_"""*string(t)*""".vtu"/>\n"""
+  end
+  pvdcontent  *= "  </Collection>\n</VTKFile>"
+  f = open(filename * ".pvd", "w")
+  write(f,pvdcontent)
+  close(f)
+end
 
 
-function main()
+function main(partition=(4,4,3))
 
-domain = (0,1,0,1,0,0.01)
-partition = (3,3,3)
+
+t0 = 0.0
+Δt = 0.0005
+tf = 0.02
+domain = (0,1,0,1,0,0.1)
 order = 2
-model = CartesianDiscreteModel(domain,partition)
+model = CartesianDiscreteModel(domain,partition,[3])
 
 labels = get_face_labeling(model)
 add_tag_from_tags!(labels,"dirichlet",append!(collect(1:20),[23,24,25,26]))
@@ -395,7 +414,7 @@ Vφ = FESpace(
     reffe=:QLagrangian, order=order-1, valuetype=Float64,
     conformity=:L2, model=model)
 
-u0 = VectorValue(0.0,0.0,0.0)
+u0 = VectorValue(0.0,0.0,10.0)
 gu = VectorValue(0.0,0.0,0.0)
 gj = VectorValue(0.0,0.0,0.0)
 
@@ -408,7 +427,7 @@ Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
 X = MultiFieldFESpace([U, P, j, φ])
 
 trian = Triangulation(model)
-degree = 2
+degree = 2*order
 quad = CellQuadrature(trian,degree)
 
 # # xh = FEFunction(X,rand(num_free_dofs(X)))
@@ -433,7 +452,7 @@ nb = get_normal_vector(btrian)
 
 # B? uk?
 x = get_physical_coordinate(trian)
-uk = interpolate(Vu, u0)
+un = interpolate(Vu, u0)
 B(x) = VectorValue(0.0,10.0,0.0)
 ρ = 1.0
 ν = 1.0
@@ -450,13 +469,13 @@ function a(X,Y)
   v_u, v_p, v_j, v_φ = Y
 
   # uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p
-  uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - 1/ρ * vprod(j,B(x))*v_u +
+  (1/Δt)*u*v_u + un*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - 1/ρ * vprod(j,B(x))*v_u +
   j*v_j + σ*(∇(φ)*v_j) - σ*vprod(u,B(x))*v_j - ∇(v_φ)*j
 end
 
 function l(y)
  v_u, v_p, v_j, v_φ = y
- v_u*f
+ (1/Δt)*un*v_u + v_u*f + v_p*0.0 + v_j*VectorValue(0.0,0.0,0.0) + v_φ*0.0
 end
 
 u_nbc = VectorValue(0.0,0.0,0.0)
@@ -476,21 +495,25 @@ op  = AffineFEOperator(X,Y,t_Ω)
 ls = LUSolver()
 solver = LinearFESolver(ls)
 
-Δx = 1.0
 
-while Δx > 1e-3
 
- xh = solve(solver,op)
- uk, pk, jk, φk = xh
+timeSteps = collect(t0:Δt:tf)
 
- Δx = (xh - xk)*(xh - xk)/(xh*xh)
- xk = xh
- @show Δx
- # Update operator
- op = AffineFEOperator(X,Y,t_Ω,t_Γ)
- writevtk(trian,"results",cellfields=["u"=>uk, "p"=>pk, "j"=>jk, "phi"=>φk])
+writePVD("results",timeSteps[2:end])
+# writevtk(trian, "results/time_"*string(t0)*".vtu",cellfields=["uh"=>un])
+
+for t in timeSteps[2:end]
+
+  xh = solve(solver,op)
+  un, pn, jn, φn = xh
+
+  writevtk(trian,"results/time_"*string(t)*".vtu",cellfields=["u"=>un, "p"=>pn, "j"=>jn, "phi"=>φn])
+
+  @show t
+
+  # Update operator
+  op = AffineFEOperator(X,Y,t_Ω)
 end
-
 
 
 end
