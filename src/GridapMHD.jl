@@ -31,6 +31,7 @@ using Gridap.FESpaces: _generate_face_to_own_dofs
 import Gridap.FESpaces: _generate_face_to_own_dofs
 
 export main
+export analytical_solution
 
 # Geometry/CartesianDiscreteModels.jl:1:31
 #
@@ -158,40 +159,6 @@ function _generate_cell_to_vertices_from_grid(grid::UnstructuredGrid,partition,p
 
     vertex_to_node = vertex_to_point
     node_to_vertex = point_to_vertex
-    #
-    # cell_index = Array{Int,1}(undef,D)
-    # for (icell,cell_nodes) in enumerate(nodes)
-    #   for (inode,node) in enumerate(cell_nodes)
-    #     index = findfirst(x->x>node,list_deleted)
-    #     if isnothing(index)
-    #       index = 0
-    #     else
-    #       index -= 1
-    #     end
-    #     cell_to_vertices[icell][inode] = node - index
-    #   end
-    #   cell_ijk = index_to_ijk(icell,num_cells)
-    #   source_ijk = Array{Int,1}(undef,D)
-    #   for dir in periodic
-    #     if cell_ijk[dir] == partition[dir]
-    #       source_ijk .= cell_ijk
-    #       source_ijk[dir] = 1
-    #       source_cell = ijk_to_index(source_ijk, num_cells)
-    #       vertex_map = Array{Int,2}(undef,(2^(D-1),2))
-    #       l = 1
-    #       for k in collect(1:2^(D-dir))
-    #         for kj in collect(1:2)
-    #           for ki in collect(1:2^(dir-1))
-    #             vertex_map[ki+(k-1)*2^(dir-1),kj] = l
-    #             l=l+1
-    #           end
-    #         end
-    #       end
-    #       cell_to_vertices[icell][vertex_map[:,2]] .= cell_to_vertices[source_cell][vertex_map[:,1]]
-    #     end
-    #   end
-    # end
-    # cell_to_vertices = Table(cell_to_vertices)
   else
     cell_to_nodes = get_cell_nodes(grid)
     cell_to_cell_type = get_cell_type(grid)
@@ -309,9 +276,6 @@ function  _generate_cell_to_vertices_fill!(
 end
 
 
-
-
-
 function _generate_face_to_own_dofs(
   n_faces,
   cell_to_ctype,
@@ -340,13 +304,6 @@ function _generate_face_to_own_dofs(
     dface_to_ldface = d_to_dface_to_ldface[d+1]
 
     if any( ctype_to_ldface_to_num_own_ldofs .!= 0)
-      # n = length(dface_to_ldface)
-      # for i in 1:length(dface_to_ldface)
-      #   if !(isassigned(dface_to_ldface,i))
-      #     n = i - 1
-      #     break
-      #   end
-      # end
 
       _generate_face_to_own_dofs_count_d!(
         face_to_own_dofs_ptrs,
@@ -384,16 +341,74 @@ function writePVD(filename,timeSteps)
   close(f)
 end
 
+function analytical_solution(a::Float64,       # semi-length of side walls
+                             b::Float64,       # semi-length of Hartmann walls
+                             t_w::Float64,     # wall thickness
+                             σ_w::Float64,     # wall conductivity
+                             σ::Float64,       # fluid conductivity
+                             μ::Float64,       # fluid viscosity
+                             grad_pz::Float64, # presure gradient
+                             Ha::Float64,      # Hartmann number
+                             n::Int,           # number of sumands included in Fourier series
+                             x)                # evaluation point
+  l = b/a
+  ξ = x[1]/a
+  η = x[2]/a
 
-function main(partition=(4,4,3))
+  d_B = t_w*σ_w/(a*σ)
+
+  V = 0.0
+  dH_dx = 0.0; dH_dy = 0.0
+  for k in 0:n
+    α_k = (k + 0.5)*π/l
+    r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^0.5)
+    r2_k = 0.5*(-Ha + (Ha^2 + 4*α_k^2)^0.5)
+    N = (Ha^2 + 4*α_k^2)^0.5
+
+    V2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))+exp(-r1_k*(1+η))))/
+         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
+
+    V3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))+exp(-r2_k*(1+η))))/
+         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
+
+    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(1-V2-V3)
+
+    H2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))-exp(-r1_k*(1+η))))/
+         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
+
+    H3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))-exp(-r2_k*(1+η))))/
+         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
+
+    H2_dy = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))*(r1_k/a)-exp(-r1_k*(1+η))*(-r1_k/a)))/
+         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
+
+    H3_dy = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))*(r2_k/a)-exp(-r2_k*(1+η))*(-r2_k/a)))/
+         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
+
+
+    dH_dx += -2*(-1)^k*sin(α_k * ξ)/(a*l*α_k^3)*(H2-H3)
+    dH_dy += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(H2_dy-H3_dy)
+
+  end
+  u_z = V/μ * (-grad_pz) * a^2
+  j_x = dH_dy / μ^0.5 * (-grad_pz) * a^2*σ^0.5
+  j_y = -dH_dx / μ^0.5 * (-grad_pz) * a^2*σ^0.5
+
+  u = VectorValue(0.0,0.0,u_z)
+  j = VectorValue(j_x,j_y,0.0)
+  return u,j
+end
+
+function main(partition=(4,4,3),Δt=1e-4)
 
 
 t0 = 0.0
-Δt = 0.0005
-tf = 0.02
-domain = (0,1,0,1,0,0.1)
+tf = Δt*4
+domain = (-0.5,0.5,-0.5,0.5,0.0,0.01)
 order = 2
-model = CartesianDiscreteModel(domain,partition,[3])
+
+map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,   sign(x[2])*(abs(x[2])*0.5)^0.5,  x[3])
+model = CartesianDiscreteModel(domain,partition,[3],map)
 
 labels = get_face_labeling(model)
 add_tag_from_tags!(labels,"dirichlet",append!(collect(1:20),[23,24,25,26]))
@@ -404,7 +419,7 @@ Vu = FESpace(
 
 Vp = FESpace(
     reffe=:PLagrangian, order=order-1, valuetype=Float64,
-    conformity=:L2, model=model)
+    conformity=:L2, model=model, constraint=:zeromean)
 
 Vj = FESpace(
     reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
@@ -412,9 +427,9 @@ Vj = FESpace(
 
 Vφ = FESpace(
     reffe=:QLagrangian, order=order-1, valuetype=Float64,
-    conformity=:L2, model=model)
+    conformity=:L2, model=model, constraint=:zeromean)
 
-u0 = VectorValue(0.0,0.0,10.0)
+u0 = VectorValue(0.0,0.0,0.010)
 gu = VectorValue(0.0,0.0,0.0)
 gj = VectorValue(0.0,0.0,0.0)
 
@@ -427,7 +442,7 @@ Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
 X = MultiFieldFESpace([U, P, j, φ])
 
 trian = Triangulation(model)
-degree = 2*order
+degree = 2*(order+1)
 quad = CellQuadrature(trian,degree)
 
 # # xh = FEFunction(X,rand(num_free_dofs(X)))
@@ -452,15 +467,25 @@ nb = get_normal_vector(btrian)
 
 # B? uk?
 x = get_physical_coordinate(trian)
-un = interpolate(Vu, u0)
 B(x) = VectorValue(0.0,10.0,0.0)
 ρ = 1.0
 ν = 1.0
 σ = 1.0
 Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
 Ha = 10.0
-K = Ha / (1-0.825Ha^(1/2)-Ha^(-1))
+K = Ha / (1-0.825*Ha^(1/2)-Ha^(-1))
 f(x) = VectorValue(0.0,0.0,K / Re)
+analytical_u(x) = analytical_solution(0.5,  # semi-length of side walls
+                                      0.5,  # semi-length of Hartmann walls
+                                      0.0,  # wall conductivity
+                                      1.0,  # wall thickness
+                                      1.0,  # fluid conductivity
+                                      1.0,  # fluid viscosity
+                                      K/Re, # presure gradient
+                                      Ha,   # Hartmann number
+                                      10,   # number of sumands included in Fourier series
+                                      x)[1]
+un = interpolate(Vu, analytical_u)
 
 @law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
 
@@ -499,8 +524,8 @@ solver = LinearFESolver(ls)
 
 timeSteps = collect(t0:Δt:tf)
 
-writePVD("results",timeSteps[2:end])
-# writevtk(trian, "results/time_"*string(t0)*".vtu",cellfields=["uh"=>un])
+writePVD("results",timeSteps[1:end])
+writevtk(trian, "results/time_"*string(t0)*".vtu",cellfields=["u"=>un])
 
 for t in timeSteps[2:end]
 
