@@ -3,13 +3,12 @@ module InductionlessMHDTests
 include("../src/GridapMHD.jl")
 using .GridapMHD
 # using GridapMHD
-using ForwardDiff
 using Gridap
 import Gridap: ∇, Δ
 using Test
 
-partition=(15,15,3)
-uh = GridapMHD.main(partition, 1.0e-8)
+partition=(3,3,3)
+uh = GridapMHD.main(partition, 1.0e-2)
 
 
 
