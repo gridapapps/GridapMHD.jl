@@ -1,6 +1,7 @@
 module GridapMHD
 
 using Gridap
+using LineSearches: BackTracking
 
 include("PeriodicBC.jl")
 using .PeriodicBC
@@ -84,7 +85,7 @@ function analytical_solution(a::Float64,       # semi-length of side walls
   return u,j
 end
 
-function main(partition=(4,4,3),Δt=1e-4,L=1,δ=0.3,nt=4 )
+function main(;partition=(4,4,3),Δt=1e-4,L=1,δ=0.3,nt=4, maxit=5, exact_ic=true)
 
 
 t0 = 0.0
@@ -180,12 +181,15 @@ X = MultiFieldFESpace([U, P, j, φ])
 
 neumanntags = [22]
 btrian = BoundaryTriangulation(model,neumanntags)
-degree = 2*order
+degree = 2*(order-1)
 bquad = CellQuadrature(btrian,degree)
 nb = get_normal_vector(btrian)
 
-un = interpolate(Vu, analytical_u)
-# un = interpolate(Vu, u0)
+if exact_ic
+  un = interpolate(Vu, analytical_u)
+else
+  un = interpolate(Vu, u0)
+end
 # @law function jxB(x)
 #   a = analytical_j(x)
 #   b = B(x)
@@ -198,9 +202,15 @@ function a(X,Y)
   v_u, v_p, v_j, v_φ = Y
 
   # uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p
-  (1/Δt)*u*v_u + un*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - 1/ρ * vprod(j,B(x))*v_u +
+  (1/Δt)*u*v_u + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - 1/ρ * vprod(j,B(x))*v_u +
   j*v_j + σ*(∇(φ)*v_j) - σ*vprod(u,B(x))*v_j - ∇(v_φ)*j
 end
+
+@law conv(u,∇u) = (∇u')*u
+@law dconv(du,∇du,u,∇u) = conv(u,∇du)+conv(du,∇u)
+
+c(u,v) = inner(v,conv(u,∇(u)))
+dc(u,du,v) = inner(v,dconv(du,∇(du),u,∇(u)))
 
 function l(y)
  v_u, v_p, v_j, v_φ = y
@@ -217,14 +227,25 @@ function l_Γ(y)
  u_nbc * v_u + p_nbc * v_p + j_nbc * v_j + φ_nbc * v_φ
 end
 
-t_Ω = AffineFETerm(a,l,trian,quad)
+function res(X,Y)
+  u   = X[1]
+  v_u = Y[1]
+  a(X,Y) + c(u, v_u) - l(Y)
+end
+
+function jac(X,Y,dX)
+  u   = X[1]
+  v_u = Y[1]
+  du  = dX[1]
+  a(dX,Y) + dc(u,du,v_u)
+end
+
+t_Ω = FETerm(res,jac,trian,quad)
 t_Γ = FESource(l_Γ,btrian,bquad)
-op  = AffineFEOperator(X,Y,t_Ω)
+op  = FEOperator(X,Y,t_Ω)
 
-ls = LUSolver()
-solver = LinearFESolver(ls)
-
-
+nls = NLSolver(show_trace=true, method=:newton, linesearch=BackTracking(), iterations=maxit)
+solver = FESolver(nls)
 
 timeSteps = collect(t0:Δt:tf)
 
@@ -241,7 +262,7 @@ for t in timeSteps[2:end]
   @show t
 
   # Update operator
-  op = AffineFEOperator(X,Y,t_Ω)
+  op = FEOperator(X,Y,t_Ω)
 end
 
 
