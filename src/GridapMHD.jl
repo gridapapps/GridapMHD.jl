@@ -85,7 +85,8 @@ function analytical_solution(a::Float64,       # semi-length of side walls
   return u,j
 end
 
-function main(;partition=(4,4,3),Δt=1e-4,L=1,δ=0.3,nt=4, maxit=5, exact_ic=true)
+function main(;partition=(4,4,3),Δt=1e-4,L=1,δ=0.3,nt=4, maxit=5, exact_ic=true,
+              use_dimensionless_formulation=true)
 
 
 t0 = 0.0
@@ -128,6 +129,7 @@ x = get_physical_coordinate(trian)
 σ = 1.0
 Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
 Ha = 10.0
+N = σ*L*(Ha^2)/(ρ*Re)
 K = Ha / (1-0.825*Ha^(1/2)-Ha^(-1))
 f(x) = VectorValue(0.0,0.0,L^3 * K / Re)
 B(x) = VectorValue(0.0,Ha,0.0)
@@ -152,7 +154,7 @@ analytical_j(x) = analytical_solution(0.5,  # semi-length of side walls
                                       10,   # number of sumands included in Fourier series
                                       x)[2]
 
-u0 = VectorValue(0.0,0.0,0.010)
+u0 = VectorValue(0.0,0.0,10.00)
 gu = VectorValue(0.0,0.0,0.0)
 gj = VectorValue(0.0,0.0,0.0)
 
@@ -163,21 +165,6 @@ j = TrialFESpace(Vj,gj)
 
 Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
 X = MultiFieldFESpace([U, P, j, φ])
-
-
-# # xh = FEFunction(X,rand(num_free_dofs(X)))
-# uh = FEFunction(U,rand(num_free_dofs(U)))
-# ph = FEFunction(P,rand(num_free_dofs(P)))
-# jh = FEFunction(j,rand(num_free_dofs(j)))
-# φh = FEFunction(φ,rand(num_free_dofs(φ)))
-#
-# # uh, ph, jh, φh = xh
-#
-#
-# # writevtk(trian,"results",cellfields=["u"=>uh, "p"=>ph, "j"=>jh, "phi"=>φh])
-# writevtk(trian,"results",cellfields=["u"=>uh, "p"=>ph, "j"=>jh, "phi"=>φh])
-#
-# @assert false
 
 neumanntags = [22]
 btrian = BoundaryTriangulation(model,neumanntags)
@@ -197,13 +184,25 @@ end
 # end
 @law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
 
+if use_dimensionless_formulation
+  C_ν = (1/Re)
+  C_j = N
+  C_f = 1/(Re*Re)
+  B_0 = 1/Ha
+else
+  C_ν = ν
+  C_j = 1/ρ
+  C_f = 1
+  B_0 = 1
+end
+
 function a(X,Y)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
   # uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p
-  (1/Δt)*u*v_u + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - 1/ρ * vprod(j,B(x))*v_u +
-  j*v_j + σ*(∇(φ)*v_j) - σ*vprod(u,B(x))*v_j - ∇(v_φ)*j
+  (1/Δt)*u*v_u + C_ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - C_j * vprod(j,B(x)*B_0)*v_u +
+  j*v_j + ∇(φ)*v_j - vprod(u,B(x)*B_0)*v_j + (∇*j)*v_φ
 end
 
 @law conv(u,∇u) = (∇u')*u
@@ -213,8 +212,8 @@ c(u,v) = inner(v,conv(u,∇(u)))
 dc(u,du,v) = inner(v,dconv(du,∇(du),u,∇(u)))
 
 function l(y)
- v_u, v_p, v_j, v_φ = y
- (1/Δt)*un*v_u + v_u*f + v_p*0.0 + v_j*VectorValue(0.0,0.0,0.0) + v_φ*0.0
+  v_u, v_p, v_j, v_φ = y
+  (1/Δt)*un*v_u + v_u*f*C_f + v_p*0.0 + v_j*VectorValue(0.0,0.0,0.0) + v_φ*0.0
 end
 
 u_nbc = VectorValue(0.0,0.0,0.0)
@@ -223,8 +222,8 @@ j_nbc = VectorValue(0.0,0.0,0.0)
 φ_nbc = 0.0
 
 function l_Γ(y)
- v_u, v_p, v_j, v_φ = y
- u_nbc * v_u + p_nbc * v_p + j_nbc * v_j + φ_nbc * v_φ
+  v_u, v_p, v_j, v_φ = y
+  u_nbc * v_u + p_nbc * v_p + j_nbc * v_j + φ_nbc * v_φ
 end
 
 function res(X,Y)

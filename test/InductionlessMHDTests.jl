@@ -7,41 +7,43 @@ using Gridap
 import Gridap: ∇, Δ
 using Test
 
-partition=(3,3,3)
-uh = GridapMHD.main(partition, 1.0e-2)
+partition=(11,11,3)
+uh = GridapMHD.main(partition=partition, Δt=5.0e-2,nt=20,
+              use_dimensionless_formulation=false)
 
 
 
 # domain = (-0.5,0.5,-0.5,0.5,0,0.1)
 # order = 2
-# model = CartesianDiscreteModel(domain,partition,[3])
+# map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,   sign(x[2])*(abs(x[2])*0.5)^0.5,  x[3])
+# model = CartesianDiscreteModel(domain,partition,[3],map)
 # trian = Triangulation(model)
 #
 # labels = get_face_labeling(model)
 # add_tag_from_tags!(labels,"dirichlet",append!(collect(1:20),[23,24,25,26]))
 #
 # Vu = FESpace(
-#       reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-#       conformity=:H1, model=model, dirichlet_tags="dirichlet")
+#  reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
+#  conformity=:H1, model=model, dirichlet_tags="dirichlet")
 #
 # Vj = FESpace(
-#       reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
-#       conformity=:Hdiv, model=model, dirichlet_tags="dirichlet")
+#  reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
+#  conformity=:Hdiv, model=model, dirichlet_tags="dirichlet")
 #
 # Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
 # Ha = 10.0
 # K = Ha / (1-0.825*Ha^(1/2)-Ha^(-1))
 # grad_pz = K / Re
 # u(x) = analytical_solution(0.5,   # a::Float64,        semi-length of side walls
-#                            0.5,   # b::Float64,        semi-length of Hartmann walls
-#                            1.0,   # t_w::Float64,      wall thickness
-#                            0.0,   # σ_w::Float64,      wall conductivity
-#                            1.0,   # σ::Float64,        fluid conductivity
-#                            1.0,   # μ::Float64,        fluid viscosity
-#                          grad_pz, # grad_pz::Float64,  presure gradient
-#                            Ha ,   # Ha::Float64,       Hartmann number
-#                            10 ,   # n::Int,            number of sumands included in Fourier series
-#                            x)[1]  # x)                 evaluation point
+#                       0.5,   # b::Float64,        semi-length of Hartmann walls
+#                       1.0,   # t_w::Float64,      wall thickness
+#                       0.0,   # σ_w::Float64,      wall conductivity
+#                       1.0,   # σ::Float64,        fluid conductivity
+#                       1.0,   # μ::Float64,        fluid viscosity
+#                     grad_pz, # grad_pz::Float64,  presure gradient
+#                       Ha ,   # Ha::Float64,       Hartmann number
+#                       10 ,   # n::Int,            number of sumands included in Fourier series
+#                       x)[1]  # x)                 evaluation point
 # ua(x) = u(x).array
 #
 # j(x) = analytical_solution(0.5,   # a::Float64,        semi-length of side walls
@@ -77,7 +79,7 @@ uh = GridapMHD.main(partition, 1.0e-2)
 # res = integrate(res_u,trian,quad)
 #
 #
-# writevtk(trian,"results",cellfields=["u"=>uh, "j"=>jh, "res_u"=>res])
+# writevtk(trian,"results",cellfields=["u"=>uh])
 
 
 end #module
