@@ -85,8 +85,20 @@ function analytical_solution(a::Float64,       # semi-length of side walls
   return u,j
 end
 
-function main(;partition=(4,4,3),Δt=1e-4,L=1,δ=0.3,nt=4, maxit=5, exact_ic=true,
-              use_dimensionless_formulation=true)
+function main(;
+              partition=(4,4,3),
+              Δt=1e-4,
+              L=1,
+              δ=0.3,
+              nt=4,
+              maxit=5,
+              exact_ic=true,
+              use_dimensionless_formulation=true,
+              f0=VectorValue(0.0,0.0,-0.9260887907),
+              B0=VectorValue(0.0,10.0,0.0),
+              Re=10.0,
+              Ha=10.0
+              )
 
 
 t0 = 0.0
@@ -127,10 +139,10 @@ x = get_physical_coordinate(trian)
 ρ = 1.0
 ν = 1.0
 σ = 1.0
-Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
-Ha = 10.0
+# Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
+# Ha = 10.0
 N = σ*L*(Ha^2)/(ρ*Re)
-K = Ha / (1-0.825*Ha^(1/2)-Ha^(-1))
+K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
 f(x) = VectorValue(0.0,0.0,L^3 * K / Re)
 B(x) = VectorValue(0.0,Ha,0.0)
 analytical_u(x) = analytical_solution(0.5,  # semi-length of side walls
@@ -202,7 +214,7 @@ function a(X,Y)
 
   # uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p
   (1/Δt)*u*v_u + C_ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - C_j * vprod(j,B(x)*B_0)*v_u +
-  j*v_j + ∇(φ)*v_j - vprod(u,B(x)*B_0)*v_j + (∇*j)*v_φ
+  j*v_j + ∇(φ)*v_j - vprod(u,B(x)*B_0)*v_j - ∇(v_φ)*j
 end
 
 @law conv(u,∇u) = (∇u')*u

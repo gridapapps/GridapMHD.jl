@@ -9,9 +9,17 @@ using Test
 
 partition=(11,11,3)
 uh = GridapMHD.main(partition=partition, Δt=5.0e-2,nt=20,
-              use_dimensionless_formulation=false)
+              use_dimensionless_formulation=true)
 
-
+# ρ = 1.0
+# ν = 1.0
+# σ = 1.0
+# Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
+# Ha = 10.0
+# N = σ*L*(Ha^2)/(ρ*Re)
+# K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
+# f(x) = VectorValue(0.0,0.0,L^3 * K / Re)
+# B(x) = VectorValue(0.0,Ha,0.0)
 
 # domain = (-0.5,0.5,-0.5,0.5,0,0.1)
 # order = 2
