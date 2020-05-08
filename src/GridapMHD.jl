@@ -76,7 +76,7 @@ function analytical_solution(a::Float64,       # semi-length of side walls
     dH_dy += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(H2_dy-H3_dy)
 
   end
-  u_z = V/μ * (-grad_pz) * a^2
+  u_z = -V/μ * (-grad_pz) * a^2
   j_x = dH_dy / μ^0.5 * (-grad_pz) * a^2*σ^0.5
   j_y = -dH_dx / μ^0.5 * (-grad_pz) * a^2*σ^0.5
 
@@ -199,7 +199,7 @@ end
 if use_dimensionless_formulation
   C_ν = (1/Re)
   C_j = N
-  C_f = 1/(Re*Re)
+  C_f = 1#/(Re*Re)
   B_0 = 1/Ha
 else
   C_ν = ν

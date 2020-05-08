@@ -8,7 +8,7 @@ import Gridap: ∇, Δ
 using Test
 
 partition=(11,11,3)
-uh = GridapMHD.main(partition=partition, Δt=5.0e-2,nt=20,
+uh = GridapMHD.main(partition=partition, Δt=5.0e-3,nt=20,
               use_dimensionless_formulation=true)
 
 # ρ = 1.0
