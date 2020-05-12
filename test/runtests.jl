@@ -12,4 +12,4 @@ using Test
 
 @time @testset "PeriodicPoisson" begin include("PeriodicPoissonTests.jl") end
 
-@time @testset "InductionlessMHD" begin include("InductionlessMHDTests.jl") end
+@time @testset "Shercliff" begin include("ShercliffTest.jl") end

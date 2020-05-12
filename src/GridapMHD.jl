@@ -5,117 +5,66 @@ using LineSearches: BackTracking
 
 include("PeriodicBC.jl")
 using .PeriodicBC
+
+include("Defaults.jl")
+using .Defaults
 # using Gridap: ∇, divergence
 
 export main
-export analytical_solution
-
-function writePVD(filename,timeSteps)
-  rm(filename,force=true,recursive=true)
-  mkdir(filename)
-  pvdcontent  = """<?xml version="1.0"?>
-<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
-  <Collection>\n"""
-  for t in timeSteps
-    pvdcontent *= """    <DataSet timestep=""" * '"'
-    pvdcontent *= string(t) * '"' * """ group="" part="0" file=""" * '"'
-    pvdcontent *= filename*"""/time_"""*string(t)*""".vtu"/>\n"""
-  end
-  pvdcontent  *= "  </Collection>\n</VTKFile>"
-  f = open(filename * ".pvd", "w")
-  write(f,pvdcontent)
-  close(f)
-end
-
-function analytical_solution(a::Float64,       # semi-length of side walls
-                             b::Float64,       # semi-length of Hartmann walls
-                             t_w::Float64,     # wall thickness
-                             σ_w::Float64,     # wall conductivity
-                             σ::Float64,       # fluid conductivity
-                             μ::Float64,       # fluid viscosity
-                             grad_pz::Float64, # presure gradient
-                             Ha::Float64,      # Hartmann number
-                             n::Int,           # number of sumands included in Fourier series
-                             x)                # evaluation point
-  l = b/a
-  ξ = x[1]/a
-  η = x[2]/a
-
-  d_B = t_w*σ_w/(a*σ)
-
-  V = 0.0
-  dH_dx = 0.0; dH_dy = 0.0
-  for k in 0:n
-    α_k = (k + 0.5)*π/l
-    r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^0.5)
-    r2_k = 0.5*(-Ha + (Ha^2 + 4*α_k^2)^0.5)
-    N = (Ha^2 + 4*α_k^2)^0.5
-
-    V2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))+exp(-r1_k*(1+η))))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
-
-    V3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))+exp(-r2_k*(1+η))))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
-
-    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(1-V2-V3)
-
-    H2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))-exp(-r1_k*(1+η))))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
-
-    H3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))-exp(-r2_k*(1+η))))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
-
-    H2_dy = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))*(r1_k/a)-exp(-r1_k*(1+η))*(-r1_k/a)))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
-
-    H3_dy = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))*(r2_k/a)-exp(-r2_k*(1+η))*(-r2_k/a)))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
-
-
-    dH_dx += -2*(-1)^k*sin(α_k * ξ)/(a*l*α_k^3)*(H2-H3)
-    dH_dy += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(H2_dy-H3_dy)
-
-  end
-  u_z = -V/μ * (-grad_pz) * a^2
-  j_x = dH_dy / μ^0.5 * (-grad_pz) * a^2*σ^0.5
-  j_y = -dH_dx / μ^0.5 * (-grad_pz) * a^2*σ^0.5
-
-  u = VectorValue(0.0,0.0,u_z)
-  j = VectorValue(j_x,j_y,0.0)
-  return u,j
-end
 
 function main(;
-              partition=(4,4,3),
-              Δt=1e-4,
-              L=1,
-              δ=0.3,
-              nt=4,
-              maxit=5,
-              exact_ic=true,
-              use_dimensionless_formulation=true,
-              f0=VectorValue(0.0,0.0,-0.9260887907),
-              B0=VectorValue(0.0,10.0,0.0),
-              Re=10.0,
-              Ha=10.0
-              )
+              partition::NTuple{3,Int}=(4,4,3),
+              map::Function=identity,
+              domain::NTuple{6,Float64}=(-1.0,1.0,-1.0,1.0,0.0,0.3),
+              periodic_dir::Vector{Int}=[],
+              Δt::Float64=1e-4,
+              num_time_steps::Int=4,
+              maxit::Int=5,
+              use_dimensionless_formulation::Bool=true,
+              ν::Float64=1.0,
+              ρ::Float64=1.0,
+              σ::Float64=1.0,
+              L::Float64=1.0,
+              U::Float64=1.0,
+              Re::Float64=1.0,
+              Ha::Float64=1.0,
+              f::Function=default_f,
+              B0::Function=default_B,
+              dirichlet_tags::Array{Array{T,1},1}=[collect(1:26),collect(1:26)],
+              u0::Function=default_u_ic,
+              gx::Function=default_x_dbc,
+              ∂x∂n::Function=default_x_nbc,
+              write_output::Bool=true,
+              output_filename::String="results"
+              ) where T
 
-
+if Δt == 0
+  Δt_inv = 0.0
+  nt = 1
+else
+  Δt_inv = 1.0/Δt
+  nt = num_time_steps
+end
 t0 = 0.0
 tf = Δt*nt
-domain = (-0.5,0.5,-0.5,0.5,0.0,δ)
+
+N = (Ha^2/Re)
+
 order = 2
 
-map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,   sign(x[2])*(abs(x[2])*0.5)^0.5,  x[3])
-model = CartesianDiscreteModel(domain,partition,[3],map)
+if length(periodic_dir) > 0
+  model = CartesianDiscreteModel(domain,partition,periodic_dir,map)
+else
+  model = CartesianDiscreteModel(domain,partition,map)
+end
 
 labels = get_face_labeling(model)
-add_tag_from_tags!(labels,"dirichlet_u",append!(collect(1:21),[23,24,25,26]))
-add_tag_from_tags!(labels,"dirichlet_j",append!(collect(1:20),[23,24,25,26]))
+add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags[1])
+add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags[2])
 
 Vu = FESpace(
     reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-    conformity=:H1, model=model, dirichlet_tags="dirichlet_j")
+    conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
 
 Vp = FESpace(
     reffe=:PLagrangian, order=order-1, valuetype=Float64,
@@ -134,61 +83,24 @@ trian = Triangulation(model)
 degree = 2*(order+1)
 quad = CellQuadrature(trian,degree)
 
-# B? uk?
-x = get_physical_coordinate(trian)
-ρ = 1.0
-ν = 1.0
-σ = 1.0
-# Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
-# Ha = 10.0
-N = σ*L*(Ha^2)/(ρ*Re)
-K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
-f(x) = VectorValue(0.0,0.0,L^3 * K / Re)
-B(x) = VectorValue(0.0,Ha,0.0)
-analytical_u(x) = analytical_solution(0.5,  # semi-length of side walls
-                                      0.5,  # semi-length of Hartmann walls
-                                      0.0,  # wall conductivity
-                                      1.0,  # wall thickness
-                                      1.0,  # fluid conductivity
-                                      1.0,  # fluid viscosity
-                                      K/Re, # presure gradient
-                                      Ha,   # Hartmann number
-                                      10,   # number of sumands included in Fourier series
-                                      x)[1]
-analytical_j(x) = analytical_solution(0.5,  # semi-length of side walls
-                                      0.5,  # semi-length of Hartmann walls
-                                      0.0,  # wall conductivity
-                                      1.0,  # wall thickness
-                                      1.0,  # fluid conductivity
-                                      1.0,  # fluid viscosity
-                                      K/Re, # presure gradient
-                                      Ha,   # Hartmann number
-                                      10,   # number of sumands included in Fourier series
-                                      x)[2]
-
-u0 = VectorValue(0.0,0.0,10.00)
-gu = VectorValue(0.0,0.0,0.0)
-gj = VectorValue(0.0,0.0,0.0)
-
-U = TrialFESpace(Vu,analytical_u)
+gu(x) = gx(x)[1]
+gj(x) = gx(x)[2]
+U = TrialFESpace(Vu,gu)
 P = TrialFESpace(Vp)
 j = TrialFESpace(Vj,gj)
 φ = TrialFESpace(Vφ)
+un = interpolate(Vu, u0)
 
 Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
 X = MultiFieldFESpace([U, P, j, φ])
 
-neumanntags = [22]
+neumanntags = setdiff(collect(1:26),dirichlet_tags)
 btrian = BoundaryTriangulation(model,neumanntags)
 degree = 2*(order-1)
 bquad = CellQuadrature(btrian,degree)
 nb = get_normal_vector(btrian)
 
-if exact_ic
-  un = interpolate(Vu, analytical_u)
-else
-  un = interpolate(Vu, u0)
-end
+
 # @law function jxB(x)
 #   a = analytical_j(x)
 #   b = B(x)
@@ -199,7 +111,7 @@ end
 if use_dimensionless_formulation
   C_ν = (1/Re)
   C_j = N
-  C_f = 1#/(Re*Re)
+  C_f = 1/(Re*Re)
   B_0 = 1/Ha
 else
   C_ν = ν
@@ -208,13 +120,14 @@ else
   B_0 = 1
 end
 
+x = get_physical_coordinate(trian)
 function a(X,Y)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
   # uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p
-  (1/Δt)*u*v_u + C_ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - C_j * vprod(j,B(x)*B_0)*v_u +
-  j*v_j + ∇(φ)*v_j - vprod(u,B(x)*B_0)*v_j - ∇(v_φ)*j
+  Δt_inv*u*v_u + C_ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - C_j * vprod(j,B0(x)*B_0)*v_u +
+  j*v_j + ∇(φ)*v_j - vprod(u,B0(x)*B_0)*v_j - ∇(v_φ)*j
 end
 
 @law conv(u,∇u) = (∇u')*u
@@ -223,19 +136,24 @@ end
 c(u,v) = inner(v,conv(u,∇(u)))
 dc(u,du,v) = inner(v,dconv(du,∇(du),u,∇(u)))
 
+f_u(x) = f(x)[1]
+f_p(x) = f(x)[2]
+f_j(x) = f(x)[3]
+f_φ(x) = f(x)[4]
+
 function l(y)
   v_u, v_p, v_j, v_φ = y
-  (1/Δt)*un*v_u + v_u*f*C_f + v_p*0.0 + v_j*VectorValue(0.0,0.0,0.0) + v_φ*0.0
+  Δt_inv*un*v_u + v_u*f_u(x)*C_f + v_p*f_p(x) + v_j*f_j(x) + v_φ*f_φ(x)
 end
 
-u_nbc = VectorValue(0.0,0.0,0.0)
-p_nbc = 0.0
-j_nbc = VectorValue(0.0,0.0,0.0)
-φ_nbc = 0.0
+u_nbc(x) = ∂x∂n(x)[1]
+p_nbc(x) = ∂x∂n(x)[2]
+j_nbc(x) = ∂x∂n(x)[3]
+φ_nbc(x) = ∂x∂n(x)[4]
 
 function l_Γ(y)
   v_u, v_p, v_j, v_φ = y
-  u_nbc * v_u + p_nbc * v_p + j_nbc * v_j + φ_nbc * v_φ
+  u_nbc(x) * v_u + p_nbc(x) * v_p + j_nbc(x) * v_j + φ_nbc(x) * v_φ
 end
 
 function res(X,Y)
@@ -260,15 +178,22 @@ solver = FESolver(nls)
 
 timeSteps = collect(t0:Δt:tf)
 
-writePVD("results",timeSteps[1:end])
-writevtk(trian, "results/time_"*string(t0)*".vtu",cellfields=["u"=>un])
+if write_output
+  writePVD("results",timeSteps[1:end])
+  writevtk(trian, "results/time_"*string(t0)*".vtu",cellfields=["u"=>un])
+end
 
 for t in timeSteps[2:end]
 
   xh = solve(solver,op)
   un, pn, jn, φn = xh
 
-  writevtk(trian,"results/time_"*string(t)*".vtu",cellfields=["u"=>un, "p"=>pn, "j"=>jn, "phi"=>φn])
+  if (write_output)
+    writevtk(trian,"results/time_"*string(t)*".vtu",cellfields=["u"=>un,
+                                                                "p"=>pn,
+                                                                "j"=>jn,
+                                                                "phi"=>φn])
+  end
 
   @show t
 
