@@ -4,7 +4,7 @@ using Gridap
 
 export writePVD
 export shercliff_solution
-export default_x_ic
+export default_u_ic
 export default_x_dbc
 export default_x_nbc
 export defualt_f
@@ -28,8 +28,20 @@ function writePVD(filename,timeSteps)
 end
 
 # Default force
-function default_f(x)
-  return [VectorValue(0.0,0.0,0.0), 0.0, VectorValue(0.0,0.0,0.0), 0.0]
+function default_f_u(x)
+  return VectorValue(0.0,0.0,0.0)
+end
+# Default force
+function default_f_p(x)
+  return 0.0
+end
+# Default force
+function default_f_j(x)
+  return VectorValue(0.0,0.0,0.0)
+end
+# Default force
+function default_f_φ(x)
+  return 0.0
 end
 
 # Default external magnetic field
@@ -38,7 +50,7 @@ function default_B(x)
 end
 
 # Default initial conditions
-function default_x_ic(x)
+function default_u_ic(x)
   return VectorValue(0.0,0.0,0.0)
 end
 

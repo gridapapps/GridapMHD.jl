@@ -63,8 +63,8 @@ export CartesianDiscreteModel
 function CartesianDescriptor(domain,partition,periodic::Array{Int,1},map::Function=identity)
   D = length(partition)
   limits = [(domain[2*d-1],domain[2*d]) for d in 1:D]
-  sizes = [(limits[d][2]-limits[d][1])/partition[d] for d in 1:D]
-  origin = [ limits[d][1] for d in 1:D]
+  sizes = Tuple([(limits[d][2]-limits[d][1])/partition[d] for d in 1:D])
+  origin = Point([ limits[d][1] for d in 1:D]...)
   return CartesianDescriptor(origin,sizes,partition,map), periodic
 end
 

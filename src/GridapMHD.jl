@@ -1,7 +1,7 @@
 module GridapMHD
 
 using Gridap
-using LineSearches: BackTracking
+using LineSearches: BackTracking, Static
 
 include("PeriodicBC.jl")
 using .PeriodicBC
@@ -13,37 +13,43 @@ using .Defaults
 export main
 
 function main(;
-              partition::NTuple{3,Int}=(4,4,3),
-              map::Function=identity,
-              domain::NTuple{6,Float64}=(-1.0,1.0,-1.0,1.0,0.0,0.3),
-              periodic_dir::Vector{Int}=[],
-              Δt::Float64=1e-4,
-              num_time_steps::Int=4,
-              maxit::Int=5,
-              use_dimensionless_formulation::Bool=true,
-              ν::Float64=1.0,
-              ρ::Float64=1.0,
-              σ::Float64=1.0,
-              L::Float64=1.0,
-              U::Float64=1.0,
-              Re::Float64=1.0,
-              Ha::Float64=1.0,
-              f::Function=default_f,
-              B0::Function=default_B,
-              dirichlet_tags::Array{Array{T,1},1}=[collect(1:26),collect(1:26)],
-              u0::Function=default_u_ic,
-              gx::Function=default_x_dbc,
-              ∂x∂n::Function=default_x_nbc,
-              write_output::Bool=true,
-              output_filename::String="results"
-              ) where T
+  partition::NTuple{3,Int}=(4,4,3),
+  map::Function=identity,
+  domain::NTuple{6,Float64}=(-1.0,1.0,-1.0,1.0,0.0,0.3),
+  periodic_dir::Array{Union{Int,Any},1}=[],
+  Δt::Float64=1e-4,
+  num_time_steps::Int=4,
+  maxit::Int=5,
+  use_dimensionless_formulation::Bool=true,
+  ν::Float64=1.0,
+  ρ::Float64=1.0,
+  σ::Float64=1.0,
+  L::Float64=1.0,
+  U::Float64=1.0,
+  Re::Float64=1.0,
+  Ha::Float64=1.0,
+  f_u::Function=default_f_u,
+  f_p::Function=default_f_p,
+  f_j::Function=default_f_j,
+  f_φ::Function=default_f_φ,
+  B0::Function=default_B,
+  dirichlet_tags_u::Vector=collect(1:26),
+  dirichlet_tags_j::Vector=collect(1:26),
+  u0::Function=default_u_ic,
+  g_x::Function=default_x_dbc,
+  ∂x∂n::Function=default_x_nbc,
+  write_output::Bool=true,
+  output_filename::String="results"
+  )
 
 if Δt == 0
   Δt_inv = 0.0
   nt = 1
+  timeSteps = [0.0,0.0]
 else
   Δt_inv = 1.0/Δt
   nt = num_time_steps
+  timeSteps = collect(t0:Δt:tf)
 end
 t0 = 0.0
 tf = Δt*nt
@@ -51,7 +57,6 @@ tf = Δt*nt
 N = (Ha^2/Re)
 
 order = 2
-
 if length(periodic_dir) > 0
   model = CartesianDiscreteModel(domain,partition,periodic_dir,map)
 else
@@ -59,8 +64,8 @@ else
 end
 
 labels = get_face_labeling(model)
-add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags[1])
-add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags[2])
+add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
+add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
 
 Vu = FESpace(
     reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
@@ -80,23 +85,23 @@ Vφ = FESpace(
 
 
 trian = Triangulation(model)
-degree = 2*(order+1)
+degree = 2*(order)
 quad = CellQuadrature(trian,degree)
 
-gu(x) = gx(x)[1]
-gj(x) = gx(x)[2]
-U = TrialFESpace(Vu,gu)
+g_u(x) = g_x(x)[1]
+g_j(x) = g_x(x)[2]
+U = TrialFESpace(Vu,g_u)
 P = TrialFESpace(Vp)
-j = TrialFESpace(Vj,gj)
+j = TrialFESpace(Vj,g_j)
 φ = TrialFESpace(Vφ)
 un = interpolate(Vu, u0)
 
 Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
 X = MultiFieldFESpace([U, P, j, φ])
 
-neumanntags = setdiff(collect(1:26),dirichlet_tags)
+neumanntags = setdiff(collect(1:26),dirichlet_tags_u)
 btrian = BoundaryTriangulation(model,neumanntags)
-degree = 2*(order-1)
+degree = 2*(order)
 bquad = CellQuadrature(btrian,degree)
 nb = get_normal_vector(btrian)
 
@@ -112,7 +117,7 @@ if use_dimensionless_formulation
   C_ν = (1/Re)
   C_j = N
   C_f = 1/(Re*Re)
-  B_0 = 1/Ha
+  B_0 = if (Ha > 0) 1/Ha else 0.0 end
 else
   C_ν = ν
   C_j = 1/ρ
@@ -126,8 +131,11 @@ function a(X,Y)
   v_u, v_p, v_j, v_φ = Y
 
   # uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p
-  Δt_inv*u*v_u + C_ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p - C_j * vprod(j,B0(x)*B_0)*v_u +
-  j*v_j + ∇(φ)*v_j - vprod(u,B0(x)*B_0)*v_j - ∇(v_φ)*j
+  # Δt_inv*u*v_u +
+  C_ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + # - C_j * vprod(j,B0(x)*B_0)*v_u +
+  (∇*u)*v_p +
+  j*v_j + ∇(φ)*v_j - vprod(u,B0(x)*B_0)*v_j -
+  ∇(v_φ)*j
 end
 
 @law conv(u,∇u) = (∇u')*u
@@ -136,20 +144,15 @@ end
 c(u,v) = inner(v,conv(u,∇(u)))
 dc(u,du,v) = inner(v,dconv(du,∇(du),u,∇(u)))
 
-f_u(x) = f(x)[1]
-f_p(x) = f(x)[2]
-f_j(x) = f(x)[3]
-f_φ(x) = f(x)[4]
-
 function l(y)
   v_u, v_p, v_j, v_φ = y
-  Δt_inv*un*v_u + v_u*f_u(x)*C_f + v_p*f_p(x) + v_j*f_j(x) + v_φ*f_φ(x)
+  #Δt_inv*un*v_u +
+  v_u*f_u*C_f + v_p*f_p + v_j*f_j + v_φ*f_φ
 end
 
-u_nbc(x) = ∂x∂n(x)[1]
-p_nbc(x) = ∂x∂n(x)[2]
-j_nbc(x) = ∂x∂n(x)[3]
-φ_nbc(x) = ∂x∂n(x)[4]
+h_u(x) = ∂x∂n(x)[1]
+h_j(x) = ∂x∂n(x)[3]
+h_φ(x) = ∂x∂n(x)[4]
 
 function l_Γ(y)
   v_u, v_p, v_j, v_φ = y
@@ -159,24 +162,23 @@ end
 function res(X,Y)
   u   = X[1]
   v_u = Y[1]
-  a(X,Y) + c(u, v_u) - l(Y)
+  a(X,Y) - l(Y) #  + c(u, v_u)
 end
 
 function jac(X,Y,dX)
   u   = X[1]
   v_u = Y[1]
   du  = dX[1]
-  a(dX,Y) + dc(u,du,v_u)
+  a(dX,Y) #+ dc(u,du,v_u)
 end
 
 t_Ω = FETerm(res,jac,trian,quad)
 t_Γ = FESource(l_Γ,btrian,bquad)
 op  = FEOperator(X,Y,t_Ω)
 
-nls = NLSolver(show_trace=true, method=:newton, linesearch=BackTracking(), iterations=maxit)
+nls = NLSolver(show_trace=true, method=:newton, linesearch=Static(), iterations=maxit)
 solver = FESolver(nls)
 
-timeSteps = collect(t0:Δt:tf)
 
 if write_output
   writePVD("results",timeSteps[1:end])
@@ -195,7 +197,6 @@ for t in timeSteps[2:end]
                                                                 "phi"=>φn])
   end
 
-  @show t
 
   # Update operator
   op = FEOperator(X,Y,t_Ω)

@@ -10,10 +10,6 @@ import Gridap: ∇, Δ
 using Test
 
 partition=(10,10,3)
-# uh = GridapMHD.main(partition=partition, Δt=5.0e-3,nt=300,L=1, maxit=1,
-#               use_dimensionless_formulation=true)
-
-
 map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,   sign(x[2])*(abs(x[2])*0.5)^0.5,  x[3])
 
 ρ = 1.0
@@ -44,7 +40,7 @@ u0(x) = Defaults.shercliff_solution(0.5,   # a::Float64,        semi-length of s
 uh =  main(partition           = partition,
            map                 = map,
            periodic_dir        = [3],
-           domain              = (-1.0,1.0,-1.0,1.0,0.0,0.3),
+           domain              = (-0.5,0.5,-0.5,0.5,0.0,0.3),
            Δt                  = 1e-2,
            num_time_steps      = 2,
            maxit               = 5,
