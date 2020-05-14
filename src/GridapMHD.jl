@@ -146,7 +146,7 @@ dc(u,du,v) = inner(v,dconv(du,∇(du),u,∇(u)))
 
 function l(y)
   v_u, v_p, v_j, v_φ = y
-  #Δt_inv*un*v_u +
+  # Δt_inv*un*v_u +
   v_u*f_u*C_f + v_p*f_p + v_j*f_j + v_φ*f_φ
 end
 
