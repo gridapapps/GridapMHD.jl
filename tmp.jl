@@ -6,11 +6,11 @@ using LinearAlgebra
 using Test
 
 u(x) = VectorValue(x[1]+x[2],-x[1]-x[2],1.0)
-p(x) = x[1]+x[2]+x[3]-1.5
-j(x) = VectorValue(x[2],-x[1],0.0)
-φ(x) = x[1]+x[2]+x[3]-1.5
+p(x) = x[1]+x[2]+x[3]
+j(x) = VectorValue(x[1]+x[2],-x[1]-x[2],1.0)
+φ(x) = x[1]+x[2]+x[3]
 
-B = VectorValue(0.0,1.0,0.0)
+B = VectorValue(1.0,1.0,1.0)
 
 # f_u(x) = ((∇(u)(x))')*u(x) - Δ(u)(x) + ∇(p)(x)
 # f_p(x) = (∇*u)(x)
@@ -19,16 +19,16 @@ B = VectorValue(0.0,1.0,0.0)
 
 @law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
 
-f_u(x) = 2.0*VectorValue(x[1]+x[2],x[1]+x[2],0.0) + VectorValue(1.0,1.0,1.0)
+f_u(x) = 2.0*VectorValue(x[1]+x[2],x[1]+x[2],0.0) + VectorValue(1.0,1.0,1.0) - vprod(j(x),B)
 f_p(x) = 0.0
-f_j(x) = j(x) + VectorValue(1.0,1.0,1.0) #- vprod(u(x),B)
+f_j(x) = j(x) + VectorValue(1.0,1.0,1.0) - vprod(u(x),B)
 f_φ(x) = 0.0
 
 g_u(x) = u(x)
 g_j(x) = j(x)
 
 n = 4
-domain = (0,1,0,1,0,1)
+domain = (-0.5,0.5,-0.5,0.5,-0.5,0.5)
 partition = (n,n,n)
 model = CartesianDiscreteModel(domain,partition)
 
@@ -71,10 +71,10 @@ function a(X,Y)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
-  uk*(∇(u)*v_u) + inner(∇(u),∇(v_u)) - p*(∇*v_u) +
+  uk*(∇(u)*v_u) + inner(∇(u),∇(v_u)) - p*(∇*v_u) - vprod(j,B)*v_u +
   (∇*u)*v_p +
-  j*v_j - φ*(∇*v_j) + # vprod(u,B)*v_j
-  (∇*j)*(v_φ)
+  j*v_j - φ*(∇*v_j) - vprod(u,B)*v_j +
+  (∇*j)*v_φ
 end
 
 function l(Y)
@@ -83,7 +83,7 @@ function l(Y)
   v_u*f_u + v_p*f_p + v_j*f_j + v_φ*f_φ
 end
 
-btrian = BoundaryTriangulation(model,"boundary")
+btrian = BoundaryTriangulation(model,[25,26])
 bquad = CellQuadrature(btrian,degree)
 
 nb = get_normal_vector(btrian)
