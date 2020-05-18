@@ -26,7 +26,7 @@ Vj = FESpace(
 
 Vφ = FESpace(
     reffe=:QLagrangian, order=order-1, valuetype=Float64,
-    conformity=:H1, model=model)
+    conformity=:L2, model=model)
 
 Uj = TrialFESpace(Vj,g_j)
 Uϕ = TrialFESpace(Vφ)
@@ -38,6 +38,9 @@ v_φ = FEFunction(Vφ,rand(num_free_dofs(Vφ)))
 
 trian = Triangulation(model)
 
+trian_Γi = SkeletonTriangulation(model)
+n_Γi = get_normal_vector(trian_Γi)
+
 trian_Γn = BoundaryTriangulation(model,"neumann_j")
 n_Γn = get_normal_vector(trian_Γn)
 
@@ -46,26 +49,32 @@ n_Γd = get_normal_vector(trian_Γd)
 
 jh_Γn = restrict(jh,trian_Γn)
 jh_Γd = restrict(jh,trian_Γd)
+jh_Γi = restrict(jh,trian_Γi)
 
 v_φ_Γn = restrict(v_φ,trian_Γn)
 v_φ_Γd = restrict(v_φ,trian_Γd)
+v_φ_Γi = restrict(v_φ,trian_Γi)
 
 quad = CellQuadrature(trian,2*order)
 quad_Γn = CellQuadrature(trian_Γn,2*order)
 quad_Γd = CellQuadrature(trian_Γd,2*order)
+quad_Γi = CellQuadrature(trian_Γi,2*order)
 
 a_Ω(j,v_φ) = v_φ*(∇*j)
 b_Ω(j,v_φ) = - ∇(v_φ)*j
 c_Γn(j,v_φ) = n_Γn*(v_φ*j)
 d_Γd(v_φ) = - n_Γd*(v_φ*g_j)
+e_Γi(j,v_φ) = jump(n_Γi*v_φ)*mean(j)
 
 ia = sum( integrate( a_Ω(jh,v_φ), trian, quad) )
 ib = sum( integrate( b_Ω(jh,v_φ), trian, quad) )
 ic = sum( integrate( c_Γn(jh_Γn,v_φ_Γn), trian_Γn, quad_Γn) )
 id = sum( integrate( d_Γd(v_φ_Γd), trian_Γd, quad_Γd) )
+ie = sum( integrate( e_Γi(jh_Γi,v_φ_Γi), trian_Γi, quad_Γi) )
 
 @show ia
-@show ib + ic - id
+@show ib + ic - id + ie
+@show abs(-ia + ib + ic - id + ie) < 1e-12
 
 
 
