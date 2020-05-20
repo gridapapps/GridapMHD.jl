@@ -106,11 +106,6 @@ bquad = CellQuadrature(btrian,degree)
 nb = get_normal_vector(btrian)
 
 
-# @law function jxB(x)
-#   a = analytical_j(x)
-#   b = B(x)
-#   return VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
-# end
 @law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
 
 if use_dimensionless_formulation
@@ -130,12 +125,11 @@ function a(X,Y)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
-  # uk*(∇(u)*v_u) + ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + (∇*u)*v_p
   # Δt_inv*u*v_u +
-  C_ν*inner(∇(u),∇(v_u)) - p*(∇*v_u) + # - C_j * vprod(j,B0(x)*B_0)*v_u +
+  (∇(u)'*uk)*v_u + inner(∇(u),∇(v_u)) - p*(∇*v_u) - vprod(j,B)*v_u +
   (∇*u)*v_p +
-  j*v_j + ∇(φ)*v_j - vprod(u,B0(x)*B_0)*v_j -
-  ∇(v_φ)*j
+  j*v_j - φ*(∇*v_j) - vprod(u,B)*v_j +
+  (∇*j)*v_φ
 end
 
 @law conv(u,∇u) = (∇u')*u
@@ -151,12 +145,15 @@ function l(y)
 end
 
 h_u(x) = ∂x∂n(x)[1]
-h_j(x) = ∂x∂n(x)[3]
-h_φ(x) = ∂x∂n(x)[4]
+# h_u = ∇u * n
 
-function l_Γ(y)
+function l_Γ_u(y)
   v_u, v_p, v_j, v_φ = y
-  u_nbc(x) * v_u + p_nbc(x) * v_p + j_nbc(x) * v_j + φ_nbc(x) * v_φ
+  h_u(x) * v_u - (nb_u * v_p)*p
+end
+function l_Γ_j(y)
+  v_u, v_p, v_j, v_φ = y
+  - φ(x) * (v_j * nb_j)
 end
 
 function res(X,Y)

@@ -1,115 +1,157 @@
 module ConvergenceMHDTest
 
-include("../src/GridapMHD.jl")
-using .GridapMHD
-
-include("../src/Defaults.jl")
-
 using Gridap
-import Gridap: ∇
-using LinearAlgebra: tr
 using Test
+using Polynomials: fit
 
-vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
+u(x) = VectorValue(x[1]^4+x[2]^4,-x[1]^2-x[2]^3,one(x[1])+sin(x[2]^4))
+p(x) = sin(x[1]+x[2]+x[3])
+j(x) = VectorValue(x[1]^4+x[2],-x[1]-cos(x[2]),one(x[1])+x[3]^4)
+φ(x) = sin(x[1]+x[2]+x[3])
+B = VectorValue(1.0,1.0,1.0)
 
-u(x) = VectorValue(x[1]+x[2],-x[1]-x[2],1.0)
-p(x) = x[1]+x[2]+x[3]
-j(x) = VectorValue(x[1]+x[2]+x[3],x[1]+x[2]+x[3],x[1]+x[2]+x[3])
-φ(x) = x[1]+x[2]+x[3]
+∇u(x) = ∇(u)(x)
+Δu(x) = Δ(u)(x)
+∇p(x) = ∇(p)(x)
+∇φ(x) = ∇(φ)(x)
 
-# ∇u(x) = ∇(u)(x)
-# Δu(x) = Δ(u)(x)
-# ∇p(x) = ∇(p)(x)
-# ∇φ(x) = ∇(φ)(x)
-# divu(x) = (∇*u)(x)
-# divj(x) = (∇*j)(x)
-
-∇u(x) = TensorValue(1.0,1.0,0.0,-1.0,-1.0,0.0,0.0,0.0,0.0)
-Δu(x) = VectorValue(0.0,0.0,0.0)
-∇p(x) = VectorValue(1.0,1.0,1.0)
-∇φ(x) = VectorValue(1.0,1.0,1.0)
-divu(x) = 0.0
-divj(x) = 3.0
-
-f_u(x) = - Δu(x) + ∇p(x) #- vprod(j(x),B(x)*B0) + (∇u(x)')*u(x)
-f_p(x) = divu(x)
-f_j(x) = j(x) + ∇φ(x) - vprod(u(x),B(x)*B0)
-f_φ(x) = divj(x)
-
-f(x) = [f_u(x),f_p(x),f_j(x),f_φ(x)]
-
-partition=(3,3,2)
-map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5, sign(x[2])*(abs(x[2])*0.5)^0.5, x[3])
-
-ρ = 1.0
-ν = 1.0
-σ = 1.0
-Re = 1.0 # U = 10.0, L = 1.0/ ν = 1.0
-Ha = 0.0
-B0 = 1.0
-L = 1.0
-N = Ha^2/Re
-K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
-# f(x) = [VectorValue(0.0,0.0,-L^3 * K / Re), 0.0, VectorValue(0.0,0.0,0.0), 0.0]
-B(x) = VectorValue(0.0,0.0,0.0)
-
-dirichlet_tags = [append!(collect(1:20),[23,24,25,26]),
-                  append!(collect(1:20),[23,24,25,26])]
-
-dirichlet_tags_u = collect(1:26)
-dirichlet_tags_j = collect(1:26)
+@law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
 
 
-function bc(x)
-  return [u(x), j(x)]
-end
+f_u(x) = (∇u(x)')*u(x) - Δu(x) + ∇p(x) - vprod(j(x),B)
+f_p(x) = (∇*u)(x)
+f_j(x) = j(x) + ∇φ(x) - vprod(u(x),B)
+f_φ(x) = (∇*j)(x)
 
+g_u(x) = u(x)
+g_j(x) = j(x)
 
+eu_l2 = Vector{Float64}()
+eu_h1 = Vector{Float64}()
+ep_l2 = Vector{Float64}()
+ej_l2 = Vector{Float64}()
+ej_hdiv = Vector{Float64}()
+eφ_l2 = Vector{Float64}()
 
-uh =  GridapMHD.main(
-  partition = partition,
-  map = map,
-  periodic_dir = [],
-  domain = (-0.5,0.5,-0.5,0.5,0.0,0.3),
-  Δt = 0.0,
-  num_time_steps = 2,
-  maxit = 3,
-  use_dimensionless_formulation = false,
-  ν = 1.0,
-  ρ = 1.0,
-  σ = 1.0,
-  L = 1.0,
-  Re = 1.0,
-  Ha = 0.0,
-  f_u = f_u,
-  f_p = f_p,
-  f_j = f_j,
-  f_φ = f_φ,
-  B0 = B,
-  dirichlet_tags_u = dirichlet_tags_u,
-  dirichlet_tags_j = dirichlet_tags_j,
-  g_x = bc,
-  u0 = u
-  )
+order = 2
+nxs = 2:5
+domain = (-0.5,0.5,-0.5,0.5,-0.5,0.5)
 
-
-## Print u0
-
-print_u0 = false
-if print_u0
-  model = CartesianDiscreteModel((-0.5,0.5,-0.5,0.5,0.0,0.3),partition,[3],map)
+for n=nxs
+  partition = (n,n,n)
+  model = CartesianDiscreteModel(domain,partition)
 
   labels = get_face_labeling(model)
-  add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags[1])
+  add_tag_from_tags!(labels,"dirichlet_u",collect(1:24))
+  add_tag_from_tags!(labels,"dirichlet_j",collect(1:24))
+  add_tag_from_tags!(labels,"neumann_u",collect(25:26))
+  add_tag_from_tags!(labels,"neumann_j",collect(25:26))
+
 
   Vu = FESpace(
-   reffe=:Lagrangian, order=2, valuetype=VectorValue{3,Float64},
-   conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
+      reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
+      conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
 
-  uh = interpolate_everywhere(Vu,u0)
+  Vp = FESpace(
+      reffe=:PLagrangian, order=order-1, valuetype=Float64,
+      conformity=:L2, model=model)
+
+  Vj = FESpace(
+      reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
+      conformity=:Hdiv, model=model, dirichlet_tags="dirichlet_j")
+
+  Vφ = FESpace(
+      reffe=:QLagrangian, order=order-1, valuetype=Float64,
+      conformity=:L2, model=model)
+
+  U = TrialFESpace(Vu,g_u)
+  P = TrialFESpace(Vp)
+  J = TrialFESpace(Vj,g_j)
+  Φ = TrialFESpace(Vφ)
+
+  Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
+  X = MultiFieldFESpace([U, P, J, Φ])
 
   trian = Triangulation(model)
-  writevtk(trian,"results",nsubcells=2,cellfields=["u"=>uh])
+  degree = 2*(order)
+  quad = CellQuadrature(trian,degree)
+
+  uk = interpolate(U,u)
+  function a(X,Y)
+    u  , p  , j  , φ   = X
+    v_u, v_p, v_j, v_φ = Y
+
+    (∇(u)'*uk)*v_u + inner(∇(u),∇(v_u)) - p*(∇*v_u) - vprod(j,B)*v_u +
+    (∇*u)*v_p +
+    j*v_j - φ*(∇*v_j) - vprod(u,B)*v_j +
+    (∇*j)*v_φ
+  end
+
+  function l(Y)
+    v_u, v_p, v_j, v_φ = Y
+
+    v_u*f_u + v_p*f_p + v_j*f_j + v_φ*f_φ
+  end
+
+  btrian_u = BoundaryTriangulation(model,"neumann_u")
+  bquad_u = CellQuadrature(btrian_u,degree)
+  nb_u = get_normal_vector(btrian_u)
+
+  function l_Γ_u(Y)
+    v_u, v_p, v_j, v_φ = Y
+
+    v_u*(nb_u*∇u) - (nb_u*v_u)*p
+  end
+
+  btrian_j = BoundaryTriangulation(model,"neumann_j")
+  bquad_j = CellQuadrature(btrian_j,degree)
+  nb_j = get_normal_vector(btrian_j)
+
+  function l_Γ_j(Y)
+    v_u, v_p, v_j, v_φ = Y
+
+    -(v_j*nb_j)*φ
+  end
+
+  t_Ω = AffineFETerm(a,l,trian,quad)
+  t_Γ_u = FESource(l_Γ_u,btrian_u,bquad_u)
+  t_Γ_j = FESource(l_Γ_j,btrian_j,bquad_j)
+  op  = AffineFEOperator(X,Y,t_Ω, t_Γ_u, t_Γ_j )
+
+  xh = solve(op)
+  uh, ph, jh, φh = xh
+
+  eu = uh - u
+  ep = ph - p
+  ej = jh - j
+  eφ = φh - φ
+
+  l2(v) = v*v
+  h1(v) = v*v + inner(∇(v),∇(v))
+  hdiv(v) = v*v + inner((∇*v),(∇*v))
+
+  append!(eu_l2, sqrt(sum(integrate(l2(eu),trian,quad))))
+  append!(eu_h1, sqrt(sum(integrate(h1(eu),trian,quad))))
+  append!(ep_l2, sqrt(sum(integrate(l2(ep),trian,quad))))
+  append!(ej_l2, sqrt(sum(integrate(l2(ej),trian,quad))))
+  append!(ej_hdiv, sqrt(sum(integrate(hdiv(ej),trian,quad))))
+  append!(eφ_l2, sqrt(sum(integrate(l2(eφ),trian,quad))))
+
 end
+
+
+slope_eu_l2 = fit([log(x) for x in nxs], [log(y) for y in eu_l2], 1)[end]
+slope_eu_h1 = fit([log(x) for x in nxs], [log(y) for y in eu_h1], 1)[end]
+slope_ep_l2 = fit([log(x) for x in nxs], [log(y) for y in ep_l2], 1)[end]
+slope_ej_l2 = fit([log(x) for x in nxs], [log(y) for y in ej_l2], 1)[end]
+slope_ej_hdiv = fit([log(x) for x in nxs], [log(y) for y in ej_hdiv], 1)[end]
+slope_eφ_l2 = fit([log(x) for x in nxs], [log(y) for y in eφ_l2], 1)[end]
+
+@test abs(slope_eu_l2 + order + 1.0) < 2e-1
+@test abs(slope_eu_h1 + order) < 2e-1
+@test abs(slope_ep_l2 + order) < 2e-1
+@test abs(slope_ej_l2 + order + 1.0) < 2e-1
+@test abs(slope_ej_hdiv + order) < 2e-1
+@test abs(slope_eφ_l2 + order) < 2e-1
 
 end #module
