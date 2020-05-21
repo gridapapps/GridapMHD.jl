@@ -6,11 +6,13 @@ export writePVD
 export shercliff_solution
 export default_u_ic
 export default_g
-export default_∇u_n
 export default_p
 export default_φ
-export defualt_f
-export defualt_B
+export default_∇u_n
+export default_f_p
+export default_f_φ
+export default_f_j
+export defualt_f_B
 
 function writePVD(filename,timeSteps)
   rm(filename,force=true,recursive=true)
@@ -75,16 +77,16 @@ function default_φ(x)
 end
 
 
-function shercliff_solution(a::Float64,       # semi-length of side walls
-                            b::Float64,       # semi-length of Hartmann walls
-                            t_w::Float64,     # wall thickness
-                            σ_w::Float64,     # wall conductivity
-                            σ::Float64,       # fluid conductivity
-                            μ::Float64,       # fluid viscosity
-                            grad_pz::Float64, # presure gradient
-                            Ha::Float64,      # Hartmann number
-                            n::Int,           # number of sumands included in Fourier series
-                            x)                # evaluation point
+function shercliff_u(a::Float64,       # semi-length of side walls
+                     b::Float64,       # semi-length of Hartmann walls
+                     t_w::Float64,     # wall thickness
+                     σ_w::Float64,     # wall conductivity
+                     σ::Float64,       # fluid conductivity
+                     μ::Float64,       # fluid viscosity
+                     grad_pz::Float64, # presure gradient
+                     Ha::Float64,      # Hartmann number
+                     n::Int,           # number of sumands included in Fourier series
+                     x)                # evaluation point
   l = b/a
   ξ = x[1]/a
   η = x[2]/a
@@ -92,7 +94,6 @@ function shercliff_solution(a::Float64,       # semi-length of side walls
   d_B = t_w*σ_w/(a*σ)
 
   V = 0.0
-  dH_dx = 0.0; dH_dy = 0.0
   for k in 0:n
     α_k = (k + 0.5)*π/l
     r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^0.5)
@@ -106,6 +107,36 @@ function shercliff_solution(a::Float64,       # semi-length of side walls
          (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
 
     V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(1-V2-V3)
+
+  end
+  u_z = V/μ * (-grad_pz) * a^2
+
+  return VectorValue(0.0,0.0,u_z)
+end
+
+
+function shercliff_j(a::Float64,       # semi-length of side walls
+                     b::Float64,       # semi-length of Hartmann walls
+                     t_w::Float64,     # wall thickness
+                     σ_w::Float64,     # wall conductivity
+                     σ::Float64,       # fluid conductivity
+                     μ::Float64,       # fluid viscosity
+                     grad_pz::Float64, # presure gradient
+                     Ha::Float64,      # Hartmann number
+                     n::Int,           # number of sumands included in Fourier series
+                     x)                # evaluation point
+  l = b/a
+  ξ = x[1]/a
+  η = x[2]/a
+
+  d_B = t_w*σ_w/(a*σ)
+
+  dH_dx = 0.0; dH_dy = 0.0
+  for k in 0:n
+    α_k = (k + 0.5)*π/l
+    r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^0.5)
+    r2_k = 0.5*(-Ha + (Ha^2 + 4*α_k^2)^0.5)
+    N = (Ha^2 + 4*α_k^2)^0.5
 
     H2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))-exp(-r1_k*(1+η))))/
          (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
@@ -124,13 +155,10 @@ function shercliff_solution(a::Float64,       # semi-length of side walls
     dH_dy += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(H2_dy-H3_dy)
 
   end
-  u_z = V/μ * (-grad_pz) * a^2
   j_x = dH_dy / μ^0.5 * (-grad_pz) * a^2*σ^0.5
   j_y = -dH_dx / μ^0.5 * (-grad_pz) * a^2*σ^0.5
 
-  u = VectorValue(0.0,0.0,u_z)
-  j = VectorValue(j_x,j_y,0.0)
-  return u,j
+  return VectorValue(j_x,j_y,0.0)
 end
 
 

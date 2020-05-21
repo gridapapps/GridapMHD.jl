@@ -50,14 +50,32 @@ function main(;
   output_filename::String="results"
   )
 
+if use_dimensionless_formulation
+  C_d = ν
+  C_p = 1.0
+  C_l = 1/ρ
+  C_c = σ
+else
+  N = Ha^2/Re
+  C_d = 1/Re
+  C_p = N
+  C_l = N
+  C_c = 1.0
+end
+
+
+boundary_tags = collect(1:26)
 if length(periodic_dir) > 0
   model = CartesianDiscreteModel(domain,partition,periodic_dir,map)
+  if (1 in periodic_dir) setdiff!(boundary_tags,[25,26]) end
+  if (2 in periodic_dir) setdiff!(boundary_tags,[23,24]) end
+  if (3 in periodic_dir) setdiff!(boundary_tags,[21,22]) end
 else
   model = CartesianDiscreteModel(domain,partition,map)
 end
 
-neumann_tags_u = setdiff(collect(1:24),dirichlet_tags_u)
-neumann_tags_j = setdiff(collect(1:24),dirichlet_tags_j)
+neumann_tags_u = setdiff(boundary_tags,dirichlet_tags_u)
+neumann_tags_j = setdiff(boundary_tags,dirichlet_tags_j)
 
 labels = get_face_labeling(model)
 add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
@@ -95,14 +113,15 @@ trian = Triangulation(model)
 degree = 2*(order)
 quad = CellQuadrature(trian,degree)
 
-uk = interpolate(U,g_u)
+# uk = interpolate(U,u0)
 function a(X,Y)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
-  (∇(u)'*uk)*v_u + inner(∇(u),∇(v_u)) - p*(∇*v_u) - vprod(j,B)*v_u +
+  # (∇(u)'*uk)*v_u +
+  C_d*inner(∇(u),∇(v_u)) - C_p*p*(∇*v_u) - C_l*vprod(j,B)*v_u +
   (∇*u)*v_p +
-  j*v_j - φ*(∇*v_j) - vprod(u,B)*v_j +
+  j*v_j - C_c*φ*(∇*v_j) - C_c*vprod(u,B)*v_j +
   (∇*j)*v_φ
 end
 
@@ -112,6 +131,17 @@ function l(Y)
   v_u*f_u + v_p*f_p + v_j*f_j + v_φ*f_φ
 end
 
+@law conv(u,∇u) = Re*(∇u')*u
+@law dconv(du,∇du,u,∇u) = conv(u,∇du)+conv(du,∇u)
+c(x,y) = y[1]*conv(x[1],∇(x[1]))
+dc(x,dx,y) = y[1]*dconv(dx[1],∇(dx[1]),x[1],∇(x[1]))
+
+res(x,y) = a(x,y) + c(x,y) - l(y)
+jac(x,dx,y) = a(dx,y) + dc(x,dx,y)
+
+t_Ω = FETerm(res,jac,trian,quad)
+
+
 if (length(neumann_tags_u) > 0)
   btrian_u = BoundaryTriangulation(model,"neumann_u")
   bquad_u = CellQuadrature(btrian_u,degree)
@@ -120,7 +150,7 @@ if (length(neumann_tags_u) > 0)
   function l_Γ_u(Y)
     v_u, v_p, v_j, v_φ = Y
 
-    v_u*(∇u_n) - (nb_u*v_u)*g_p
+    C_d*v_u*(∇u_n) - C_p*(nb_u*v_u)*g_p
   end
   t_Γ_u = FESource(l_Γ_u,btrian_u,bquad_u)
 end
@@ -133,23 +163,26 @@ if (length(neumann_tags_j) > 0)
   function l_Γ_j(Y)
     v_u, v_p, v_j, v_φ = Y
 
-    -(v_j*nb_j)*g_φ
+    -C_c*(v_j*nb_j)*g_φ
   end
   t_Γ_j = FESource(l_Γ_j,btrian_j,bquad_j)
 end
 
-t_Ω = AffineFETerm(a,l,trian,quad)
 if (length(neumann_tags_u) > 0) & (length(neumann_tags_j) > 0)
-  op  = AffineFEOperator(X,Y,t_Ω, t_Γ_u, t_Γ_j )
+  op  = FEOperator(X,Y,t_Ω, t_Γ_u, t_Γ_j )
 elseif (length(neumann_tags_u) > 0)
-  op  = AffineFEOperator(X,Y,t_Ω, t_Γ_u )
+  op  = FEOperator(X,Y,t_Ω, t_Γ_u )
 elseif (length(neumann_tags_j) > 0)
-  op  = AffineFEOperator(X,Y,t_Ω, t_Γ_j )
+  op  = FEOperator(X,Y,t_Ω, t_Γ_j )
 else
-  op  = AffineFEOperator(X,Y,t_Ω)
+  op  = FEOperator(X,Y,t_Ω)
 end
 
-xh = solve(op)
+nls = NLSolver(
+  show_trace=true, method=:newton, linesearch=BackTracking())
+solver = FESolver(nls)
+
+xh = solve(solver,op)
 uh, ph, jh, φh = xh
 
 return xh, trian, quad
