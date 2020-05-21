@@ -5,8 +5,10 @@ using Gridap
 export writePVD
 export shercliff_solution
 export default_u_ic
-export default_x_dbc
-export default_x_nbc
+export default_g
+export default_∇u_n
+export default_p
+export default_φ
 export defualt_f
 export defualt_B
 
@@ -55,13 +57,21 @@ function default_u_ic(x)
 end
 
 # Default Dirichlet boundary conditions
-function default_x_dbc(x)
-  return [VectorValue(0.0,0.0,0.0),VectorValue(0.0,0.0,0.0)]
+function default_g(x)
+  return VectorValue(0.0,0.0,0.0)
 end
 
 # Default Neumann boundary conditions
-function default_x_nbc(x)
-  return [VectorValue(0.0,0.0,0.0),0.0,VectorValue(0.0,0.0,0.0),0.0]
+function default_∇u_n(x)
+  return VectorValue(0.0,0.0,0.0)
+end
+
+function default_p(x)
+  return 0.0
+end
+
+function default_φ(x)
+  return 0.0
 end
 
 

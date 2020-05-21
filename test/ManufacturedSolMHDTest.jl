@@ -1,4 +1,4 @@
-module TMP
+module ManufacturedSolMHDTest
 
 using Gridap
 using Gridap.FESpaces: residual
@@ -13,7 +13,6 @@ j(x) = VectorValue(x[1]^2+x[2],-x[1]-x[2]^2,one(x[1])+x[3]^2)
 φ(x) = x[1]+x[2]+x[3]
 B = VectorValue(1.0,1.0,1.0)
 
- # ∇u(x) = TensorValue(1.0,1.0,0.0, -1.0,-1.0,0.0, 0.0,0.0,0.0)
 ∇u(x) = ∇(u)(x)
 Δu(x) = Δ(u)(x)
 ∇p(x) = ∇(p)(x)
@@ -157,11 +156,22 @@ ep = ph - p
 ej = jh - j
 eφ = φh - φ
 
-writevtk(trian,"results", nsubcells=10,cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,
-                                                   "ruh"=>ruh,"rph"=>rph,"rjh"=>rjh,"rφh"=>rφh,
-                                                   "eu"=>eu,"ep"=>ep,"ej"=>ej,"eφ"=>eφ])
+l2(v) = v*v
+h1(v) = v*v + inner(∇(v),∇(v))
+hdiv(v) = v*v + inner((∇*v),(∇*v))
 
+eu_l2 = sqrt(sum(integrate(l2(eu),trian,quad)))
+eu_h1 = sqrt(sum(integrate(h1(eu),trian,quad)))
+ep_l2 = sqrt(sum(integrate(l2(ep),trian,quad)))
+ej_l2 = sqrt(sum(integrate(l2(ej),trian,quad)))
+ej_hdiv = sqrt(sum(integrate(hdiv(ej),trian,quad)))
+eφ_l2 = sqrt(sum(integrate(l2(eφ),trian,quad)))
 
-# writevtk(btrian,"btrian",cellfields=["uh"=>restrict(uh,btrian),"jhn"=>nb*restrict(jh,btrian)])
+@test eu_l2 < 1e-12
+@test eu_h1 < 1e-12
+@test ep_l2 < 1e-12
+@test ej_l2 < 1e-12
+@test ej_hdiv < 1e-12
+@test eφ_l2 < 1e-12
 
 end

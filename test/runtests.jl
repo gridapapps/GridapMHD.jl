@@ -12,4 +12,8 @@ using Test
 
 @time @testset "PeriodicPoisson" begin include("PeriodicPoissonTests.jl") end
 
-@time @testset "Shercliff" begin include("ShercliffTest.jl") end
+@time @testset "ManufacturedSolMHDTest" begin include("ManufacturedSolMHDTest.jl") end
+
+@time @testset "ConvergenceMHDTest" begin include("ConvergenceMHDTest.jl") end
+
+@time @testset "ConvergenceWithPeriodicBCMHDTest" begin include("ConvergenceWithPeriodicBCMHDTest.jl") end
