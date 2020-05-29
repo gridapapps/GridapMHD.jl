@@ -1,9 +1,6 @@
 module ConvergenceWithPeriodicBCMHDTest
 
-include("../src/GridapMHD.jl")
-using .GridapMHD
-
-include("../src/Defaults.jl")
+using GridapMHD
 
 using Gridap
 using Test
@@ -59,7 +56,7 @@ domain = (-0.5,0.5,-0.5,0.5,-0.5,0.5)
 
 for n=nxs
   partition = (3,n,n)
-  
+
   xh, trian, quad = main(
     partition=partition, order=2, domain=domain, periodic_dir=[1],
     dirichlet_tags_u=collect(1:22), dirichlet_tags_j=collect(1:22),

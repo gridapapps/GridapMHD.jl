@@ -93,12 +93,12 @@ function shercliff_u(a::Float64,       # semi-length of side walls
 
   d_B = t_w*σ_w/(a*σ)
 
-  V = 0.0
+  V = 0.0; V0=0.0;
   for k in 0:n
     α_k = (k + 0.5)*π/l
-    r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^0.5)
-    r2_k = 0.5*(-Ha + (Ha^2 + 4*α_k^2)^0.5)
-    N = (Ha^2 + 4*α_k^2)^0.5
+    r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^(0.5))
+    r2_k = 0.5*(-Ha + (Ha^2 + 4*α_k^2)^(0.5))
+    N = (Ha^2 + 4*α_k^2)^(0.5)
 
     V2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))+exp(-r1_k*(1+η))))/
          (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
@@ -106,10 +106,13 @@ function shercliff_u(a::Float64,       # semi-length of side walls
     V3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))+exp(-r2_k*(1+η))))/
          (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
 
-    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(1-V2-V3)
+    # V1 = 1 - N/(2*α_k^2)*((1+exp(-2*N))/(1-exp(-2*N))-exp(Ha-N)*(1+exp(-2*Ha))/(1-exp(-2*N)))
 
+    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(1-V2-V3)
+    # V0+= 1/α_k^4 * V1
   end
   u_z = V/μ * (-grad_pz) * a^2
+  # u_0 = -2*a^2/(l^2*η) * grad_pz * V0
 
   return VectorValue(0.0,0.0,u_z)
 end

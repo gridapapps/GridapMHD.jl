@@ -4,8 +4,6 @@ using Gridap
 using Gridap: ∇, Δ
 using LineSearches: BackTracking, Static
 
-include("PeriodicBC.jl")
-using .PeriodicBC
 
 include("Defaults.jl")
 using .Defaults
@@ -66,7 +64,8 @@ end
 
 boundary_tags = collect(1:26)
 if length(periodic_dir) > 0
-  model = CartesianDiscreteModel(domain,partition,periodic_dir,map)
+  isperiodic = Tuple([(x in periodic_dir) for x in 1:3])
+  model = CartesianDiscreteModel(domain,partition;isperiodic=isperiodic,map=map)
   if (1 in periodic_dir) setdiff!(boundary_tags,[25,26]) end
   if (2 in periodic_dir) setdiff!(boundary_tags,[23,24]) end
   if (3 in periodic_dir) setdiff!(boundary_tags,[21,22]) end
