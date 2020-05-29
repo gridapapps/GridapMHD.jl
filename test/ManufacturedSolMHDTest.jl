@@ -2,9 +2,6 @@ module ManufacturedSolMHDTest
 
 using Gridap
 using Gridap.FESpaces: residual
-using Gridap.MultiField: MultiFieldFEFunction
-using Gridap: ∇, Δ
-using LinearAlgebra
 using Test
 
 u(x) = VectorValue(x[1]^2+x[2]^2,-x[1]-x[2]^2,one(x[1])+x[2]^2)
