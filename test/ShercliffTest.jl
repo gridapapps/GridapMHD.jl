@@ -17,16 +17,18 @@ using Polynomials: fit
 ρ = 1.0
 ν = 1.0
 σ = 1.0
-Re = 10.0 # U = 10.0, L = 1.0/ ν = 1.0
-Ha = 10.0
+U0 = 10.0
+B0 = 10.0
 L = 1.0
+Re = U0 * L / ν
+Ha = B0 * L * sqrt(σ/(ρ*ν))
 N = Ha^2/Re
 K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1)) # Shercliff's
 # K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1)) # Hunt'ss
-f_u(x) = VectorValue(0.0,0.0, -L^3 * K / Re)
+f_u(x) = VectorValue(0.0,0.0, -L^3 * K / Re) * L/U0^2
 g_u = VectorValue(0.0,0.0,0.0)
 g_j = VectorValue(0.0,0.0,0.0)
-B = VectorValue(0.0,1.0,0.0)
+B = VectorValue(0.0,Ha,0.0)/B0
 
 # Analyical solutions
 u0(x) = Defaults.shercliff_u(0.5,   # a::Float64,        semi-length of side walls
@@ -147,10 +149,16 @@ for n in ns
   xh = solve(solver,op)
 
   uh, ph, jh, φh = xh
+  divj = (∇*jh)
+
+  # Scale unknowns
+  uh = uh * U0
+  ph = ph * ρ * U0^2
+  jh = jh * σ * B0 * U0
+  φh = φh * B0 * U0
 
   eu = uh - u0
   ej = jh - j0
-  divj = (∇*jh)
 
   l2(v) = v*v
 
