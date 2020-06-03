@@ -96,25 +96,31 @@ function shercliff_u(a::Float64,       # semi-length of side walls
   V = 0.0; V0=0.0;
   for k in 0:n
     α_k = (k + 0.5)*π/l
-    r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^(0.5))
-    r2_k = 0.5*(-Ha + (Ha^2 + 4*α_k^2)^(0.5))
     N = (Ha^2 + 4*α_k^2)^(0.5)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
 
-    V2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))+exp(-r1_k*(1+η))))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
+    num1 = d_B*r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))
+    num2 = (exp(-r1_k*(1-η))+exp(-r1_k*(1+η)))/2.0
+    den1 = d_B*N *(1+exp(-2*r1_k))/2.0
+    den2 = (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k))
+    V2 = (num1 * num2)/(den1 + den2)
 
-    V3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))+exp(-r2_k*(1+η))))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
+    num1 = d_B*r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))
+    num2 = (exp(-r2_k*(1-η)) + exp(-r2_k*(1+η)))/2.0
+    den1 = d_B*N*(1+exp(-2*r2_k))/2
+    den2 = (1-exp(-2(r1_k+r2_k)))/(1+exp(-2*r1_k))
+    V3 = (num1 * num2)/(den1 + den2)
 
     # V1 = 1 - N/(2*α_k^2)*((1+exp(-2*N))/(1-exp(-2*N))-exp(Ha-N)*(1+exp(-2*Ha))/(1-exp(-2*N)))
 
-    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(1-V2-V3)
+    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3) * (1-V2-V3)
     # V0+= 1/α_k^4 * V1
   end
   u_z = V/μ * (-grad_pz) * a^2
   # u_0 = -2*a^2/(l^2*η) * grad_pz * V0
 
-  return VectorValue(0.0,0.0,u_z)
+  return VectorValue(0.0*u_z,0.0*u_z,u_z)
 end
 
 
@@ -134,32 +140,34 @@ function shercliff_j(a::Float64,       # semi-length of side walls
 
   d_B = t_w*σ_w/(a*σ)
 
-  dH_dx = 0.0; dH_dy = 0.0
+  H_dx = 0.0; H_dy = 0.0
   for k in 0:n
     α_k = (k + 0.5)*π/l
-    r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^0.5)
-    r2_k = 0.5*(-Ha + (Ha^2 + 4*α_k^2)^0.5)
-    N = (Ha^2 + 4*α_k^2)^0.5
+    N = sqrt(Ha^2 + 4*α_k^2)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
 
-    H2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))-exp(-r1_k*(1+η))))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
+    num1 = d_B*r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))
+    num2 = (exp(-r1_k*(1-η)) - exp(-r1_k*(1+η)))/2.0
+    num2_dy = (exp(-r1_k*(1-η))*(r1_k/a) + exp(-r1_k*(1+η))*(r1_k/a))/2.0
+    den1 = d_B*N*(1+exp(-2*r1_k))/2
+    den2 = (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k))
+    H2 = (num1 * num2)/(den1 + den2)
+    H2_dy = (num1 * num2_dy)/(den1 + den2)
 
-    H3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))-exp(-r2_k*(1+η))))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
+    num1 = d_B*r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))
+    num2 = (exp(-r2_k*(1-η)) - exp(-r2_k*(1+η)))/2.0
+    num2_dy = (exp(-r2_k*(1-η))*(r2_k/a) + exp(-r2_k*(1+η))*(r2_k/a))/2.0
+    den1 = d_B*N*(1+exp(-2*r2_k))/2
+    den2 = (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k))
+    H3 = (num1 * num2)/(den1 + den2)
+    H3_dy = (num1 * num2_dy)/(den1 + den2)
 
-    H2_dy = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))*(r1_k/a)-exp(-r1_k*(1+η))*(-r1_k/a)))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
-
-    H3_dy = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))*(r2_k/a)-exp(-r2_k*(1+η))*(-r2_k/a)))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
-
-
-    dH_dx += -2*(-1)^k*sin(α_k * ξ)/(a*l*α_k^3)*(H2-H3)
-    dH_dy += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(H2_dy-H3_dy)
-
+    H_dx += -2*(-1)^k * sin(α_k * ξ)/(a*l*α_k^2) * (H2 - H3)
+    H_dy += 2*(-1)^k * cos(α_k * ξ)/(l*α_k^3) * (H2_dy - H3_dy)
   end
-  j_x = dH_dy / μ^0.5 * (-grad_pz) * a^2*σ^0.5
-  j_y = -dH_dx / μ^0.5 * (-grad_pz) * a^2*σ^0.5
+  j_x = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * H_dy
+  j_y = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * (-H_dx)
 
   return VectorValue(j_x,j_y,0.0)
 end

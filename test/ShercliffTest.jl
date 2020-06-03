@@ -25,40 +25,41 @@ Ha = B0 * L * sqrt(σ/(ρ*ν))
 N = Ha^2/Re
 K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1)) # Shercliff's
 # K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1)) # Hunt'ss
-f_u(x) = VectorValue(0.0,0.0, -L^3 * K / Re) * L/U0^2
+f_u(x) = VectorValue(0.0,0.0, L^3 * K / Re) * L/U0^2
 g_u = VectorValue(0.0,0.0,0.0)
 g_j = VectorValue(0.0,0.0,0.0)
 B = VectorValue(0.0,Ha,0.0)/B0
 
 # Analyical solutions
-u0(x) = Defaults.shercliff_u(0.5,   # a::Float64,        semi-length of side walls
-                             0.5,   # b::Float64,        semi-length of Hartmann walls
+u0(x) = Defaults.shercliff_u(1.0,   # a::Float64,        semi-length of side walls
+                             1.0,   # b::Float64,        semi-length of Hartmann walls
                              1.0,   # t_w::Float64,      wall thickness
                              0.0,   # σ_w::Float64,      wall conductivity
                              1.0,   # σ::Float64,        fluid conductivity
                              1.0,   # μ::Float64,        fluid viscosity
-                          L^3*K/Re, # grad_pz::Float64,  presure gradient
+                         -L^3*K/Re, # grad_pz::Float64,  presure gradient
                              Ha ,   # Ha::Float64,       Hartmann number
                              10 ,   # n::Int,            number of sumands included in Fourier series
                              x)     # x)                 evaluation point
 
-j0(x) = Defaults.shercliff_j(0.5,   # a::Float64,        semi-length of side walls
-                             0.5,   # b::Float64,        semi-length of Hartmann walls
+j0(x) = Defaults.shercliff_j(1.0,   # a::Float64,        semi-length of side walls
+                             1.0,   # b::Float64,        semi-length of Hartmann walls
                              1.0,   # t_w::Float64,      wall thickness
                              0.0,   # σ_w::Float64,      wall conductivity
                              1.0,   # σ::Float64,        fluid conductivity
                              1.0,   # μ::Float64,        fluid viscosity
-                          L^3*K/Re, # grad_pz::Float64,  presure gradient
+                         -L^3*K/Re, # grad_pz::Float64,  presure gradient
                              Ha ,   # Ha::Float64,       Hartmann number
                              10 ,   # n::Int,            number of sumands included in Fourier series
                              x)     # x)                 evaluation point
+
 
 # Discretizatoin
 order = 2
-ns = [10]
-domain = (-0.5,0.5,-0.5,0.5,0.0,0.1)
+ns = [5]
+domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
 map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,
-                     sign(x[2])*(abs(x[2])*0.5)^0.5,  x[3])
+                     sign(x[2])*(abs(x[2])*0.5)^0.5,  x[3])*2/sqrt(2)
 
 
 dirichlet_tags_u = append!(collect(1:20),[23,24,25,26])
@@ -134,15 +135,19 @@ for n in ns
   op  = FEOperator(X,Y,t_Ω)
   # op  = AffineFEOperator(X,Y,t_Ω)
 
+  # function lnsolver!(x, A, b)
+  #   p = ilu(A, τ=1e-6)
+  #   gmres!(x, A, b,verbose=true, Pl=p)
+  # end
+
   # A = get_matrix(op)
   # b = get_vector(op)
-
+  #
   # p = ilu(A, τ=1e-6)
-  # x = gmres(A b,verbose=true, Pl=p)
   #
   # xh = FEFunction(X,x)
 
-  nls = NLSolver(
+  nls = NLSolver(;
     show_trace=true, method=:newton, linesearch=BackTracking())
   solver = FESolver(nls)
 
@@ -164,15 +169,18 @@ for n in ns
 
   append!(eu_l2, sqrt(sum(integrate(l2(eu),trian,quad))))
   append!(ej_l2, sqrt(sum(integrate(l2(ej),trian,quad))))
-
-  writevtk(trian,"results", nsubcells=order,cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,
-  "u"=>u0, "j"=>j0, "eu"=>eu, "ej"=>ej, "divj"=>divj])
+  if n==ns[end]
+    writevtk(trian,"results", nsubcells=order,cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,
+    "u"=>u0, "j"=>j0, "eu"=>eu, "ej"=>ej, "divj"=>divj])
+  end
 end
 
 slope_eu_l2 = fit([log(x) for x in ns], [log(y) for y in eu_l2], 1)[end]
 slope_ej_l2 = fit([log(x) for x in ns], [log(y) for y in ej_l2], 1)[end]
 @show eu_l2
 @show ej_l2
+@show slope_eu_l2
+@show slope_ej_l2
 
 
 end #module
