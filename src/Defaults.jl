@@ -173,6 +173,83 @@ function shercliff_j(a::Float64,       # semi-length of side walls
 end
 
 
+function hunt_u(a::Float64,       # semi-length of side walls
+                b::Float64,       # semi-length of Hartmann walls
+                μ::Float64,       # fluid viscosity
+                grad_pz::Float64, # presure gradient
+                Ha::Float64,      # Hartmann number
+                n::Int,           # number of sumands included in Fourier series
+                x)                # evaluation point
+  l = b/a
+  ξ = x[1]/a
+  η = x[2]/a
+
+  V = 0.0; V0=0.0;
+  for k in 0:n
+    α_k = (k + 0.5)*π/l
+    N = (Ha^2 + 4*α_k^2)^(0.5)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
+
+    num = exp(-r1_k*(1-η))+exp(-r1_k*(1+η))
+    den = 1+exp(-2*r1_k)
+    V2 = (r2_k/N)*(num/den)
+
+    num = exp(-r2_k*(1-η))+exp(-r2_k*(1+η))
+    den = 1+exp(-2*r2_k)
+    V3 = (r1_k/N)*(num/den)
+
+    # V1 = 1 - N/(2*α_k^2)*((1+exp(-2*N))/(1-exp(-2*N))-exp(Ha-N)*(1+exp(-2*Ha))/(1-exp(-2*N)))
+
+    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3) * (1-V2-V3)
+    # V0+= 1/α_k^4 * V1
+  end
+  u_z = V/μ * (-grad_pz) * a^2
+  # u_0 = -2*a^2/(l^2*η) * grad_pz * V0
+
+  return VectorValue(0.0*u_z,0.0*u_z,u_z)
+end
+
+
+function hunt_j(a::Float64,       # semi-length of side walls
+                b::Float64,       # semi-length of Hartmann walls
+                σ::Float64,       # fluid conductivity
+                μ::Float64,       # fluid viscosity
+                grad_pz::Float64, # presure gradient
+                Ha::Float64,      # Hartmann number
+                n::Int,           # number of sumands included in Fourier series
+                x)                # evaluation point
+  l = b/a
+  ξ = x[1]/a
+  η = x[2]/a
+
+  H_dx = 0.0; H_dy = 0.0
+  for k in 0:n
+    α_k = (k + 0.5)*π/l
+    N = sqrt(Ha^2 + 4*α_k^2)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
+
+    num = exp(-r1_k*(1-η)) - exp(-r1_k*(1+η))
+    num_dy = exp(-r1_k*(1-η))*(r1_k/a) + exp(-r1_k*(1+η))*(r1_k/a)
+    den = 1+exp(-2*r1_k)
+    H2 = (r2_k/N)*(num/den)
+    H2_dy = (r2_k/N)*(num_dy/den)
+
+    num = exp(-r2_k*(1-η)) - exp(-r2_k*(1+η))
+    num_dy = exp(-r2_k*(1-η))*(r2_k/a) + exp(-r2_k*(1+η))*(r2_k/a)
+    den = 1+exp(-2*r2_k)
+    H3 = (r1_k/N)*(num/den)
+    H3_dy = (r1_k/N)*(num_dy/den)
+
+    H_dx += -2*(-1)^k * sin(α_k * ξ)/(a*l*α_k^2) * (H2 - H3)
+    H_dy += 2*(-1)^k * cos(α_k * ξ)/(l*α_k^3) * (H2_dy - H3_dy)
+  end
+  j_x = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * H_dy
+  j_y = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * (-H_dx)
+
+  return VectorValue(j_x,j_y,0.0)
+end
 
 
 end # module

@@ -1,4 +1,4 @@
-module ShercliffTest
+module HuntTest
 
 include("../src/GridapMHD.jl")
 using .GridapMHD
@@ -23,35 +23,31 @@ L = 1.0
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
 N = Ha^2/Re
-K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1)) # Shercliff's
-# K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1)) # Hunt'ss
+# K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1)) # Shercliff's
+K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1)) # Hunt'ss
 f_u(x) = VectorValue(0.0,0.0, L^3 * K / Re) * L/U0^2
 g_u = VectorValue(0.0,0.0,0.0)
 g_j = VectorValue(0.0,0.0,0.0)
+g_φ = 0.0
 B = VectorValue(0.0,Ha,0.0)/B0
 
 # Analyical solutions
-u0(x) = Defaults.shercliff_u(1.0,   # a::Float64,        semi-length of side walls
-                             1.0,   # b::Float64,        semi-length of Hartmann walls
-                             1.0,   # t_w::Float64,      wall thickness
-                             0.0,   # σ_w::Float64,      wall conductivity
-                             1.0,   # σ::Float64,        fluid conductivity
-                             1.0,   # μ::Float64,        fluid viscosity
-                         -L^3*K/Re, # grad_pz::Float64,  presure gradient
-                             Ha ,   # Ha::Float64,       Hartmann number
-                             10 ,   # n::Int,            number of sumands included in Fourier series
-                             x)     # x)                 evaluation point
+u0(x) = Defaults.hunt_u(1.0,   # a::Float64,        semi-length of side walls
+                        1.0,   # b::Float64,        semi-length of Hartmann walls
+                        1.0,   # μ::Float64,        fluid viscosity
+                    -L^3*K/Re, # grad_pz::Float64,  presure gradient
+                        Ha ,   # Ha::Float64,       Hartmann number
+                        10 ,   # n::Int,            number of sumands included in Fourier series
+                        x)     # x)                 evaluation point
 
-j0(x) = Defaults.shercliff_j(1.0,   # a::Float64,        semi-length of side walls
-                             1.0,   # b::Float64,        semi-length of Hartmann walls
-                             1.0,   # t_w::Float64,      wall thickness
-                             0.0,   # σ_w::Float64,      wall conductivity
-                             1.0,   # σ::Float64,        fluid conductivity
-                             1.0,   # μ::Float64,        fluid viscosity
-                         -L^3*K/Re, # grad_pz::Float64,  presure gradient
-                             Ha ,   # Ha::Float64,       Hartmann number
-                             10 ,   # n::Int,            number of sumands included in Fourier series
-                             x)     # x)                 evaluation point
+j0(x) = Defaults.hunt_j(1.0,   # a::Float64,        semi-length of side walls
+                        1.0,   # b::Float64,        semi-length of Hartmann walls
+                        1.0,   # σ::Float64,        fluid conductivity
+                        1.0,   # μ::Float64,        fluid viscosity
+                    -L^3*K/Re, # grad_pz::Float64,  presure gradient
+                        Ha ,   # Ha::Float64,       Hartmann number
+                        10 ,   # n::Int,            number of sumands included in Fourier series
+                        x)     # x)                 evaluation point
 
 
 # Discretizatoin
@@ -63,7 +59,8 @@ map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,
 
 
 dirichlet_tags_u = append!(collect(1:20),[23,24,25,26])
-dirichlet_tags_j = append!(collect(1:20),[23,24,25,26])
+dirichlet_tags_j = append!(collect(1:20),[25,26])
+neumann_tags_j = [23,24]
 
 ##
 eu_l2 = Vector{Float64}()
@@ -76,6 +73,7 @@ for n in ns
   labels = get_face_labeling(model)
   add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
   add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
+  add_tag_from_tags!(labels,"neumann_j",neumann_tags_j)
 
   Vu = FESpace(
       reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
@@ -83,7 +81,7 @@ for n in ns
 
   Vp = FESpace(
       reffe=:PLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+      conformity=:L2, model=model)
 
   Vj = FESpace(
       reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
@@ -91,7 +89,7 @@ for n in ns
 
   Vφ = FESpace(
       reffe=:QLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+      conformity=:L2, model=model)
 
   U = TrialFESpace(Vu,g_u)
   P = TrialFESpace(Vp)
@@ -128,6 +126,18 @@ for n in ns
 
   res(x,y) = a(x,y) + c(x,y) - l(y)
   jac(x,dx,y) = a(dx,y) + dc(x,dx,y)
+
+
+  # btrian = BoundaryTriangulation(model,"neumann_j")
+  # bquad = CellQuadrature(btrian,degree)
+  # nb = get_normal_vector(btrian)
+  #
+  # function l_Γ(Y)
+  #   v_u, v_p, v_j, v_φ = Y
+  #
+  #   -(v_j*nb_j)*g_φ
+  # end
+  # t_Γ = FESource(l_Γ,btrian,bquad)
 
   t_Ω = FETerm(res,jac,trian,quad)
   # t_Ω = AffineFETerm(a,l,trian,quad)
