@@ -4,11 +4,15 @@ using Gridap
 
 export writePVD
 export shercliff_solution
-export default_x_ic
-export default_x_dbc
-export default_x_nbc
-export defualt_f
-export defualt_B
+export default_u_ic
+export default_g
+export default_p
+export default_φ
+export default_∇u_n
+export default_f_p
+export default_f_φ
+export default_f_j
+export defualt_f_B
 
 function writePVD(filename,timeSteps)
   rm(filename,force=true,recursive=true)
@@ -28,8 +32,20 @@ function writePVD(filename,timeSteps)
 end
 
 # Default force
-function default_f(x)
-  return [VectorValue(0.0,0.0,0.0), 0.0, VectorValue(0.0,0.0,0.0), 0.0]
+function default_f_u(x)
+  return VectorValue(0.0,0.0,0.0)
+end
+# Default force
+function default_f_p(x)
+  return 0.0
+end
+# Default force
+function default_f_j(x)
+  return VectorValue(0.0,0.0,0.0)
+end
+# Default force
+function default_f_φ(x)
+  return 0.0
 end
 
 # Default external magnetic field
@@ -38,80 +54,202 @@ function default_B(x)
 end
 
 # Default initial conditions
-function default_x_ic(x)
+function default_u_ic(x)
   return VectorValue(0.0,0.0,0.0)
 end
 
 # Default Dirichlet boundary conditions
-function default_x_dbc(x)
-  return [VectorValue(0.0,0.0,0.0),VectorValue(0.0,0.0,0.0)]
+function default_g(x)
+  return VectorValue(0.0,0.0,0.0)
 end
 
 # Default Neumann boundary conditions
-function default_x_nbc(x)
-  return [VectorValue(0.0,0.0,0.0),0.0,VectorValue(0.0,0.0,0.0),0.0]
+function default_∇u_n(x)
+  return VectorValue(0.0,0.0,0.0)
+end
+
+function default_p(x)
+  return 0.0
+end
+
+function default_φ(x)
+  return 0.0
 end
 
 
-function shercliff_solution(a::Float64,       # semi-length of side walls
-                            b::Float64,       # semi-length of Hartmann walls
-                            t_w::Float64,     # wall thickness
-                            σ_w::Float64,     # wall conductivity
-                            σ::Float64,       # fluid conductivity
-                            μ::Float64,       # fluid viscosity
-                            grad_pz::Float64, # presure gradient
-                            Ha::Float64,      # Hartmann number
-                            n::Int,           # number of sumands included in Fourier series
-                            x)                # evaluation point
+function shercliff_u(a::Float64,       # semi-length of side walls
+                     b::Float64,       # semi-length of Hartmann walls
+                     t_w::Float64,     # wall thickness
+                     σ_w::Float64,     # wall conductivity
+                     σ::Float64,       # fluid conductivity
+                     μ::Float64,       # fluid viscosity
+                     grad_pz::Float64, # presure gradient
+                     Ha::Float64,      # Hartmann number
+                     n::Int,           # number of sumands included in Fourier series
+                     x)                # evaluation point
   l = b/a
   ξ = x[1]/a
   η = x[2]/a
 
   d_B = t_w*σ_w/(a*σ)
 
-  V = 0.0
-  dH_dx = 0.0; dH_dy = 0.0
+  V = 0.0; V0=0.0;
   for k in 0:n
     α_k = (k + 0.5)*π/l
-    r1_k = 0.5*( Ha + (Ha^2 + 4*α_k^2)^0.5)
-    r2_k = 0.5*(-Ha + (Ha^2 + 4*α_k^2)^0.5)
-    N = (Ha^2 + 4*α_k^2)^0.5
+    N = (Ha^2 + 4*α_k^2)^(0.5)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
 
-    V2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))+exp(-r1_k*(1+η))))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
+    num1 = d_B*r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))
+    num2 = (exp(-r1_k*(1-η))+exp(-r1_k*(1+η)))/2.0
+    den1 = d_B*N *(1+exp(-2*r1_k))/2.0
+    den2 = (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k))
+    V2 = (num1 * num2)/(den1 + den2)
 
-    V3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))+exp(-r2_k*(1+η))))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
+    num1 = d_B*r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))
+    num2 = (exp(-r2_k*(1-η)) + exp(-r2_k*(1+η)))/2.0
+    den1 = d_B*N*(1+exp(-2*r2_k))/2
+    den2 = (1-exp(-2(r1_k+r2_k)))/(1+exp(-2*r1_k))
+    V3 = (num1 * num2)/(den1 + den2)
 
-    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(1-V2-V3)
+    # V1 = 1 - N/(2*α_k^2)*((1+exp(-2*N))/(1-exp(-2*N))-exp(Ha-N)*(1+exp(-2*Ha))/(1-exp(-2*N)))
 
-    H2 = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))-exp(-r1_k*(1+η))))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
-
-    H3 = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))-exp(-r2_k*(1+η))))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
-
-    H2_dy = ((d_B * r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))) * 0.5 * (exp(-r1_k*(1-η))*(r1_k/a)-exp(-r1_k*(1+η))*(-r1_k/a)))/
-         (0.5*(1+exp(-2*r1_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k)))
-
-    H3_dy = ((d_B * r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))) * 0.5 * (exp(-r2_k*(1-η))*(r2_k/a)-exp(-r2_k*(1+η))*(-r2_k/a)))/
-         (0.5*(1+exp(-2*r2_k))*d_B*N + (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k)))
-
-
-    dH_dx += -2*(-1)^k*sin(α_k * ξ)/(a*l*α_k^3)*(H2-H3)
-    dH_dy += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3)*(H2_dy-H3_dy)
-
+    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3) * (1-V2-V3)
+    # V0+= 1/α_k^4 * V1
   end
   u_z = V/μ * (-grad_pz) * a^2
-  j_x = dH_dy / μ^0.5 * (-grad_pz) * a^2*σ^0.5
-  j_y = -dH_dx / μ^0.5 * (-grad_pz) * a^2*σ^0.5
+  # u_0 = -2*a^2/(l^2*η) * grad_pz * V0
 
-  u = VectorValue(0.0,0.0,u_z)
-  j = VectorValue(j_x,j_y,0.0)
-  return u,j
+  return VectorValue(0.0*u_z,0.0*u_z,u_z)
 end
 
 
+function shercliff_j(a::Float64,       # semi-length of side walls
+                     b::Float64,       # semi-length of Hartmann walls
+                     t_w::Float64,     # wall thickness
+                     σ_w::Float64,     # wall conductivity
+                     σ::Float64,       # fluid conductivity
+                     μ::Float64,       # fluid viscosity
+                     grad_pz::Float64, # presure gradient
+                     Ha::Float64,      # Hartmann number
+                     n::Int,           # number of sumands included in Fourier series
+                     x)                # evaluation point
+  l = b/a
+  ξ = x[1]/a
+  η = x[2]/a
+
+  d_B = t_w*σ_w/(a*σ)
+
+  H_dx = 0.0; H_dy = 0.0
+  for k in 0:n
+    α_k = (k + 0.5)*π/l
+    N = sqrt(Ha^2 + 4*α_k^2)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
+
+    num1 = d_B*r2_k + (1-exp(-2*r2_k))/(1+exp(-2*r2_k))
+    num2 = (exp(-r1_k*(1-η)) - exp(-r1_k*(1+η)))/2.0
+    num2_dy = (exp(-r1_k*(1-η))*(r1_k/a) + exp(-r1_k*(1+η))*(r1_k/a))/2.0
+    den1 = d_B*N*(1+exp(-2*r1_k))/2
+    den2 = (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r2_k))
+    H2 = (num1 * num2)/(den1 + den2)
+    H2_dy = (num1 * num2_dy)/(den1 + den2)
+
+    num1 = d_B*r1_k + (1-exp(-2*r1_k))/(1+exp(-2*r1_k))
+    num2 = (exp(-r2_k*(1-η)) - exp(-r2_k*(1+η)))/2.0
+    num2_dy = (exp(-r2_k*(1-η))*(r2_k/a) + exp(-r2_k*(1+η))*(r2_k/a))/2.0
+    den1 = d_B*N*(1+exp(-2*r2_k))/2
+    den2 = (1-exp(-2*(r1_k+r2_k)))/(1+exp(-2*r1_k))
+    H3 = (num1 * num2)/(den1 + den2)
+    H3_dy = (num1 * num2_dy)/(den1 + den2)
+
+    H_dx += -2*(-1)^k * sin(α_k * ξ)/(a*l*α_k^2) * (H2 - H3)
+    H_dy += 2*(-1)^k * cos(α_k * ξ)/(l*α_k^3) * (H2_dy - H3_dy)
+  end
+  j_x = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * H_dy
+  j_y = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * (-H_dx)
+
+  return VectorValue(j_x,j_y,0.0)
+end
+
+
+function hunt_u(a::Float64,       # semi-length of side walls
+                b::Float64,       # semi-length of Hartmann walls
+                μ::Float64,       # fluid viscosity
+                grad_pz::Float64, # presure gradient
+                Ha::Float64,      # Hartmann number
+                n::Int,           # number of sumands included in Fourier series
+                x)                # evaluation point
+  l = b/a
+  ξ = x[1]/a
+  η = x[2]/a
+
+  V = 0.0; V0=0.0;
+  for k in 0:n
+    α_k = (k + 0.5)*π/l
+    N = (Ha^2 + 4*α_k^2)^(0.5)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
+
+    num = exp(-r1_k*(1-η))+exp(-r1_k*(1+η))
+    den = 1+exp(-2*r1_k)
+    V2 = (r2_k/N)*(num/den)
+
+    num = exp(-r2_k*(1-η))+exp(-r2_k*(1+η))
+    den = 1+exp(-2*r2_k)
+    V3 = (r1_k/N)*(num/den)
+
+    # V1 = 1 - N/(2*α_k^2)*((1+exp(-2*N))/(1-exp(-2*N))-exp(Ha-N)*(1+exp(-2*Ha))/(1-exp(-2*N)))
+
+    V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3) * (1-V2-V3)
+    # V0+= 1/α_k^4 * V1
+  end
+  u_z = V/μ * (-grad_pz) * a^2
+  # u_0 = -2*a^2/(l^2*η) * grad_pz * V0
+
+  return VectorValue(0.0*u_z,0.0*u_z,u_z)
+end
+
+
+function hunt_j(a::Float64,       # semi-length of side walls
+                b::Float64,       # semi-length of Hartmann walls
+                σ::Float64,       # fluid conductivity
+                μ::Float64,       # fluid viscosity
+                grad_pz::Float64, # presure gradient
+                Ha::Float64,      # Hartmann number
+                n::Int,           # number of sumands included in Fourier series
+                x)                # evaluation point
+  l = b/a
+  ξ = x[1]/a
+  η = x[2]/a
+
+  H_dx = 0.0; H_dy = 0.0
+  for k in 0:n
+    α_k = (k + 0.5)*π/l
+    N = sqrt(Ha^2 + 4*α_k^2)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
+
+    num = exp(-r1_k*(1-η)) - exp(-r1_k*(1+η))
+    num_dy = exp(-r1_k*(1-η))*(r1_k/a) + exp(-r1_k*(1+η))*(r1_k/a)
+    den = 1+exp(-2*r1_k)
+    H2 = (r2_k/N)*(num/den)
+    H2_dy = (r2_k/N)*(num_dy/den)
+
+    num = exp(-r2_k*(1-η)) - exp(-r2_k*(1+η))
+    num_dy = exp(-r2_k*(1-η))*(r2_k/a) + exp(-r2_k*(1+η))*(r2_k/a)
+    den = 1+exp(-2*r2_k)
+    H3 = (r1_k/N)*(num/den)
+    H3_dy = (r1_k/N)*(num_dy/den)
+
+    H_dx += -2*(-1)^k * sin(α_k * ξ)/(a*l*α_k^2) * (H2 - H3)
+    H_dy += 2*(-1)^k * cos(α_k * ξ)/(l*α_k^3) * (H2_dy - H3_dy)
+  end
+  j_x = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * H_dy
+  j_y = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * (-H_dx)
+
+  return VectorValue(j_x,j_y,0.0)
+end
 
 
 end # module
