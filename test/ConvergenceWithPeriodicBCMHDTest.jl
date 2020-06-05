@@ -18,6 +18,8 @@ B = VectorValue(1.0,1.0,1.0)
 ∇p(x) = ∇(p)(x)
 ∇φ(x) = ∇(φ)(x)
 
+@law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
+
 function ∇u_n(x)
   if (x[2] < -0.49999)
     n = VectorValue(0.0,-1.0,0.0)
@@ -56,14 +58,86 @@ domain = (-0.5,0.5,-0.5,0.5,-0.5,0.5)
 
 for n=nxs
   partition = (3,n,n)
+  model = CartesianDiscreteModel(domain,partition;isperiodic=(true,false,false))
 
-  xh, trian, quad = main(
-    partition=partition, order=2, domain=domain, periodic_dir=[1],
-    dirichlet_tags_u=collect(1:22), dirichlet_tags_j=collect(1:22),
-    f_u=f_u, f_p=f_p, f_j=f_j, f_φ=f_φ, g_u=g_u, g_j=g_j,
-    ∇u_n=∇u_n, g_p=p , g_φ=φ, B=B
-    )
+  labels = get_face_labeling(model)
+  add_tag_from_tags!(labels,"dirichlet_u",collect(1:22))
+  add_tag_from_tags!(labels,"dirichlet_j",collect(1:22))
+  add_tag_from_tags!(labels,"neumann_u",collect(23:24))
+  add_tag_from_tags!(labels,"neumann_j",collect(23:24))
 
+
+  Vu = FESpace(
+      reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
+      conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
+
+  Vp = FESpace(
+      reffe=:PLagrangian, order=order-1, valuetype=Float64,
+      conformity=:L2, model=model)
+
+  Vj = FESpace(
+      reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
+      conformity=:Hdiv, model=model, dirichlet_tags="dirichlet_j")
+
+  Vφ = FESpace(
+      reffe=:QLagrangian, order=order-1, valuetype=Float64,
+      conformity=:L2, model=model)
+
+  U = TrialFESpace(Vu,g_u)
+  P = TrialFESpace(Vp)
+  J = TrialFESpace(Vj,g_j)
+  Φ = TrialFESpace(Vφ)
+
+  Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
+  X = MultiFieldFESpace([U, P, J, Φ])
+
+  trian = Triangulation(model)
+  degree = 2*(order)
+  quad = CellQuadrature(trian,degree)
+
+  uk = interpolate(U,u)
+  function a(X,Y)
+    u  , p  , j  , φ   = X
+    v_u, v_p, v_j, v_φ = Y
+
+    (∇(u)'*uk)*v_u + inner(∇(u),∇(v_u)) - p*(∇*v_u) - vprod(j,B)*v_u +
+    (∇*u)*v_p +
+    j*v_j - φ*(∇*v_j) - vprod(u,B)*v_j +
+    (∇*j)*v_φ
+  end
+
+  function l(Y)
+    v_u, v_p, v_j, v_φ = Y
+
+    v_u*f_u + v_p*f_p + v_j*f_j + v_φ*f_φ
+  end
+
+  btrian_u = BoundaryTriangulation(model,"neumann_u")
+  bquad_u = CellQuadrature(btrian_u,degree)
+  nb_u = get_normal_vector(btrian_u)
+
+  function l_Γ_u(Y)
+    v_u, v_p, v_j, v_φ = Y
+
+    v_u*(nb_u*∇u) - (nb_u*v_u)*p
+  end
+
+  btrian_j = BoundaryTriangulation(model,"neumann_j")
+  bquad_j = CellQuadrature(btrian_j,degree)
+  nb_j = get_normal_vector(btrian_j)
+
+  function l_Γ_j(Y)
+    v_u, v_p, v_j, v_φ = Y
+
+    -(v_j*nb_j)*φ
+  end
+
+  t_Ω = AffineFETerm(a,l,trian,quad)
+  t_Γ_u = FESource(l_Γ_u,btrian_u,bquad_u)
+  t_Γ_j = FESource(l_Γ_j,btrian_j,bquad_j)
+  op  = AffineFEOperator(X,Y,t_Ω, t_Γ_u, t_Γ_j )
+
+  xh = solve(op)
   uh, ph, jh, φh = xh
 
   eu = uh - u
@@ -82,8 +156,8 @@ for n=nxs
   append!(ej_hdiv, sqrt(sum(integrate(hdiv(ej),trian,quad))))
   append!(eφ_l2, sqrt(sum(integrate(l2(eφ),trian,quad))))
 
-  writevtk(trian,"results", nsubcells=10,cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,
-                                                     "eu"=>eu,"ep"=>ep,"ej"=>ej,"eφ"=>eφ])
+  # writevtk(trian,"results", nsubcells=10,cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,
+  #                                                    "eu"=>eu,"ep"=>ep,"ej"=>ej,"eφ"=>eφ])
 
 end
 

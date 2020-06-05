@@ -1,80 +1,12 @@
-module Defaults
+module AnalyticalSolutions
 
-using Gridap
+using Gridap: VectorValue
 
-export writePVD
-export shercliff_solution
-export default_u_ic
-export default_g
-export default_p
-export default_φ
-export default_∇u_n
-export default_f_p
-export default_f_φ
-export default_f_j
-export defualt_f_B
+export shercliff_u
+export shercliff_j
+export hunt_u
+export hunt_j
 
-function writePVD(filename,timeSteps)
-  rm(filename,force=true,recursive=true)
-  mkdir(filename)
-  pvdcontent  = """<?xml version="1.0"?>
-<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
-  <Collection>\n"""
-  for t in timeSteps
-    pvdcontent *= """    <DataSet timestep=""" * '"'
-    pvdcontent *= string(t) * '"' * """ group="" part="0" file=""" * '"'
-    pvdcontent *= filename*"""/time_"""*string(t)*""".vtu"/>\n"""
-  end
-  pvdcontent  *= "  </Collection>\n</VTKFile>"
-  f = open(filename * ".pvd", "w")
-  write(f,pvdcontent)
-  close(f)
-end
-
-# Default force
-function default_f_u(x)
-  return VectorValue(0.0,0.0,0.0)
-end
-# Default force
-function default_f_p(x)
-  return 0.0
-end
-# Default force
-function default_f_j(x)
-  return VectorValue(0.0,0.0,0.0)
-end
-# Default force
-function default_f_φ(x)
-  return 0.0
-end
-
-# Default external magnetic field
-function default_B(x)
-  return VectorValue(0.0,1.0,0.0)
-end
-
-# Default initial conditions
-function default_u_ic(x)
-  return VectorValue(0.0,0.0,0.0)
-end
-
-# Default Dirichlet boundary conditions
-function default_g(x)
-  return VectorValue(0.0,0.0,0.0)
-end
-
-# Default Neumann boundary conditions
-function default_∇u_n(x)
-  return VectorValue(0.0,0.0,0.0)
-end
-
-function default_p(x)
-  return 0.0
-end
-
-function default_φ(x)
-  return 0.0
-end
 
 
 function shercliff_u(a::Float64,       # semi-length of side walls
@@ -112,13 +44,9 @@ function shercliff_u(a::Float64,       # semi-length of side walls
     den2 = (1-exp(-2(r1_k+r2_k)))/(1+exp(-2*r1_k))
     V3 = (num1 * num2)/(den1 + den2)
 
-    # V1 = 1 - N/(2*α_k^2)*((1+exp(-2*N))/(1-exp(-2*N))-exp(Ha-N)*(1+exp(-2*Ha))/(1-exp(-2*N)))
-
     V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3) * (1-V2-V3)
-    # V0+= 1/α_k^4 * V1
   end
   u_z = V/μ * (-grad_pz) * a^2
-  # u_0 = -2*a^2/(l^2*η) * grad_pz * V0
 
   return VectorValue(0.0*u_z,0.0*u_z,u_z)
 end
@@ -199,13 +127,10 @@ function hunt_u(a::Float64,       # semi-length of side walls
     den = 1+exp(-2*r2_k)
     V3 = (r1_k/N)*(num/den)
 
-    # V1 = 1 - N/(2*α_k^2)*((1+exp(-2*N))/(1-exp(-2*N))-exp(Ha-N)*(1+exp(-2*Ha))/(1-exp(-2*N)))
 
     V += 2*(-1)^k*cos(α_k * ξ)/(l*α_k^3) * (1-V2-V3)
-    # V0+= 1/α_k^4 * V1
   end
   u_z = V/μ * (-grad_pz) * a^2
-  # u_0 = -2*a^2/(l^2*η) * grad_pz * V0
 
   return VectorValue(0.0*u_z,0.0*u_z,u_z)
 end
