@@ -64,7 +64,6 @@ function solve!(
   p=ns.preconditioner(ns.A; ns.precond_kwargs...)
   # initialize the solution to 0
   x .= 0.0
-  @show maximum(x)
   gmres!(x, ns.A, b,verbose=true, Pl=p, initially_zero=ns.initially_zero)
 end
 
