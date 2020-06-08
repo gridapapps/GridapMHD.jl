@@ -38,7 +38,7 @@ u0(x) = hunt_u(side_wall_semilength, hartmann_wall_semilength, ρ*ν, ∂p∂z,
 j0(x) = hunt_j(side_wall_semilength, hartmann_wall_semilength, σ, ρ*ν, ∂p∂z,
     Ha, number_fourier_sumands, x)
 
-# Discretizatoin
+# Discretization
 order = 2
 domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
 map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,

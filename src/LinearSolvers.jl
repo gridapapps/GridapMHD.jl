@@ -62,7 +62,9 @@ end
 function solve!(
   x::AbstractVector,ns::GmresNumericalSetup,b::AbstractVector)
   p=ns.preconditioner(ns.A; ns.precond_kwargs...)
-  # ilu(ns.A, τ=ns.τ)
+  # initialize the solution to 0
+  x .= 0.0
+  @show maximum(x)
   gmres!(x, ns.A, b,verbose=true, Pl=p, initially_zero=ns.initially_zero)
 end
 
