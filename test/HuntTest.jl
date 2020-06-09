@@ -91,7 +91,7 @@ t_Ω = FETerm(res,jac,trian,quad)
 op  = FEOperator(X,Y,t_Ω)
 
 # Solver
-nls = NLSolver(GmresSolver(initially_zero=false,preconditioner=ilu,τ=1e-6);
+nls = NLSolver(GmresSolver(preconditioner=ilu,τ=1e-6);
   show_trace=true, method=:newton, linesearch=BackTracking())
 solver = FESolver(nls)
 
