@@ -1,26 +1,19 @@
 module GridapMHD
 
 using Gridap
-
-include("AnalyticalFunctions.jl")
+using IncompleteLU
+using LineSearches: BackTracking
 
 include("InductionlessMHD.jl")
 
 include("LinearSolvers.jl")
 
-using GridapMHD.AnalyticalSolutions
 using GridapMHD.LinearSolvers
 
-# AnalyticalSolutions
-export shercliff_u
-export shercliff_j
-export hunt_u
-export hunt_j
-
-# InductionlessMHD
+# InductionlessMHD exports
 export vprod
 
-# LinearSolvers
+# LinearSolvers exports
 export GmresSolver
 export symbolic_setup
 export numerical_setup
@@ -28,6 +21,27 @@ export numerical_setup!
 export solve!
 
 export writePVD
+export compute_u_j_errors
+
+# Benchmarks
+include("Hunt.jl")
+
+include("Shercliff.jl")
+
+# Handy functions
+_l2(v) = v*v
+_h1(v) = v*v + inner(∇(v),∇(v))
+_hdiv(v) = v*v + inner((∇*v),(∇*v))
+
+function compute_u_j_errors(uh, jh, u, j, trian, quad)
+  eu = uh - u
+  ej = jh - j
+
+  eu_l2 = sqrt(sum(integrate(_l2(eu),trian,quad)))
+  ej_l2 = sqrt(sum(integrate(_l2(ej),trian,quad)))
+
+  return eu_l2, ej_l2
+end
 
 function writePVD(filename,timeSteps)
   rm(filename,force=true,recursive=true)
@@ -45,5 +59,6 @@ function writePVD(filename,timeSteps)
   write(f,pvdcontent)
   close(f)
 end
+
 
 end # module
