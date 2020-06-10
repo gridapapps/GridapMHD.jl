@@ -1,6 +1,7 @@
 module GridapMHD
 
 using Gridap
+using TimerOutputs
 using IncompleteLU
 using LineSearches: BackTracking
 

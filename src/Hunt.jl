@@ -3,6 +3,9 @@
 function hunt(;nx::Int=2, ny::Int=2, Re::Float64 = 10.0, Ha::Float64 = 10.0,
     U0::Float64 = 10.0, B0::Float64 = 10.0, L::Float64 = 1.0)
 
+  reset_timer!()
+
+  @timeit "model" begin
   N = Ha^2/Re
   K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1))
   ∂p∂z = -L^3 * K / Re
@@ -30,7 +33,8 @@ function hunt(;nx::Int=2, ny::Int=2, Re::Float64 = 10.0, Ha::Float64 = 10.0,
   labels = get_face_labeling(model)
   add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
   add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
-
+  end
+  @timeit "FE spaces" begin
   Vu = FESpace(
     reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
     conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
@@ -54,7 +58,9 @@ function hunt(;nx::Int=2, ny::Int=2, Re::Float64 = 10.0, Ha::Float64 = 10.0,
 
   Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
   X = MultiFieldFESpace([U, P, J, Φ])
+  end
 
+  @timeit "Integration" begin
   # Integration
   trian = Triangulation(model)
   degree = 2*(order)
@@ -65,13 +71,19 @@ function hunt(;nx::Int=2, ny::Int=2, Re::Float64 = 10.0, Ha::Float64 = 10.0,
 
   t_Ω = FETerm(res,jac,trian,quad)
   op  = FEOperator(X,Y,t_Ω)
+  end
 
+  @timeit "Setup solver" begin
   # Solver
   nls = NLSolver(GmresSolver(preconditioner=ilu,τ=1e-6);
     show_trace=true, method=:newton, linesearch=BackTracking())
   solver = FESolver(nls)
+  end
 
-  xh = solve(solver,op)
+  @timeit "solve" xh = solve(solver,op)
+
+  print_timer()
+
   (xh, trian, quad)
 end
 
