@@ -9,3 +9,7 @@ using Test
 @time @testset "ConvergenceMHDTest" begin include("ConvergenceMHDTest.jl") end
 
 @time @testset "ConvergenceWithPeriodicBCMHDTest" begin include("ConvergenceWithPeriodicBCMHDTest.jl") end
+
+@time @testset "ShercliffTest" begin include("ShercliffTest.jl") end
+
+@time @testset "HuntTest" begin include("HuntTest.jl") end
