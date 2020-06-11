@@ -1,7 +1,7 @@
 
 
-function hunt(;nx::Int=2, ny::Int=2, Re::Float64 = 10.0, Ha::Float64 = 10.0,
-    U0::Float64 = 10.0, B0::Float64 = 10.0, L::Float64 = 1.0)
+function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
+    U0::Float64 = Re, B0::Float64 = Ha, L::Float64 = 1.0, resultsfile = nothing)
 
   reset_timer!()
 
@@ -83,7 +83,13 @@ function hunt(;nx::Int=2, ny::Int=2, Re::Float64 = 10.0, Ha::Float64 = 10.0,
   @timeit "solve" xh = solve(solver,op)
 
   print_timer()
+  println()
 
+  if resultsfile != nothing
+    uh, ph, jh, φh = xh
+    writevtk(trian, resultsfile,
+      cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
+  end
   (xh, trian, quad)
 end
 
