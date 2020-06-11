@@ -49,7 +49,7 @@ julia> writevtk(trian, "results.vtu", cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, 
 ```
 
 ## How to cite
-If you have used these drivers in a scientific publication, please cite Gridap library and the stabilization method as follows:
+If you have used these drivers in a scientific publication, please cite Gridap library as follows:
 
 ```
 @article{gridap_guide_2019,
