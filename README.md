@@ -33,20 +33,15 @@ Current implemented drivers are:
 ## Minimal Example
 Minimal working example:
 ```
-pkg> add https://github.com/gridapapps/GridapLimiters.jl#master
+pkg> add https://github.com/gridapapps/GridapMHD.jl
 julia> using GridapMHD:hunt
-julia> xh, trian, quad = hunt(nx=3,ny=3);
+julia> xh, trian, quad = hunt(nx=3,ny=3,resultsfile="results.vtu");
 julia> uh, ph, jh, φh = xh
 ```
 This will solve Hunt's problem in Ω=[-1,1]x[-1,1]x[0,0.1] with a 3x3x3 mesh.
-(see [](this) for details of Hunt's problem setting). By default a Re=10 and
-Ha=10 are used. With the following commands the solution can be stored in a
-VTK file using Gridap interface.
-```
-pkg> add Gridap
-julia> using Gridap:writevtk
-julia> writevtk(trian, "results.vtu", cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh]);
-```
+(see [this](https://www.sciencedirect.com/science/article/pii/S0021999111000088) for details of Hunt's problem setting). By default a Re=10 and
+Ha=10 are used. By default no result file is generated, but if `resultsfile=
+<filename>` is specified, the solution will be saved in `<filename>` VTK file.
 
 ## How to cite
 If you have used these drivers in a scientific publication, please cite Gridap library as follows:
