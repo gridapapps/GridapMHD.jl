@@ -11,26 +11,26 @@ function dimensionless_a(X,Y,Re,N,B)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
-  (1/Re)*inner(∇(u),∇(v_u)) - p*(∇*v_u) - N*vprod(j,B)*v_u +
-  (∇*u)*v_p +
-  j*v_j - φ*(∇*v_j) - vprod(u,B)*v_j +
-  (∇*j)*v_φ
+  (1/Re)*inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - N*vprod(j,B)⋅v_u +
+  (∇⋅u)*v_p +
+  j⋅v_j - φ*(∇⋅v_j) - vprod(u,B)⋅v_j +
+  (∇⋅j)*v_φ
 end
 
 function dimensionless_l(Y,f_u)
   v_u, v_p, v_j, v_φ = Y
 
-  v_u*f_u
+  v_u⋅f_u
 end
 
-@law conv(u,∇u) = (∇u')*u
+@law conv(u,∇u) = (∇u')⋅u
 @law dconv(du,∇du,u,∇u) = conv(u,∇du)+conv(du,∇u)
 
 function convective_term(X,Y)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
-  v_u*conv(u,∇(u))
+  v_u⋅conv(u,∇(u))
 end
 
 function dconvective_term(X,dX,Y)
@@ -38,7 +38,7 @@ function dconvective_term(X,dX,Y)
   du , dp , dj , dφ  = dX
   v_u, v_p, v_j, v_φ = Y
 
-  v_u*dconv(du,∇(du),u,∇(u))
+  v_u⋅dconv(du,∇(du),u,∇(u))
 end
 
 function dimensionless_residual(X,Y,Re,N,B)
@@ -60,7 +60,7 @@ end
 function dimensionless_darcy_l_Γ(Y,g_φ)
   v_u, v_p, v_j, v_φ = Y
 
-  -(v_j*nb_j)*g_φ
+  -(v_j⋅nb_j)*g_φ
 end
 
 end # module

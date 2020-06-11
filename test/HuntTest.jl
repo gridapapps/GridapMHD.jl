@@ -23,7 +23,7 @@ xh, trian, quad = hunt(nx=5,ny=5,Re=10.0,Ha=10.0)
 
 # Postprocess
 uh, ph, jh, φh = xh
-divj = (∇*jh)
+divj = (∇⋅jh)
 
 uh = uh * U0
 jh = jh * σ * B0 * U0

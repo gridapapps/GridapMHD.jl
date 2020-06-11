@@ -30,9 +30,9 @@ include("Hunt.jl")
 include("Shercliff.jl")
 
 # Handy functions
-_l2(v) = v*v
-_h1(v) = v*v + inner(∇(v),∇(v))
-_hdiv(v) = v*v + inner((∇*v),(∇*v))
+_l2(v) = v⋅v
+_h1(v) = v⋅v + inner(∇(v),∇(v))
+_hdiv(v) = v⋅v + inner((∇⋅v),(∇⋅v))
 
 function compute_u_j_errors(uh, jh, u, j, trian, quad)
   eu = uh - u
