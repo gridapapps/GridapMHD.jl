@@ -22,7 +22,7 @@ Ha = B0 * L * sqrt(σ/(ρ*ν))
 xh, trian, quad = shercliff(nx=5,ny=5,Re=10.0,Ha=10.0)
 
 uh, ph, jh, φh = xh
-divj = (∇*jh)
+divj = (∇⋅jh)
 
 # Scale unknowns
 uh = uh * U0

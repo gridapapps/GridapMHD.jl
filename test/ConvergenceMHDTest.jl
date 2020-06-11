@@ -18,10 +18,10 @@ B = VectorValue(1.0,1.0,1.0)
 @law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
 
 
-f_u(x) = (∇u(x)')*u(x) - Δu(x) + ∇p(x) - vprod(j(x),B)
-f_p(x) = (∇*u)(x)
+f_u(x) = (∇u(x)')⋅u(x) - Δu(x) + ∇p(x) - vprod(j(x),B)
+f_p(x) = (∇⋅u)(x)
 f_j(x) = j(x) + ∇φ(x) - vprod(u(x),B)
-f_φ(x) = (∇*j)(x)
+f_φ(x) = (∇⋅j)(x)
 
 g_u(x) = u(x)
 g_j(x) = j(x)
@@ -81,16 +81,16 @@ for n=nxs
     u  , p  , j  , φ   = X
     v_u, v_p, v_j, v_φ = Y
 
-    (∇(u)'*uk)*v_u + inner(∇(u),∇(v_u)) - p*(∇*v_u) - vprod(j,B)*v_u +
-    (∇*u)*v_p +
-    j*v_j - φ*(∇*v_j) - vprod(u,B)*v_j +
-    (∇*j)*v_φ
+    (∇(u)'⋅uk)⋅v_u + inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - vprod(j,B)⋅v_u +
+    (∇⋅u)*v_p +
+    j⋅v_j - φ*(∇⋅v_j) - vprod(u,B)⋅v_j +
+    (∇⋅j)*v_φ
   end
 
   function l(Y)
     v_u, v_p, v_j, v_φ = Y
 
-    v_u*f_u + v_p*f_p + v_j*f_j + v_φ*f_φ
+    v_u⋅f_u + v_p*f_p + v_j⋅f_j + v_φ*f_φ
   end
 
   btrian_u = BoundaryTriangulation(model,"neumann_u")
@@ -100,7 +100,7 @@ for n=nxs
   function l_Γ_u(Y)
     v_u, v_p, v_j, v_φ = Y
 
-    v_u*(nb_u*∇u) - (nb_u*v_u)*p
+    v_u⋅(nb_u⋅∇u) - (nb_u⋅v_u)*p
   end
 
   btrian_j = BoundaryTriangulation(model,"neumann_j")
@@ -110,7 +110,7 @@ for n=nxs
   function l_Γ_j(Y)
     v_u, v_p, v_j, v_φ = Y
 
-    -(v_j*nb_j)*φ
+    -(v_j⋅nb_j)*φ
   end
 
   t_Ω = AffineFETerm(a,l,trian,quad)
@@ -126,9 +126,9 @@ for n=nxs
   ej = jh - j
   eφ = φh - φ
 
-  l2(v) = v*v
-  h1(v) = v*v + inner(∇(v),∇(v))
-  hdiv(v) = v*v + inner((∇*v),(∇*v))
+  l2(v) = v⋅v
+  h1(v) = v⋅v + inner(∇(v),∇(v))
+  hdiv(v) = v⋅v + inner((∇⋅v),(∇⋅v))
 
   append!(eu_l2, sqrt(sum(integrate(l2(eu),trian,quad))))
   append!(eu_h1, sqrt(sum(integrate(h1(eu),trian,quad))))
