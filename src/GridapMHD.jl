@@ -11,9 +11,6 @@ include("LinearSolvers.jl")
 
 using GridapMHD.LinearSolvers
 
-# InductionlessMHD exports
-export vprod
-
 # LinearSolvers exports
 export GmresSolver
 export symbolic_setup

@@ -2,18 +2,13 @@ module InductionlessMHD
 
 using Gridap
 
-export vprod
-
-
-@law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
-
 function dimensionless_a(X,Y,Re,N,B)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
-  (1/Re)*inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - N*vprod(j,B)⋅v_u +
+  (1/Re)*inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - N*(j×B)⋅v_u +
   (∇⋅u)*v_p +
-  j⋅v_j - φ*(∇⋅v_j) - vprod(u,B)⋅v_j +
+  j⋅v_j - φ*(∇⋅v_j) - (u×B)⋅v_j +
   (∇⋅j)*v_φ
 end
 

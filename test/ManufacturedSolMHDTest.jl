@@ -15,12 +15,10 @@ B = VectorValue(1.0,1.0,1.0)
 ∇p(x) = ∇(p)(x)
 ∇φ(x) = ∇(φ)(x)
 
-@law vprod(a,b) = VectorValue(a[2]b[3]-a[3]b[2], a[1]b[3]-a[3]b[1], a[1]b[2]-a[2]b[1])
 
-
-f_u(x) = (∇u(x)')⋅u(x) - Δu(x) + ∇p(x) - vprod(j(x),B)
+f_u(x) = (∇u(x)')⋅u(x) - Δu(x) + ∇p(x) - j(x)×B
 f_p(x) = (∇⋅u)(x)
-f_j(x) = j(x) + ∇φ(x) - vprod(u(x),B)
+f_j(x) = j(x) + ∇φ(x) - u(x)×B
 f_φ(x) = (∇⋅j)(x)
 
 g_u(x) = u(x)
@@ -89,9 +87,9 @@ function a(X,Y)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
-  (∇(u)'⋅uk)⋅v_u + inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - vprod(j,B)⋅v_u +
+  (∇(u)'⋅uk)⋅v_u + inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - (j×B)⋅v_u +
   (∇⋅u)*v_p +
-  j⋅v_j - φ*(∇⋅v_j) - vprod(u,B)⋅v_j +
+  j⋅v_j - φ*(∇⋅v_j) - (u×B)⋅v_j +
   (∇⋅j)*v_φ
 end
 
