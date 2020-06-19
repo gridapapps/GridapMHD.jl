@@ -35,7 +35,7 @@ number_fourier_sumands = 10
 wall_thickness = 1.0
 wall_conductivity = 0.0
 K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
-∂p∂z = -L^3 * K / Re
+∂p∂z = -Re * K / L^3
 u0(x) = analytical_shercliff_u(side_wall_semilength, hartmann_wall_semilength,
   wall_thickness, wall_conductivity, σ, ν*ρ, ∂p∂z, Ha, number_fourier_sumands, x)
 
@@ -45,8 +45,8 @@ j0(x) = analytical_shercliff_j(side_wall_semilength, hartmann_wall_semilength,
 eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, trian, quad)
 e_divj = sqrt(sum(integrate(divj*divj,trian,quad)))
 
-@test eu_l2 < 0.003
-@test ej_l2 < 0.05
+@test eu_l2 < 0.3
+@test ej_l2 < 5
 @test e_divj < 1e-12
 
 end #module

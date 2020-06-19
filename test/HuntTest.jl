@@ -33,7 +33,7 @@ side_wall_semilength = 1.0
 hartmann_wall_semilength = 1.0
 number_fourier_sumands = 10
 K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1))
-∂p∂z = -L^3 * K / Re
+∂p∂z = -Re * K / L^3
 u0(x) = analytical_hunt_u(side_wall_semilength, hartmann_wall_semilength,
   ρ*ν, ∂p∂z, Ha, number_fourier_sumands, x)
 
@@ -43,7 +43,7 @@ j0(x) = analytical_hunt_j(side_wall_semilength, hartmann_wall_semilength,
 eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, trian, quad)
 e_divj = sqrt(sum(integrate(divj*divj,trian,quad)))
 
-@test eu_l2 < 0.0006
-@test ej_l2 < 0.008
-@test e_divj < 1e-10
+@test eu_l2 < 0.06
+@test ej_l2 < 0.8
+@test e_divj < 2e-10
 end #module

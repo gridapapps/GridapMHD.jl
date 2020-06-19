@@ -8,7 +8,7 @@ function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
   @timeit "model" begin
   N = Ha^2/Re
   K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1))
-  ∂p∂z = -L^3 * K / Re
+  ∂p∂z = -Re * K / L^3
 
   f_u(x) = VectorValue(0.0,0.0, -∂p∂z) * L/U0^2
   g_u = VectorValue(0.0,0.0,0.0)
