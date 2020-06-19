@@ -57,10 +57,10 @@ function dimensionless_jacobian(X,dX,Y,Re,N,B)
   dconvective_term(X,dX,Y)
 end
 
-function dimensionless_darcy_l_Γ(Y,g_φ)
+function dimensionless_darcy_l_Γ(Y,n,g_φ)
   v_u, v_p, v_j, v_φ = Y
 
-  -(v_j⋅nb_j)*g_φ
+  -(v_j⋅n)*g_φ
 end
 
 end # module
