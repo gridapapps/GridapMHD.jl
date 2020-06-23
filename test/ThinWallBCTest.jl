@@ -15,8 +15,8 @@ using .InductionlessMHD
 ρ = 1.0
 ν = 1.0
 σ = 1.0
-wall_thickness = 1.0
-wall_conductivity = 0.10
+wall_thickness = 0.10
+wall_conductivity = 1.0
 c_w = wall_conductivity * wall_thickness/σ
 
 U0 = 10.0
@@ -25,7 +25,7 @@ L = 1.0
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
 
-nx = 12; ny = 12
+nx = 15; ny = 15
 
 N = Ha^2/Re
 K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
