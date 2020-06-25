@@ -58,7 +58,7 @@ function dimensionless_darcy_l_Γ(Y,n,g_φ)
   -(v_j⋅n)*g_φ
 end
 
-function dimensionless_conducting_wall(X,Y,n,c_w;α=10.0)
+function dimensionless_conducting_wall(X,Y,n,c_w;α=1.0)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
   α*((v_j⋅n)*(j⋅n) + c_w * (v_j⋅n)*(n⋅(∇(j)⋅n)))
