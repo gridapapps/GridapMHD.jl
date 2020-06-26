@@ -13,3 +13,5 @@ using Test
 @time @testset "ShercliffTest" begin include("ShercliffTest.jl") end
 
 @time @testset "HuntTest" begin include("HuntTest.jl") end
+
+@time @testset "ThinWallBCTest" begin include("ThinWallBCTest.jl") end

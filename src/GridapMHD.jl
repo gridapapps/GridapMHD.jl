@@ -11,9 +11,6 @@ include("LinearSolvers.jl")
 
 using GridapMHD.LinearSolvers
 
-# InductionlessMHD exports
-export vprod
-
 # LinearSolvers exports
 export GmresSolver
 export symbolic_setup
@@ -28,6 +25,8 @@ export compute_u_j_errors
 include("Hunt.jl")
 
 include("Shercliff.jl")
+
+include("ConductiveThinWall.jl")
 
 # Handy functions
 _l2(v) = v⋅v
