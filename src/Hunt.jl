@@ -20,7 +20,7 @@ function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
   order = 2
   domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
   map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,
-                       sign(x[2])*(abs(x[2])*0.5)^0.5,  x[3])*2/sqrt(2)
+                       sign(x[2])*(abs(x[2])*0.5)^0.5, x[3]*sqrt(2)/2)*2/sqrt(2)
 
 
   dirichlet_tags_u = append!(collect(1:20),[23,24,25,26])

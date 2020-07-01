@@ -15,3 +15,5 @@ using Test
 @time @testset "HuntTest" begin include("HuntTest.jl") end
 
 @time @testset "ThinWallBCTest" begin include("ThinWallBCTest.jl") end
+
+@time @testset "TransientTest" begin include("TransientTest.jl") end
