@@ -45,5 +45,5 @@ e_divj = sqrt(sum(integrate(divj*divj,trian,quad)))
 
 @test eu_l2 < 0.06
 @test ej_l2 < 0.8
-@test e_divj < 2e-10
+@test e_divj < 1e-9
 end #module
