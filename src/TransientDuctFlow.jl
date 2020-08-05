@@ -65,7 +65,7 @@ function transient_duct_flow(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
   Φ = TransientTrialFESpace(Vφ)
 
   Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
-  X = MultiFieldFESpace([U, P, J, Φ])
+  X = TransientMultiFieldFESpace([U, P, J, Φ])
 
   trian = Triangulation(model)
   degree = 2*(order)
