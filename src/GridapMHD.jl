@@ -27,6 +27,16 @@ export solve!
 export writePVD
 export compute_u_j_errors
 
+include("RaviartThomasRefFEs_simplex.jl")
+using GridapMHD.RaviartThomasRefFE_simplex
+
+export PGradMonomialBasis
+export PCurlGradMonomialBasis
+
+export get_order
+export get_orders
+export get_value_type
+export num_terms
 # Benchmarks
 include("Hunt.jl")
 
