@@ -37,6 +37,12 @@ export get_order
 export get_orders
 export get_value_type
 export num_terms
+
+export field_cache
+export gradient_cache
+export evaluate_field!
+export evaluate_gradient!
+
 # Benchmarks
 include("Hunt.jl")
 

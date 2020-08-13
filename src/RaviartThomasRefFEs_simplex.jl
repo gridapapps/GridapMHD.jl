@@ -3,8 +3,12 @@ module RaviartThomasRefFE_simplex
 using Gridap
 using Gridap.Helpers
 using Gridap.Fields
+using Gridap.Arrays
+using Gridap.TensorValues
 using Gridap.Polynomials
 using Gridap.Polynomials: _prepare_perms
+using Gridap.Polynomials: _evaluate_1d!
+using Gridap.Polynomials: _gradient_1d!
 using Gridap.ReferenceFEs
 using Gridap.ReferenceFEs: _RT_face_values
 using Gridap.ReferenceFEs: _face_own_dofs_from_moments
@@ -13,6 +17,10 @@ import Gridap.Polynomials: get_order
 import Gridap.Polynomials: get_orders
 import Gridap.Polynomials: get_value_type
 import Gridap.Polynomials: num_terms
+import Gridap.Polynomials: field_cache
+import Gridap.Polynomials: gradient_cache
+import Gridap.Polynomials: evaluate_field!
+import Gridap.Polynomials: evaluate_gradient!
 
 export PGradMonomialBasis
 export PCurlGradMonomialBasis
@@ -22,26 +30,59 @@ export get_orders
 export get_value_type
 export num_terms
 
+export field_cache
+export gradient_cache
+export evaluate_field!
+export evaluate_gradient!
+
 export RaviartThomasRefFE_t
 
 
-struct PGradMonomialBasis{D,T} <: Field
+# struct PGradMonomialBasis{D,T} <: Field
+#   order::Int
+#   terms::Array{CartesianIndex{D},1}
+#   perms::Matrix{Int}
+#   function PGradMonomialBasis(::Type{T},order::Int,terms::Array{CartesianIndex{D},1},perms::Matrix{Int}) where {D,T}
+#     new{D,T}(order,terms,perms)
+#   end
+# end
+#
+# """
+#     num_terms(f::PGradMonomialBasis{D,T}) where {D,T}
+# """
+# function num_terms(f::PGradMonomialBasis{D,T}) where {D,T}
+#   # (_p_dim(f.order,D) + _p_dim(f.order+1,D-1))*D - _p_dim(f.order+2)
+#   dim = f.order+1
+#   for d in 2:D
+#     dim *= (f.order+1+d)
+#   end
+#   Int(dim/factorial(dim-1))
+# end
+
+
+struct PCurlGradMonomialBasis{D,T} <: Field
   order::Int
-  terms::Array{CartesianIndex{D},1}
+  pterms::Array{CartesianIndex{D},1}
+  sterms::Array{CartesianIndex{D},1}
   perms::Matrix{Int}
-  function PGradMonomialBasis(::Type{T},order::Int,terms::Array{CartesianIndex{D},1},perms::Matrix{Int}) where {D,T}
-    new{D,T}(order,terms,perms)
+  function PCurlGradMonomialBasis(::Type{T},order::Int,
+      pterms::Array{CartesianIndex{D},1},sterms::Array{CartesianIndex{D},1},
+      perms::Matrix{Int}) where {D,T}
+    new{D,T}(order,pterms,sterms,perms)
   end
 end
 
-"""
-    num_terms(f::PGradMonomialBasis{D,T}) where {D,T}
-"""
-num_terms(f::PGradMonomialBasis{D,T}) where {D,T} = length(f.terms)*D
+function PCurlGradMonomialBasis{D}(::Type{T},order::Int) where {D,T}
+  @assert T<:Real "T needs to be <:Real since represents the type of the components of the vector value"
+  P_k = MonomialBasis{D}(T, order, _p_filter)
+  S_k = MonomialBasis{D}(T, order, _s_filter)
+  pterms = P_k.terms
+  sterms = S_k.terms
+  perms = _prepare_perms(D)
+  PCurlGradMonomialBasis(T,order,pterms,sterms,perms)
+end
 
-get_order(f::PGradMonomialBasis) = f.order
-
-function field_cache(f::PGradMonomialBasis{D,T},x) where {D,T}
+function field_cache(f::PCurlGradMonomialBasis{D,T},x) where {D,T}
   @assert D == length(eltype(x)) "Incorrect number of point components"
   np = length(x)
   ndof = _ndofs_pgrad(f)
@@ -53,7 +94,7 @@ function field_cache(f::PGradMonomialBasis{D,T},x) where {D,T}
   (r, v, c)
 end
 
-function evaluate_field!(cache,f::PGradMonomialBasis{D,T},x) where {D,T}
+function evaluate_field!(cache,f::PCurlGradMonomialBasis{D,T},x) where {D,T}
   r, v, c = cache
   np = length(x)
   ndof = _ndofs_pgrad(f)
@@ -63,7 +104,7 @@ function evaluate_field!(cache,f::PGradMonomialBasis{D,T},x) where {D,T}
   setsize!(c,(D,n))
   for i in 1:np
     @inbounds xi = x[i]
-      _evaluate_nd_pgrad!(v,xi,f.order+1,f.terms,f.perms,c)
+      _evaluate_nd_pcurlgrad!(v,xi,f.order+1,f.pterms,f.sterms,f.perms,c)
     for j in 1:ndof
       @inbounds r[i,j] = v[j]
     end
@@ -71,7 +112,7 @@ function evaluate_field!(cache,f::PGradMonomialBasis{D,T},x) where {D,T}
   r
 end
 
-function gradient_cache(f::PGradMonomialBasis{D,T},x) where {D,T}
+function gradient_cache(f::PCurlGradMonomialBasis{D,T},x)  where {D,T}
   @assert D == length(eltype(x)) "Incorrect number of point components"
   np = length(x)
   ndof = _ndofs_pgrad(f)
@@ -86,7 +127,7 @@ function gradient_cache(f::PGradMonomialBasis{D,T},x) where {D,T}
   (r, v, c, g)
 end
 
-function evaluate_gradient!(cache,f::PGradMonomialBasis{D,T},x) where {D,T}
+function evaluate_gradient!(cache,f::PCurlGradMonomialBasis{D,T},x) where {D,T}
   r, v, c, g = cache
   np = length(x)
   ndof = _ndofs_pgrad(f)
@@ -98,7 +139,7 @@ function evaluate_gradient!(cache,f::PGradMonomialBasis{D,T},x) where {D,T}
   V = VectorValue{D,T}
   for i in 1:np
     @inbounds xi = x[i]
-    _gradient_nd_pgrad!(v,xi,f.order+1,f.terms,f.perms,c,g,V)
+    _gradient_nd_pcurlgrad!(v,xi,f.order+1,f.pterms,f.sterms,f.perms,c,g,V)
     for j in 1:ndof
       @inbounds r[i,j] = v[j]
     end
@@ -106,15 +147,40 @@ function evaluate_gradient!(cache,f::PGradMonomialBasis{D,T},x) where {D,T}
   r
 end
 
+get_value_type(::PCurlGradMonomialBasis{D,T}) where {D,T} = T
+
+"""
+    num_terms(f::QCurlGradMonomialBasis{D,T}) where {D,T}
+"""
+function num_terms(f::PCurlGradMonomialBasis{D,T}) where {D,T}
+  Int(_p_dim(f.order,D)*D + _p_dim(f.order,D-1))
+end
+
+get_order(f::PCurlGradMonomialBasis{D,T}) where {D,T} = f.order
+
 # Helpers
 
-_ndofs_pgrad(f::PGradMonomialBasis{D}) where D = D*(length(f.terms))
+_p_filter(e,order) = (sum(e) <= order)
+_s_filter(e,order) = (sum(e) == order)
 
-function _evaluate_nd_pgrad!(
+function _p_dim(order,D)
+  dim = 1
+  for d in 1:D
+    dim *= order+d
+  end
+  dim/factorial(D)
+end
+
+_ndofs_pgrad(f::PCurlGradMonomialBasis{D}) where D = num_terms(f)
+
+
+
+function _evaluate_nd_pcurlgrad!(
   v::AbstractVector{V},
   x,
   order,
-  terms::Array{CartesianIndex{D},1},
+  pterms::Array{CartesianIndex{D},1},
+  sterms::Array{CartesianIndex{D},1},
   perms::Matrix{Int},
   c::AbstractMatrix{T}) where {V,T,D}
 
@@ -129,8 +195,7 @@ function _evaluate_nd_pgrad!(
   js = eachindex(m)
   z = zero(T)
 
-  for ci in terms
-
+  for ci in pterms
     for j in js
 
       @inbounds for i in js
@@ -145,18 +210,34 @@ function _evaluate_nd_pgrad!(
       m[j] = s
       v[k] = m
       k += 1
-
     end
-
   end
 
+  for ci in sterms
+    @inbounds for i in js
+      m[i] = z
+    end
+    for j in js
+
+      s = c[j,2]
+      @inbounds for d in 1:dim
+        s *= c[d,ci[d]]
+      end
+
+      m[j] = s
+
+    end
+    v[k] = m
+    k += 1
+  end
 end
 
-function _gradient_nd_pgrad!(
+function _gradient_nd_pcurlgrad!(
   v::AbstractVector{G},
   x,
   order,
-  terms::Array{CartesianIndex{D},1},
+  pterms::Array{CartesianIndex{D},1},
+  sterms::Array{CartesianIndex{D},1},
   perms::Matrix{Int},
   c::AbstractMatrix{T},
   g::AbstractMatrix{T},
@@ -176,8 +257,7 @@ function _gradient_nd_pgrad!(
   zi = zero(T)
   k = 1
 
-  for ci in terms
-
+  for ci in pterms
     for j in js
 
       s = z
@@ -202,77 +282,52 @@ function _gradient_nd_pgrad!(
       for i in js
         @inbounds m[i,j] = s[i]
       end
-        @inbounds v[k] = m
+      @inbounds v[k] = m
       k += 1
+    end
+  end
 
+  for ci in sterms
+
+    @inbounds for i in mjs
+      m[i] = zi
     end
 
-  end
+    for j in js
 
-end
+      s = z
+      for i in js
+        s[i] = c[j,2]
+      end
 
+      for q in 1:dim
+        for d in 1:dim
+          if d != q
+            @inbounds s[q] *= c[d,ci[d]]
+          else
+            @inbounds s[q] *= g[d,ci[d]]
+          end
+        end
+      end
+      aux = o
+      @inbounds for d in 1:dim
+        aux *= c[d,ci[d]]
+      end
+      s[j] += aux
 
-struct PCurlGradMonomialBasis{D,T} <: Field
-  pgrad::PGradMonomialBasis{D,T}
-  function PCurlGradMonomialBasis(::Type{T},order::Int,terms::Array{CartesianIndex{D},1},perms::Matrix{Int}) where {D,T}
-    pgrad = PGradMonomialBasis(T,order,terms,perms)
-    new{D,T}(pgrad)
-  end
-end
-
-_p_filter(e,order) = (sum(e) <= order)
-_t_filter(e,order) = (sum(e) == order)
-
-function PCurlGradMonomialBasis{D}(::Type{T},order::Int) where {D,T}
-  @assert T<:Real "T needs to be <:Real since represents the type of the components of the vector value"
-  P_k = MonomialBasis{D}(T, order, _p_filter)
-  T_k = MonomialBasis{D}(T, order, _t_filter)
-  g = Vector(undef,D)
-  g .= 0 ; g[1] = 1
-  g = CartesianIndex(Tuple(g))
-  for i in 1:length(T_k.terms)
-    T_k.terms[i] += g
-  end
-  terms = [P_k.terms; T_k.terms ]
-  perms = _prepare_perms(D)
-  PCurlGradMonomialBasis(T,order,terms,perms)
-end
-
-
-
-function field_cache(f::PCurlGradMonomialBasis,x)
-  field_cache(f.pgrad,x)
-end
-
-@inline function evaluate_field!(cache,f::PCurlGradMonomialBasis,x)
-  evaluate_field!(cache,f.pgrad,x)
-end
-
-function gradient_cache(f::PCurlGradMonomialBasis,x)
-  gradient_cache(f.pgrad,x)
-end
-
-@inline function evaluate_gradient!(cache,f::PCurlGradMonomialBasis,x)
-  evaluate_gradient!(cache,f.pgrad,x)
-end
-
-get_value_type(::PCurlGradMonomialBasis{D,T}) where {D,T} = T
-
-"""
-    num_terms(f::QCurlGradMonomialBasis{D,T}) where {D,T}
-"""
-function num_terms(f::PCurlGradMonomialBasis{D,T}) where {D,T}
-  if D == 2
-    return (length(f.pgrad.terms)-f.pgrad.order-1)*D + f.pgrad.order+1
-  elseif D == 3
-    return (f.pgrad.order+4)*(f.pgrad.order+2)*(f.pgrad.order+1)/2
-  else
-    @notimplemented "Not implented for arbitrary dimensions yet"
+      for i in js
+        @inbounds m[i,j] = s[i]
+      end
+    end
+    @inbounds v[k] = m
+    k += 1
   end
 end
 
-get_order(f::PCurlGradMonomialBasis{D,T}) where {D,T} = get_order(f.pgrad)
 
+
+
+##
 
 function RaviartThomasRefFE_t(::Type{et},p::Polytope,order::Integer) where et
 
