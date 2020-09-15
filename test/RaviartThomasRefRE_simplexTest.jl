@@ -2,8 +2,10 @@ module RaviartThomasRefRE_simplexTest
 
 using Gridap
 using GridapMHD
+using GridapMHD.RaviartThomasRefFE_simplex: RaviartThomasRefFE_t
 using Test
 
+# using Gridap.Integration
 using Gridap.TensorValues
 using Gridap.Fields
 using Gridap.Polynomials
@@ -59,5 +61,20 @@ b = PCurlGradMonomialBasis{D}(T,order)
 
 @test num_terms(b) == 15
 @test get_order(b) == 1
+
+
+p = TET
+D = num_dims(TET)
+et = Float64
+order = 1
+
+reffe = RaviartThomasRefFE_t(et,p,order)
+test_reference_fe(reffe)
+@show num_terms(get_prebasis(reffe))
+@show num_dofs(reffe)
+@show get_order(get_prebasis(reffe))
+
+prebasis = get_prebasis(reffe)
+dof_basis = get_dof_basis(reffe)
 
 end
