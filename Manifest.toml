@@ -208,6 +208,12 @@ git-tree-sha1 = "8a7ce7d546d9dfc00e559c95e8331d7b01123209"
 uuid = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
 version = "0.14.0"
 
+[[GridapGmsh]]
+deps = ["Gridap", "Libdl"]
+git-tree-sha1 = "31358df88ecb2b37d2a0e05bd4e9a94426da51e1"
+uuid = "3025c34a-b394-11e9-2a55-3fee550c04c8"
+version = "0.3.3"
+
 [[GridapODEs]]
 deps = ["ForwardDiff", "Gridap", "LineSearches", "LinearAlgebra", "Sundials", "Test"]
 git-tree-sha1 = "469f69f2492ecfef659ad232db75d267fc26fc54"

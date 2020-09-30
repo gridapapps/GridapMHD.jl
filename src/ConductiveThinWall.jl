@@ -13,7 +13,7 @@ function conductive_thin_wall(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
   g_j = VectorValue(0.0,0.0,0.0)
   B = VectorValue(0.0,Ha,0.0)/B0
 
-  # Discretizatoin
+  # Discretization
   order = 2
   domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
   map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,

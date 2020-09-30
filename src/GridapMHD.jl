@@ -1,10 +1,13 @@
 module GridapMHD
 
 using Gridap
+
 using GridapODEs
 using GridapODEs.TransientFETools
 using GridapODEs.ODETools
 import GridapODEs.TransientFETools: ∂t
+
+using GridapGmsh
 
 using ForwardDiff
 using TimerOutputs
@@ -35,6 +38,8 @@ include("Shercliff.jl")
 include("ConductiveThinWall.jl")
 
 include("TransientDuctFlow.jl")
+
+include("DriverInductionlessMHD.jl")
 
 # Handy functions
 _l2(v) = v⋅v

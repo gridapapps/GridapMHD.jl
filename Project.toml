@@ -6,6 +6,7 @@ version = "0.1.0"
 [deps]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
+GridapGmsh = "3025c34a-b394-11e9-2a55-3fee550c04c8"
 GridapODEs = "55e38337-5b6e-4c7c-9cfc-e00dd49102e6"
 IncompleteLU = "40713840-3770-5561-ab4c-a76e7d0d7895"
 IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
