@@ -210,7 +210,9 @@ version = "0.14.0"
 
 [[GridapGmsh]]
 deps = ["Gridap", "Libdl"]
-git-tree-sha1 = "31358df88ecb2b37d2a0e05bd4e9a94426da51e1"
+git-tree-sha1 = "24128dca32d45948d1805fbc38624d3efcaab211"
+repo-rev = "master"
+repo-url = "https://github.com/gridap/GridapGmsh.jl.git"
 uuid = "3025c34a-b394-11e9-2a55-3fee550c04c8"
 version = "0.3.3"
 
