@@ -18,6 +18,12 @@ git-tree-sha1 = "35d7f0b46082d8035bcececdfc83b93abe72d470"
 uuid = "2169fc97-5a83-5252-b627-83903c6c433c"
 version = "0.3.0"
 
+[[ArnoldiMethod]]
+deps = ["DelimitedFiles", "LinearAlgebra", "Random", "SparseArrays", "StaticArrays", "Test"]
+git-tree-sha1 = "2b6845cea546604fb4dca4e31414a6a59d39ddcd"
+uuid = "ec485272-7323-5ecc-a04f-4719b315124d"
+version = "0.0.4"
+
 [[ArrayInterface]]
 deps = ["LinearAlgebra", "Requires", "SparseArrays"]
 git-tree-sha1 = "a2b4a1b7c725297565105f98dcee04e362d955d6"
@@ -38,6 +44,12 @@ version = "0.2.6"
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
+[[BinDeps]]
+deps = ["Libdl", "Pkg", "SHA", "URIParser", "Unicode"]
+git-tree-sha1 = "46cf2c1668ad07aba5a9d331bdeea994a1f13856"
+uuid = "9e28174c-4ba2-5203-b857-d8d62c4213ee"
+version = "1.0.1"
+
 [[BlockArrays]]
 deps = ["ArrayLayouts", "Compat", "FillArrays", "LinearAlgebra"]
 git-tree-sha1 = "7657b0d61bcdceb4d7a404f9514e93c27e8bcebb"
@@ -48,6 +60,12 @@ version = "0.12.12"
 git-tree-sha1 = "215a9aa4a1f23fbd05b92769fdd62559488d70e9"
 uuid = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 version = "0.4.1"
+
+[[CMake]]
+deps = ["BinDeps"]
+git-tree-sha1 = "50a8b41d2c562fccd9ab841085fc7d1e2706da82"
+uuid = "631607c0-34d2-5d66-819e-eb0f9aa2061a"
+version = "1.2.0"
 
 [[ChainRulesCore]]
 deps = ["LinearAlgebra", "MuladdMacro"]
@@ -208,6 +226,12 @@ git-tree-sha1 = "8a7ce7d546d9dfc00e559c95e8331d7b01123209"
 uuid = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
 version = "0.14.0"
 
+[[GridapEmbedded]]
+deps = ["AbstractTrees", "Combinatorics", "Gridap", "LightGraphs", "LinearAlgebra", "MiniQhull", "Random", "Test"]
+git-tree-sha1 = "a68880adccaf0c4d35f036cff0118ff52af936e1"
+uuid = "8838a6a3-0006-4405-b874-385995508d5d"
+version = "0.4.0"
+
 [[GridapGmsh]]
 deps = ["Gridap", "Libdl"]
 git-tree-sha1 = "24128dca32d45948d1805fbc38624d3efcaab211"
@@ -235,6 +259,11 @@ deps = ["LinearAlgebra", "Profile", "Random", "SparseArrays", "Test"]
 git-tree-sha1 = "9d269f1afce521912701bde539209b0d73bb9b94"
 uuid = "40713840-3770-5561-ab4c-a76e7d0d7895"
 version = "0.1.1"
+
+[[Inflate]]
+git-tree-sha1 = "f5fc07d4e706b84f72d54eedcc1c13d92fb0871c"
+uuid = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
+version = "0.1.2"
 
 [[IniFile]]
 deps = ["Test"]
@@ -300,6 +329,12 @@ git-tree-sha1 = "7c36dfe7971e55da03d8f54b67d4b3fb8ee01d63"
 uuid = "94ce4f54-9a6c-5748-9c1c-f9c7231a4531"
 version = "1.16.0+6"
 
+[[LightGraphs]]
+deps = ["ArnoldiMethod", "DataStructures", "Distributed", "Inflate", "LinearAlgebra", "Random", "SharedArrays", "SimpleTraits", "SparseArrays", "Statistics"]
+git-tree-sha1 = "6f85a35d2377cb2db1bc448ed0d6340d2bb1ea64"
+uuid = "093fc24a-ae57-5d10-9952-331d41423f4d"
+version = "1.3.3"
+
 [[LightXML]]
 deps = ["Libdl", "XML2_jll"]
 git-tree-sha1 = "e129d9391168c677cd4800f5c0abb1ed8cb3794f"
@@ -364,6 +399,12 @@ deps = ["Libdl", "Pkg"]
 git-tree-sha1 = "c0b1286883cac4e2b617539de41111e0776d02e8"
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.16.8+0"
+
+[[MiniQhull]]
+deps = ["CMake", "Libdl", "Qhull_jll"]
+git-tree-sha1 = "5354982c458d976d9672bc216b5edd634b749357"
+uuid = "978d7f02-9e05-4691-894f-ae31a51d76ca"
+version = "0.2.1"
 
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
@@ -466,6 +507,12 @@ git-tree-sha1 = "ddfd3ab9d50916fa39c4167c0324f56163482d6a"
 uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
 version = "1.3.3"
 
+[[Qhull_jll]]
+deps = ["Libdl", "Pkg"]
+git-tree-sha1 = "585989201bf8741e165ae52df54de79c5299daa7"
+uuid = "784f63db-0788-585a-bace-daefebcd302b"
+version = "2019.1.0+2"
+
 [[QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
 git-tree-sha1 = "12fbe86da16df6679be7521dfb39fbc861e1dc7b"
@@ -536,6 +583,12 @@ uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 [[SharedArrays]]
 deps = ["Distributed", "Mmap", "Random", "Serialization"]
 uuid = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
+
+[[SimpleTraits]]
+deps = ["InteractiveUtils", "MacroTools"]
+git-tree-sha1 = "daf7aec3fe3acb2131388f93a4c409b8c7f62226"
+uuid = "699a6c99-e7fa-54fc-8d76-47d257e15c1d"
+version = "0.9.3"
 
 [[Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
@@ -621,6 +674,12 @@ deps = ["Test"]
 git-tree-sha1 = "8d0d7a3fe2f30d6a7f833a5f19f7c7a5b396eae6"
 uuid = "a2a6695c-b41b-5b7d-aed9-dbfdeacea5d7"
 version = "0.3.0"
+
+[[URIParser]]
+deps = ["Unicode"]
+git-tree-sha1 = "53a9f49546b8d2dd2e688d216421d050c9a31d0d"
+uuid = "30578b45-9adc-5946-b283-645ec420af67"
+version = "0.4.1"
 
 [[UUIDs]]
 deps = ["Random", "SHA"]

@@ -41,6 +41,8 @@ include("TransientDuctFlow.jl")
 
 include("DriverInductionlessMHD.jl")
 
+include("TransientDriverInductionlessMHD.jl")
+
 # Handy functions
 _l2(v) = v⋅v
 _h1(v) = v⋅v + inner(∇(v),∇(v))

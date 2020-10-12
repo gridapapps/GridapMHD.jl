@@ -10,7 +10,7 @@ g_j(x,t) = VectorValue(0.0,0.0,0.0)
 g_j(t::Real) = x -> g_j(x,t)
 ∂tj(t) = x -> VectorValue(0.0,0.0,0.0)
 ∂tj(x,t) = ∂tj(t)(x)
-∂t(::typeof(g_j)) = ∂tu
+∂t(::typeof(g_j)) = ∂tj
 
 function transient_duct_flow(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
     Ha::Float64 = 10.0, U0::Float64 = Re, B0::Float64 = Ha, L::Float64 = 1.0,

@@ -2,6 +2,7 @@
 using Gridap
 
 using GridapMHD: driver_inductionless_MHD
+using GridapMHD: transient_driver_inductionless_MHD
 
 # Problem setting
 ρ = 1.0
@@ -14,7 +15,7 @@ L = 1.0
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
 
-function g_u(x)
+function g_u(x,t)
   if abs(x[1] + 0.05) < 1e-8
     y = x[2]; z = x[3]
     return VectorValue(10.0/0.0125^4 * (y-0.0125) * (y+0.0125) *
@@ -23,16 +24,22 @@ function g_u(x)
     return VectorValue(0.0, 0.0, 0.0)
   end
 end
+g_u(t::Real) = x -> g_u(x,t)
 
-function g_j(x)
+function g_j(x,t)
   return VectorValue(0.0,0.0,0.0)
 end
+g_j(t::Real) = x -> g_j(x,t)
 
 function f_u(x)
   return VectorValue(0.0,0.0,0.0)
 end
 
-xh, trian, quad = driver_inductionless_MHD(;
+xh, trian, quad = transient_driver_inductionless_MHD(;
+  t0=0.0,
+  tF=1.0,
+  Δt=0.1,
+  θ=1.0,
   Re=10.0,
   Ha=10.0,
   meshfile="Messadek_coarse.msh",

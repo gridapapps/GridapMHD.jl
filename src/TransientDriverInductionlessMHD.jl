@@ -1,6 +1,7 @@
 
 
-function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
+function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.0,
+  meshfile=nothing, nx = 4, Δt::Float64 = 0.1, θ::Float64 = 1.0, Re::Float64 = 10.0,
   Ha::Float64 = 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
   magnetic_dirichlet_tags = [], magnetic_neumann_tags = [],
   fluid_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
@@ -15,7 +16,7 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
 
   # Discretization
   order = 2
-  if model === nothing
+  if meshfile === nothing
     domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
     map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,
                         sign(x[2])*(abs(x[2])*0.5)^0.5, x[3]*sqrt(2)/2)*2/sqrt(2)
@@ -30,6 +31,10 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
     labels = get_face_labeling(model)
     add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
     add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
+  else
+    model = GmshDiscreteModel(meshfile)
+
+    labels = get_face_labeling(model)
   end
 
 
@@ -59,35 +64,48 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
         conformity=:L2, model=model)
   end
 
-  U = TrialFESpace(Vu,fluid_dirichlet_conditions)
-  P = TrialFESpace(Vp)
-  J = TrialFESpace(Vj,magnetic_dirichlet_conditions)
-  Φ = TrialFESpace(Vφ)
+  U = TransientTrialFESpace(Vu,fluid_dirichlet_conditions)
+  P = TransientTrialFESpace(Vp)
+  J = TransientTrialFESpace(Vj,magnetic_dirichlet_conditions)
+  Φ = TransientTrialFESpace(Vφ)
 
   Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
-  X = MultiFieldFESpace([U, P, J, Φ])
+  X = TransientMultiFieldFESpace([U, P, J, Φ])
 
   trian = Triangulation(model)
   degree = 2*(order)
   quad = CellQuadrature(trian,degree)
 
-  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force)
-  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B)
+  res(t,x,xt,y) = xt[1]⋅y[1] +
+    InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force)
+  jac(t,x,xt,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B)
+  jac_t(t,x,xt,dxt,y) = dxt[1]⋅y[1]
 
-  t_Ω = FETerm(res,jac,trian,quad)
-  op  = FEOperator(X,Y,t_Ω)
+  t_Ω = FETerm(res,jac,jac_t,trian,quad)
+  op  = TransientFEOperator(X,Y,t_Ω)
+
+  uh0 = interpolate(VectorValue(0.0,0.0,0.0),U(0.0))
+  ph0 = interpolate(0.0,P(0.0))
+  jh0 = interpolate(VectorValue(0.0,0.0,0.0),J(0.0))
+  φh0 = interpolate(0.0,Φ(0.0))
+  xh0 = interpolate_everywhere([uh0,ph0,jh0,φh0],X(0.0))
 
   nls = NLSolver(;
     show_trace=true, method=:newton, linesearch=BackTracking(), iterations=10)
-  solver = FESolver(nls)
+  odes = ThetaMethod(nls,Δt,θ)
+  solver = TransientFESolver(odes)
 
-  xh = solve(solver,op)
+  xh_t = solve(solver,op,xh0,t0,tF)
 
   if resultsfile ≠ nothing
-    uh, ph, jh, φh = xh
-    writevtk(trian, resultsfile,
-      cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
+    startPVD(resultsfile)
+    for (xh, t) in xh_t
+      uh, ph, jh, φh = xh
+      write_timestep(resultsfile,t,trian,
+        cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
+    end
+    closePVD(resultsfile)
   end
 
-  (xh, trian, quad)
+  (xh_t, trian, quad)
 end
