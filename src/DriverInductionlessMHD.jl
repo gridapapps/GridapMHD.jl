@@ -6,7 +6,8 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   fluid_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
   magnetic_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
   fluid_body_force = (x) -> VectorValue(0.0,0.0,0.0),
-  constraint_presures::NTuple{2,Bool}=(false,false), resultsfile = nothing)
+  constraint_presures::NTuple{2,Bool}=(false,false),
+  usegmres = true, precond_tau = 1e-9, resultsfile = nothing)
 
   N = Ha^2/Re
   K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
@@ -77,8 +78,13 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   t_Ω = FETerm(res,jac,trian,quad)
   op  = FEOperator(X,Y,t_Ω)
 
-  nls = NLSolver(;
-    show_trace=true, method=:newton, linesearch=BackTracking(), iterations=10)
+  if usegmres
+    nls = NLSolver(GmresSolver(preconditioner=ilu,τ=precond_tau);
+      show_trace=true, method=:newton, linesearch=BackTracking(), iterations=10)
+  else
+    nls = NLSolver(;
+      show_trace=true, method=:newton, linesearch=BackTracking(), iterations=10)
+  end
   solver = FESolver(nls)
 
   xh = solve(solver,op)

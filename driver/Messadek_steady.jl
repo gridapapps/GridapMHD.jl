@@ -74,8 +74,7 @@ geo = union(inlet,outlet,name="csg");
 
 pmin=Point(-0.05,-0.05,-0.0125);
 pmax=Point(0.2,0.05,0.0125);
-#partition = (20,8,2);
-partition = (40,16,5);
+partition = (20,8,2);
 bgmodel=CartesianDiscreteModel(pmin,pmax,partition);
 
 cutgeo = cut(bgmodel,geo);
@@ -159,7 +158,8 @@ xh, trian, quad = driver_inductionless_MHD(;
   fluid_dirichlet_conditions = g_u ,
   magnetic_dirichlet_conditions = g_j,
   fluid_body_force = f_u,
-  constraint_presures = (false,false)
+  constraint_presures = (false,false),
+  precond_tau = 1e-10
 )
 
 uh, ph, jh, φh = xh
