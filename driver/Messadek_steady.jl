@@ -1,6 +1,7 @@
 
 using Gridap
 using GridapEmbedded
+using LineSearches: Static
 
 using GridapMHD
 using GridapMHD: driver_inductionless_MHD
@@ -33,7 +34,6 @@ end
 function f_u(x)
   return VectorValue(0.0,0.0,0.0)
 end
-
 
 function map1(coord)
   ncoord = streching(coord,  domain=(0.0,0.025,-0.05,-0.0375,-0.0125,0.0),factors=(3.0,3.0,3.0),dirs=(1,2,3))
@@ -130,6 +130,7 @@ xh, trian, quad = driver_inductionless_MHD(;
   fluid_dirichlet_conditions = g_u ,
   magnetic_dirichlet_conditions = g_j,
   fluid_body_force = f_u,
+  linesearch=Static(),
   constraint_presures = (false,false),
   precond_tau = 1e-10
 )

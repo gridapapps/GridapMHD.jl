@@ -17,3 +17,5 @@ using Test
 @time @testset "ThinWallBCTest" begin include("ThinWallBCTest.jl") end
 
 @time @testset "TransientTest" begin include("TransientTest.jl") end
+
+@time @testset "DriverInductionlessMHDTest" begin include("DriverInductionlessMHDTest.jl") end

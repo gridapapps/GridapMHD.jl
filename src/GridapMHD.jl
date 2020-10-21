@@ -14,7 +14,7 @@ using GridapGmsh
 using ForwardDiff
 using TimerOutputs
 using IncompleteLU
-using LineSearches: BackTracking
+using LineSearches: BackTracking, Static
 
 include("InductionlessMHD.jl")
 
