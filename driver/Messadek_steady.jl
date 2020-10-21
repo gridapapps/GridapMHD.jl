@@ -1,8 +1,8 @@
 
 using Gridap
-using Gridap.Geometry:get_grid_topology, get_node_coordinates, get_face_nodes
 using GridapEmbedded
 
+using GridapMHD
 using GridapMHD: driver_inductionless_MHD
 
 # Problem setting
@@ -11,7 +11,7 @@ using GridapMHD: driver_inductionless_MHD
 σ = 1.0
 
 U0 = 10.0
-B0 = 10.0
+B0 = 20.0
 L = 1.0
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
@@ -19,7 +19,7 @@ Ha = B0 * L * sqrt(σ/(ρ*ν))
 function g_u(x)
   if abs(x[1] + 0.05) < 1e-8
     y = x[2]; z = x[3]
-    return VectorValue(10.0/0.0125^4 * (y-0.0125) * (y+0.0125) *
+    return VectorValue(1.0/0.0125^4 * (y-0.0125) * (y+0.0125) *
                       (z-0.0125) * (z+0.0125), 0.0, 0.0)
   else
     return VectorValue(0.0, 0.0, 0.0)
@@ -35,51 +35,39 @@ function f_u(x)
 end
 
 
-
-function cuboid(;dx=1,dy=1,dz=1,x0=Point(0,0,0),name="cuboid",
-  faces=["face$i" for i in 1:6])
-  e1 = VectorValue(1,0,0)
-  e2 = VectorValue(0,1,0)
-  e3 = VectorValue(0,0,1)
-
-  plane1 = plane(x0=x0-0.5*dz*e3,v=-e3,name=faces[1])
-  plane2 = plane(x0=x0+0.5*dz*e3,v=+e3,name=faces[2])
-  plane3 = plane(x0=x0-0.5*dy*e2,v=-e2,name=faces[3])
-  plane4 = plane(x0=x0+0.5*dy*e2,v=+e2,name=faces[4])
-  plane5 = plane(x0=x0-0.5*dx*e1,v=-e1,name=faces[5])
-  plane6 = plane(x0=x0+0.5*dx*e1,v=+e1,name=faces[6])
-
-  geo12 = intersect(plane1,plane2)
-  geo34 = intersect(plane3,plane4)
-  geo56 = intersect(plane5,plane6)
-
-  intersect(intersect(geo12,geo34),geo56,name=name)
+function map1(coord)
+  ncoord = streching(coord,  domain=(0.0,0.025,-0.05,-0.0375,-0.0125,0.0),factors=(3.0,3.0,3.0),dirs=(1,2,3))
+  ncoord = streching(ncoord, domain=(0.025,0.05,-0.0375,-0.025,0.0,0.0125),factors=(1.25,1.25,1.25),dirs=(1,2,3))
+  ncoord = streching(ncoord, domain=(0.175,0.2,-0.0125,0.0),factors=(1.25,3.0),dirs=(1,2))
+  ncoord = streching(ncoord, domain=(0.0,0.0125),factors=(1.25,),dirs=(2,))
+  ncoord = streching(ncoord, domain=(0.025,0.0375),factors=(3.0,),dirs=(2,))
+  ncoord = streching(ncoord, domain=(0.0375,0.05),factors=(1.25,),dirs=(2,))
+  ncoord
 end
 
-faces = ["face$i" for i in 1:6]
-in_faces = copy(faces)
-in_faces[3] = "inlet"
-out_faces = copy(faces)
-out_faces[4] = "outlet"
+# Background mesh definition
+partition = (20,16,5);
+#partition = (60,24,6);
+domain = (-0.05,0.2,-0.05,0.05,-0.0125,0.0125)
+bgmodel=CartesianDiscreteModel(domain,partition,map=map1);
 
-inlet = cuboid(dx=0.05-1e-6,dy=0.025-1e-6,dz=0.025,x0=Point(-0.025,0.0,0.0),faces=in_faces);
-out = cuboid(dx=0.2-1e-6,dy=0.1-1e-6,dz=0.025,x0=Point(0.1,0.0,0.0),faces=out_faces);
+# Build the final domain using simple geomtries
+inlet = cuboid(dx=0.05-1e-6,dy=0.025-1e-6,dz=0.025,x0=Point(-0.025,0.0,0.0));
+out = cuboid(dx=0.2-1e-6,dy=0.1-1e-6,dz=0.025,x0=Point(0.1,0.0,0.0));
 
 out2 = cuboid(dx=0.15+1e-6,dy=0.0125+1e-6,dz=0.025,x0=Point(0.125,0.01875,0.0));
 out3 = cuboid(dx=0.15+1e-6,dy=0.0125+1e-6,dz=0.025,x0=Point(0.125,-0.01875,0.0));
 out1 = setdiff(out,out3);
 outlet = setdiff(out1,out2);
 
+# Add the simple geomtries and "cut"
 geo = union(inlet,outlet,name="csg");
 
-pmin=Point(-0.05,-0.05,-0.0125);
-pmax=Point(0.2,0.05,0.0125);
-partition = (20,8,2);
-bgmodel=CartesianDiscreteModel(pmin,pmax,partition);
-
+# "Cut" the final geomtry over the Background mesh
 cutgeo = cut(bgmodel,geo);
 model = DiscreteModel(cutgeo,"csg");
 
+# Filter to select all walls
 function walls(coord)
   x = coord[1]
   y = coord[2]
@@ -101,6 +89,7 @@ function walls(coord)
   false
 end
 
+# Filter to select inflow boundary
 function inlet_boundary(coord)
   x = coord[1]
   y = coord[2]
@@ -112,6 +101,7 @@ function inlet_boundary(coord)
   false
 end
 
+# Filter to select outflow boundary
 function outlet_boundary(coord)
   x = coord[1]
   y = coord[2]
@@ -123,33 +113,15 @@ function outlet_boundary(coord)
   false
 end
 
-
-function add_entity!(model,in,name)
-  labels = get_face_labeling(model)
-  node_coordinates = get_node_coordinates(model)
-  entity = num_entities(labels) + 1
-  for d in 0:num_dims(model)-1
-    facets = get_face_nodes(model,d)
-    for (i,facet) in enumerate(facets)
-      coord = sum(node_coordinates[facet])/length(facet)
-      if in(coord)
-        labels.d_to_dface_to_entity[d+1][i] = entity
-      end
-    end
-  end
-  add_tag!(labels,name,[entity])
-end
-
+# Name inlet, outlet, and walls element sets.
 add_entity!(model,walls,"walls")
 add_entity!(model,inlet_boundary,"inlet")
 add_entity!(model,outlet_boundary,"outlet")
 
-
-
-
+# Call main MHD driver
 xh, trian, quad = driver_inductionless_MHD(;
-  Re=10.0,
-  Ha=10.0,
+  Re=Re,
+  Ha=Ha,
   model=model,
   fluid_dirichlet_tags = ["inlet","walls"],
   fluid_neumann_tags = ["outlet"],
@@ -163,6 +135,10 @@ xh, trian, quad = driver_inductionless_MHD(;
 )
 
 uh, ph, jh, φh = xh
+
+# Scale unknowns
+uh = uh * U0
+jh = jh * σ * B0 * U0
 
 uh_r = restrict(uh,trian)
 ph_r = restrict(ph,trian)
