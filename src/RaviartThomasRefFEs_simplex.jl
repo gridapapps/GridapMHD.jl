@@ -24,6 +24,7 @@ import Gridap.Polynomials: evaluate_field!
 import Gridap.Polynomials: evaluate_gradient!
 
 # import Gridap.ReferenceFEs: _RT_face_values
+import Gridap.ReferenceFEs: _RT_cell_values
 # import Gridap.ReferenceFEs: _face_own_dofs_from_moments
 
 export PGradMonomialBasis
@@ -387,9 +388,6 @@ function _RT_nodes_and_moments(::Type{et}, p::Polytope, order::Integer) where et
       ccips, cmoments = _RT_cell_values_t(p,et,order)
     end
     crange = get_dimrange(p,D)
-    @show crange
-    @show cmoments
-    @show size(nf_moments)
     nf_nodes[crange] = ccips
     nf_moments[crange] = cmoments
   end
@@ -434,7 +432,7 @@ function _RT_face_moments_t(p, fshfs, c_fips, fcips, fwips)
   fns = get_facet_normals(p)
   os = get_facet_orientations(p)
   # @santiagobadia : Temporary hack for making it work for structured hex meshes
-  cvals = [ _broadcast(typeof(n),n*o,b) for (n,o,b) in zip(fns,os,cvals)]
+  cvals = [ _broadcast(typeof(n),n,b) for (n,b) in zip(fns,cvals)]
   #cvals = [ _broadcast(typeof(n),n,b) for (n,b) in zip(fns,cvals)]
   return cvals
 end
@@ -489,9 +487,9 @@ function _RT_cell_values_t(p,et,order)
   cwips = get_weights(iquad)
 
   # Cell moments, i.e., M(C)_{ab} = q_C^a(xgp_C^b) w_C^b ⋅ ()
-  cbasis = MonomialBasis{num_dims(p)}(et,order-1, _p_filter)
+  T = VectorValue{num_dims(p),et}
+  cbasis = MonomialBasis{num_dims(p)}(T,order-1, _p_filter)
   cmoments = _RT_cell_moments(p, cbasis, ccips, cwips )
-  @show cmoments
   return [ccips], [cmoments]
 
 end

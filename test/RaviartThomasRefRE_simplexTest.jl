@@ -1,14 +1,17 @@
-module RaviartThomasRefRE_simplexTest
+#module RaviartThomasRefRE_simplexTest
 
 using Gridap
 using GridapMHD
+using GridapGmsh
 using GridapMHD.RaviartThomasRefFE_simplex: RaviartThomasRefFE_t
 using Test
 
-# using Gridap.Integration
+# using Gridap.Integrationi
 using Gridap.TensorValues
 using Gridap.Fields
 using Gridap.Polynomials
+using Gridap.ReferenceFEs
+using Gridap.FESpaces
 
 xi = Point(4,2)
 np = 1
@@ -49,7 +52,7 @@ end
 @test get_order(b) == 2
 
 xi = Point(2,3,5)
-np = 5
+np = 3
 x = fill(xi,np)
 
 order = 1
@@ -63,18 +66,33 @@ b = PCurlGradMonomialBasis{D}(T,order)
 @test get_order(b) == 1
 
 
-p = TET
-D = num_dims(TET)
+p = TRI
+D = num_dims(TRI)
 et = Float64
-order = 1
+order = 0
 
 reffe = RaviartThomasRefFE_t(et,p,order)
-test_reference_fe(reffe)
+@show test_reference_fe(reffe)
 @show num_terms(get_prebasis(reffe))
 @show num_dofs(reffe)
 @show get_order(get_prebasis(reffe))
 
-prebasis = get_prebasis(reffe)
-dof_basis = get_dof_basis(reffe)
+model = GmshDiscreteModel("./test_2d.msh")
+labels = get_face_labeling(model)
+dir_tags = Array{Integer}(undef,0)
+trian = Triangulation(model)
+strian = SkeletonTriangulation(model)
+btrian = BoundaryTriangulation(model)
 
-end
+
+quad = CellQuadrature(trian,2*order+1)
+V = ConformingFESpace([reffe],DivConformity(),model,labels,dir_tags)
+free_values = ones(num_free_dofs(V))
+uh = FEFunction(V,free_values)
+
+#writevtk(strian,"test",cellfields=["nv"=>nv])
+
+I = integrate(uh,trian,quad)
+@show I
+@show sum(I)
+#end #module
