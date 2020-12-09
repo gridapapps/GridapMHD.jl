@@ -74,7 +74,7 @@ X = MultiFieldFESpace([U, P, J, Φ])
 
 trian = Triangulation(model)
 degree = 2*(order)
-dΩ = LebesgueMeasure(trian,degree)
+dΩ = Measure(trian,degree)
 
 uk = interpolate(u,U)
 
@@ -96,7 +96,7 @@ end
 
 if length(neumann_u) > 0
   btrian_u = BoundaryTriangulation(model,tags=["neumann_u"])
-  dΓ_u = LebesgueMeasure(btrian_u,degree)
+  dΓ_u = Measure(btrian_u,degree)
   nb_u = get_normal_vector(btrian_u)
 
   function l_Γ_u(Y)
@@ -108,7 +108,7 @@ end
 
 if length(neumann_j) > 0
   btrian_j = BoundaryTriangulation(model,tags=["neumann_j"])
-  dΓ_j = LebesgueMeasure(btrian_j,degree)
+  dΓ_j = Measure(btrian_j,degree)
   nb_j = get_normal_vector(btrian_j)
 
   function l_Γ_j(Y)

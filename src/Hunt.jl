@@ -35,21 +35,18 @@ function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
   add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
   end
   @timeit "FE spaces" begin
-  Vu = FESpace(
-    reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-    conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
 
-  Vp = FESpace(
-    reffe=:PLagrangian, order=order-1, valuetype=Float64,
-    conformity=:L2, model=model)
+  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+      conformity=:H1, dirichlet_tags="dirichlet_u")
 
-  Vj = FESpace(
-    reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
-    conformity=:Hdiv, model=model, dirichlet_tags="dirichlet_j")
+  Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+      conformity=:L2)
 
-  Vφ = FESpace(
-    reffe=:QLagrangian, order=order-1, valuetype=Float64,
-    conformity=:L2, model=model)
+  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+      conformity=:Hdiv, dirichlet_tags="dirichlet_j")
+
+  Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+      conformity=:L2)
 
   U = TrialFESpace(Vu,g_u)
   P = TrialFESpace(Vp)
@@ -64,13 +61,12 @@ function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
   # Integration
   trian = Triangulation(model)
   degree = 2*(order)
-  quad = CellQuadrature(trian,degree)
+  dΩ = Measure(trian,degree)
 
-  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u)
-  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B)
+  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u, dΩ)
+  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
 
-  t_Ω = FETerm(res,jac,trian,quad)
-  op  = FEOperator(X,Y,t_Ω)
+  op  = FEOperator(res,jac,X,Y)
   end
 
   @timeit "Setup solver" begin
@@ -90,7 +86,7 @@ function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
     writevtk(trian, resultsfile,
       cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
   end
-  (xh, trian, quad)
+  (xh, trian, dΩ)
 end
 
 
