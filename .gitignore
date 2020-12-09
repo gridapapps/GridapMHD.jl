@@ -1,3 +1,7 @@
+*.geo
+*.msh
+*.vtu
+*.pvd
 *.jl.*.cov
 *.jl.cov
 *.jl.mem

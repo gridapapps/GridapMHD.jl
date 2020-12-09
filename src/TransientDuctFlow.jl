@@ -43,21 +43,17 @@ function transient_duct_flow(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
   add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
   add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
 
-  Vu = FESpace(
-      reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-      conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
+  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+      conformity=:H1, dirichlet_tags="dirichlet_u")
 
-  Vp = FESpace(
-      reffe=:PLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+  Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+      conformity=:L2, constraint=:zeromean)
 
-  Vj = FESpace(
-      reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
-      conformity=:Hdiv, model=model, dirichlet_tags="dirichlet_j")
+  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+      conformity=:Hdiv, dirichlet_tags="dirichlet_j")
 
-  Vφ = FESpace(
-      reffe=:QLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+  Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+      conformity=:L2, constraint=:zeromean)
 
   U = TransientTrialFESpace(Vu,g_u)
   P = TransientTrialFESpace(Vp)
@@ -69,21 +65,20 @@ function transient_duct_flow(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
 
   trian = Triangulation(model)
   degree = 2*(order)
-  quad = CellQuadrature(trian,degree)
+  dΩ = Measure(trian,degree)
 
-  res(t,x,xt,y) = xt[1]⋅y[1] +
-    InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u)
-  jac(t,x,xt,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B)
-  jac_t(t,x,xt,dxt,y) = dxt[1]⋅y[1]
+  res(t,x,xt,y) = ∫(xt[1]⋅y[1])*dΩ +
+    InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u,dΩ)
+  jac(t,x,xt,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B,dΩ)
+  jac_t(t,x,xt,dxt,y) = ∫(dxt[1]⋅y[1])*dΩ
 
-  t_Ω = FETerm(res,jac,jac_t,trian,quad)
-  op  = TransientFEOperator(X,Y,t_Ω)
+  op  = TransientFEOperator(res,jac,jac_t,X,Y)
 
   uh0 = interpolate(VectorValue(0.0,0.0,0.0),U(0.0))
   ph0 = interpolate(0.0,P(0.0))
   jh0 = interpolate(VectorValue(0.0,0.0,0.0),J(0.0))
   φh0 = interpolate(0.0,Φ(0.0))
-  xh0 = interpolate_everywhere([uh0,ph0,jh0,φh0],X(0.0))
+  xh0 = interpolate([uh0,ph0,jh0,φh0],X(0.0))
 
   ls = LUSolver()
   nls = NLSolver(ls;
@@ -92,6 +87,8 @@ function transient_duct_flow(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
   solver = TransientFESolver(odes)
 
   xh_t = solve(solver,op,xh0,t0,tF)
+
+  result = Base.iterate(xh_t)
 
   if resultsfile != nothing
     startPVD(resultsfile)
@@ -103,5 +100,5 @@ function transient_duct_flow(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
     closePVD(resultsfile)
   end
 
-  (xh_t, trian, quad)
+  (xh_t, trian, dΩ)
 end

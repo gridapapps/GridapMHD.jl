@@ -19,7 +19,7 @@ L = 1.0
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
 
-xh, trian, quad = hunt(nx=5,ny=5,Re=10.0,Ha=10.0)
+xh, trian, dΩ = hunt(nx=5,ny=5,Re=10.0,Ha=10.0)
 
 # Postprocess
 uh, ph, jh, φh = xh
@@ -40,8 +40,8 @@ u0(x) = analytical_hunt_u(side_wall_semilength, hartmann_wall_semilength,
 j0(x) = analytical_hunt_j(side_wall_semilength, hartmann_wall_semilength,
   σ, ρ*ν, ∂p∂z, Ha, number_fourier_sumands, x)
 
-eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, trian, quad)
-e_divj = sqrt(sum(integrate(divj*divj,trian,quad)))
+eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, dΩ)
+e_divj = sqrt(sum(∫(divj*divj)* dΩ))
 
 @test eu_l2 < 0.06
 @test ej_l2 < 0.8

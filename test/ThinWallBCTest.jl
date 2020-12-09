@@ -23,7 +23,7 @@ L = 1.0
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
 
-xh, trian, quad = conductive_thin_wall(nx=5,ny=5,c_w=c_w,Re=10.0,Ha=10.0,α=10.0)
+xh, trian, dΩ = conductive_thin_wall(nx=5,ny=5,c_w=c_w,Re=10.0,Ha=10.0,α=10.0)
 
 uh, ph, jh, φh = xh
 divj = (∇⋅jh)
@@ -48,8 +48,8 @@ j0(x) = analytical_shercliff_j(side_wall_semilength, hartmann_wall_semilength,
 writevtk(trian, "results.vtu",
   cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh, "u"=>u0, "j"=>j0])
 
-eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, trian, quad)
-e_divj = sqrt(sum(integrate(divj*divj,trian,quad)))
+eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, dΩ)
+e_divj = sqrt(sum(∫(divj*divj)*dΩ))
 
 @test eu_l2 < 0.3
 @test ej_l2 < 2
