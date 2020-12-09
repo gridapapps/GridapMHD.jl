@@ -33,21 +33,17 @@ function conductive_thin_wall(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
   add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
   add_tag_from_tags!(labels,"neumann_j",neumann_j)
 
-  Vu = FESpace(
-      reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-      conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
+  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+      conformity=:H1, dirichlet_tags="dirichlet_u")
 
-  Vp = FESpace(
-      reffe=:PLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+  Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+      conformity=:L2, constraint=:zeromean)
 
-  Vj = FESpace(
-      reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
-      conformity=:Hdiv, model=model, dirichlet_tags="dirichlet_j")
+  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+      conformity=:Hdiv, dirichlet_tags="dirichlet_j")
 
-  Vφ = FESpace(
-      reffe=:QLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model)
+  Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+      conformity=:L2)
 
   U = TrialFESpace(Vu,g_u)
   P = TrialFESpace(Vp)
@@ -59,20 +55,20 @@ function conductive_thin_wall(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
 
   trian = Triangulation(model)
   degree = 2*(order)
-  quad = CellQuadrature(trian,degree)
+  dΩ = Measure(trian,degree)
 
-  btrian_j = BoundaryTriangulation(model,"neumann_j")
-  bquad_j = CellQuadrature(btrian_j,degree)
+  btrian_j = BoundaryTriangulation(model,tags=["neumann_j"])
+  dΓ = Measure(btrian_j,degree)
   n = get_normal_vector(btrian_j)
 
-  res_Ω(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u)
-  jac_Ω(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B)
-  res_Γ(x,y) = InductionlessMHD.dimensionless_conducting_wall(x, y, n, c_w, α=α)
-  jac_Γ(x,dx,y) = InductionlessMHD.dimensionless_conducting_wall(dx, y, n, c_w, α=α)
+  res_Ω(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u, dΩ)
+  jac_Ω(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
+  res_Γ(x,y) = InductionlessMHD.dimensionless_conducting_wall(x, y, n, c_w, dΓ, α=α)
+  jac_Γ(x,dx,y) = InductionlessMHD.dimensionless_conducting_wall(dx, y, n, c_w, dΓ, α=α)
 
-  t_Ω = FETerm(res_Ω,jac_Ω,trian,quad)
-  t_Γ = FETerm(res_Γ,jac_Γ,btrian_j,bquad_j)
-  op  = FEOperator(X,Y,t_Ω,t_Γ)
+  res(x,y) = res_Ω(x,y) + res_Γ(x,y)
+  jac(x,dx,y) = jac_Ω(x,dx,y) + jac_Γ(x,dx,y)
+  op  = FEOperator(res,jac,X,Y)
 
   nls = NLSolver(;
     show_trace=true, method=:newton, linesearch=BackTracking())
@@ -86,5 +82,5 @@ function conductive_thin_wall(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
       cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
   end
 
-  (xh, trian, quad)
+  (xh, trian, dΩ)
 end

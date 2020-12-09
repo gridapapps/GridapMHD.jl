@@ -50,16 +50,16 @@ include("DriverInductionlessMHD.jl")
 include("TransientDriverInductionlessMHD.jl")
 
 # Handy functions
-_l2(v) = v⋅v
-_h1(v) = v⋅v + inner(∇(v),∇(v))
-_hdiv(v) = v⋅v + inner((∇⋅v),(∇⋅v))
+_l2(v, dΩ) = sqrt(sum(∫(v⋅v)*dΩ ))
+_h1(v, dΩ) = sqrt(sum(∫(v⋅v + inner(∇(v),∇(v)) )*dΩ ))
+_hdiv(v, dΩ) = sqrt(sum(∫(v⋅v + inner((∇⋅v),(∇⋅v)) )*dΩ ))
 
-function compute_u_j_errors(uh, jh, u, j, trian, quad)
+function compute_u_j_errors(uh, jh, u, j, dΩ)
   eu = uh - u
   ej = jh - j
 
-  eu_l2 = sqrt(sum(integrate(_l2(eu),trian,quad)))
-  ej_l2 = sqrt(sum(integrate(_l2(ej),trian,quad)))
+  eu_l2 = _l2(eu, dΩ)
+  ej_l2 = _l2(ej, dΩ)
 
   return eu_l2, ej_l2
 end

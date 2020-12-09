@@ -67,7 +67,7 @@ add_entity!(model,hartmann_walls,"hartmann_walls")
 add_entity!(model,side_walls,"side_walls")
 
 # Call main MHD driver
-xh, trian, quad = driver_inductionless_MHD(;
+xh, trian, dΩ = driver_inductionless_MHD(;
   Re=Re,
   Ha=Ha,
   model=model,
@@ -101,7 +101,7 @@ u0(x) = analytical_shercliff_u(side_wall_semilength, hartmann_wall_semilength,
 j0(x) = analytical_shercliff_j(side_wall_semilength, hartmann_wall_semilength,
   wall_thickness, wall_conductivity, σ, ν*ρ, ∂p∂z, Ha, number_fourier_sumands, x)
 
-eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, trian, quad)
+eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, dΩ)
 
 @test eu_l2 < 0.3
 @test ej_l2 < 5

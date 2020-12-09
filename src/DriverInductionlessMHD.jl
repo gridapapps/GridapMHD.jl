@@ -34,31 +34,24 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
     add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
   end
 
-
-  Vu = FESpace(
-      reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-      conformity=:H1, model=model, dirichlet_tags=fluid_dirichlet_tags)
+  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+      conformity=:H1, dirichlet_tags=fluid_dirichlet_tags)
   if constraint_presures[1]
-    Vp = FESpace(
-        reffe=:PLagrangian, order=order-1, valuetype=Float64,
-        conformity=:L2, model=model, constraint=:zeromean)
+    Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+    conformity=:L2, constraint=:zeromean)
   else
-    Vp = FESpace(
-        reffe=:PLagrangian, order=order-1, valuetype=Float64,
-        conformity=:L2, model=model)
+    Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+    conformity=:L2)
   end
 
-  Vj = FESpace(
-      reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
-      conformity=:Hdiv, model=model, dirichlet_tags=magnetic_dirichlet_tags)
+  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+      conformity=:Hdiv, dirichlet_tags=magnetic_dirichlet_tags)
   if constraint_presures[2]
-    Vφ = FESpace(
-        reffe=:QLagrangian, order=order-1, valuetype=Float64,
-        conformity=:L2, model=model, constraint=:zeromean)
+    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+      conformity=:L2, constraint=:zeromean)
   else
-    Vφ = FESpace(
-        reffe=:QLagrangian, order=order-1, valuetype=Float64,
-        conformity=:L2, model=model)
+    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+    conformity=:L2)
   end
 
   U = TrialFESpace(Vu,fluid_dirichlet_conditions)
@@ -71,13 +64,12 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
 
   trian = Triangulation(model)
   degree = 2*(order)
-  quad = CellQuadrature(trian,degree)
+  dΩ = Measure(trian,degree)
 
-  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force)
-  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B)
+  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force, dΩ)
+  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
 
-  t_Ω = FETerm(res,jac,trian,quad)
-  op  = FEOperator(X,Y,t_Ω)
+  op  = FEOperator(res,jac,X,Y)
 
   if usegmres
     nls = NLSolver(GmresSolver(preconditioner=ilu,τ=precond_tau);
@@ -96,5 +88,5 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
       cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
   end
 
-  (xh, trian, quad)
+  (xh, trian, dΩ)
 end

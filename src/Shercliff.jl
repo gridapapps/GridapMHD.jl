@@ -29,21 +29,17 @@ function shercliff(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0
   add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
   add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
 
-  Vu = FESpace(
-      reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-      conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
+  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+      conformity=:H1, dirichlet_tags="dirichlet_u")
 
-  Vp = FESpace(
-      reffe=:PLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+  Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+      conformity=:L2, constraint=:zeromean)
 
-  Vj = FESpace(
-      reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
-      conformity=:Hdiv, model=model, dirichlet_tags="dirichlet_j")
+  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+      conformity=:Hdiv, dirichlet_tags="dirichlet_j")
 
-  Vφ = FESpace(
-      reffe=:QLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+  Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+      conformity=:L2, constraint=:zeromean)
 
   U = TrialFESpace(Vu,g_u)
   P = TrialFESpace(Vp)
@@ -55,13 +51,12 @@ function shercliff(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0
 
   trian = Triangulation(model)
   degree = 2*(order)
-  quad = CellQuadrature(trian,degree)
+  dΩ = Measure(trian,degree)
 
-  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u)
-  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B)
+  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u,dΩ)
+  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B,dΩ)
 
-  t_Ω = FETerm(res,jac,trian,quad)
-  op  = FEOperator(X,Y,t_Ω)
+  op  = FEOperator(res,jac,X,Y)
 
   nls = NLSolver(;
     show_trace=true, method=:newton, linesearch=BackTracking())
@@ -75,7 +70,7 @@ function shercliff(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0
       cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
   end
 
-  (xh, trian, quad)
+  (xh, trian, dΩ)
 end
 
 function analytical_shercliff_u(a::Float64,       # semi-length of side walls

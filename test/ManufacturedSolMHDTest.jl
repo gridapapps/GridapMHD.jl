@@ -42,32 +42,26 @@ add_tag_from_tags!(labels,"neumann_j",neumann_j)
 
 order = 2
 
-Vu = FESpace(
-    reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-    conformity=:H1, model=model, dirichlet_tags="dirichlet_u")
+Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+        conformity=:H1, dirichlet_tags="dirichlet_u")
 
 if length(neumann_u) == 0
-  Vp = FESpace(
-      reffe=:PLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+  Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+          conformity=:L2, constraint=:zeromean)
 else
-  Vp = FESpace(
-      reffe=:PLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model)
+  Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+          conformity=:L2)
 end
 
-Vj = FESpace(
-    reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
-    conformity=:Hdiv, model=model, dirichlet_tags="dirichlet_j")
+Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+    conformity=:Hdiv, dirichlet_tags="dirichlet_j")
 
 if length(neumann_j) == 0
-  Vφ = FESpace(
-      reffe=:QLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model, constraint=:zeromean)
+  Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+      conformity=:L2, constraint=:zeromean)
 else
-  Vφ = FESpace(
-      reffe=:QLagrangian, order=order-1, valuetype=Float64,
-      conformity=:L2, model=model)
+  Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+      conformity=:L2)
 end
 
 U = TrialFESpace(Vu,g_u)
@@ -80,62 +74,61 @@ X = MultiFieldFESpace([U, P, J, Φ])
 
 trian = Triangulation(model)
 degree = 2*(order)
-quad = CellQuadrature(trian,degree)
+dΩ = Measure(trian,degree)
 
-uk = interpolate(U,u)
+uk = interpolate(u,U)
+
 function a(X,Y)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
-  (∇(u)'⋅uk)⋅v_u + inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - (j×B)⋅v_u +
-  (∇⋅u)*v_p +
-  j⋅v_j - φ*(∇⋅v_j) - (u×B)⋅v_j +
-  (∇⋅j)*v_φ
+  ∫((∇(u)'⋅uk)⋅v_u + inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - (j×B)⋅v_u +
+    (∇⋅u)*v_p +
+    j⋅v_j - φ*(∇⋅v_j) - (u×B)⋅v_j +
+    (∇⋅j)*v_φ )*dΩ
 end
 
 function l(Y)
   v_u, v_p, v_j, v_φ = Y
 
-  v_u⋅f_u + v_p*f_p + v_j⋅f_j + v_φ*f_φ
+  ∫(v_u⋅f_u + v_p*f_p + v_j⋅f_j + v_φ*f_φ)*dΩ
 end
-t_Ω = AffineFETerm(a,l,trian,quad)
 
 if length(neumann_u) > 0
-  btrian_u = BoundaryTriangulation(model,"neumann_u")
-  bquad_u = CellQuadrature(btrian_u,degree)
+  btrian_u = BoundaryTriangulation(model,tags=["neumann_u"])
+  dΓ_u = Measure(btrian_u,degree)
   nb_u = get_normal_vector(btrian_u)
 
   function l_Γ_u(Y)
     v_u, v_p, v_j, v_φ = Y
 
-    v_u⋅(nb_u⋅∇u) - (nb_u⋅v_u)*p
+    ∫(v_u⋅(nb_u⋅∇u) - (nb_u⋅v_u)*p)*dΓ_u
   end
-  t_Γ_u = FESource(l_Γ_u,btrian_u,bquad_u)
 end
 
 if length(neumann_j) > 0
-  btrian_j = BoundaryTriangulation(model,"neumann_j")
-  bquad_j = CellQuadrature(btrian_j,degree)
+  btrian_j = BoundaryTriangulation(model,tags=["neumann_j"])
+  dΓ_j = Measure(btrian_j,degree)
   nb_j = get_normal_vector(btrian_j)
 
   function l_Γ_j(Y)
     v_u, v_p, v_j, v_φ = Y
 
-    -(v_j⋅nb_j)*φ
+    ∫(-(v_j⋅nb_j)*φ)*dΓ_j
   end
-  t_Γ_j = FESource(l_Γ_j,btrian_j,bquad_j)
 end
 
 if (length(neumann_u) > 0) & (length(neumann_j) > 0)
-  op  = AffineFEOperator(X,Y,t_Ω, t_Γ_u, t_Γ_j )
+  b(Y) = l(Y) + l_Γ_u(Y) + l_Γ_j(Y)
 elseif length(neumann_u) > 0
-  op  = AffineFEOperator(X,Y,t_Ω, t_Γ_u )
+  b(Y) = l(Y) + l_Γ_u(Y)
 elseif length(neumann_j) > 0
-  op  = AffineFEOperator(X,Y,t_Ω, t_Γ_j )
+  b(Y) = l(Y) + l_Γ_j(Y)
 else
-  op  = AffineFEOperator(X,Y,t_Ω)
+  b(Y) = l(Y)
 end
 
+op  = AffineFEOperator(a,b,X,Y)
 
 xh = solve(op)
 uh, ph, jh, φh = xh
@@ -151,16 +144,16 @@ ep = ph - p
 ej = jh - j
 eφ = φh - φ
 
-l2(v) = v⋅v
-h1(v) = v⋅v + inner(∇(v),∇(v))
-hdiv(v) = v⋅v + inner((∇⋅v),(∇⋅v))
+l2(v) = sqrt(sum(∫(v⋅v)*dΩ ))
+h1(v) = sqrt(sum(∫(v⋅v + inner(∇(v),∇(v)) )*dΩ ))
+hdiv(v) = sqrt(sum(∫(v⋅v + inner((∇⋅v),(∇⋅v)) )*dΩ ))
 
-eu_l2 = sqrt(sum(integrate(l2(eu),trian,quad)))
-eu_h1 = sqrt(sum(integrate(h1(eu),trian,quad)))
-ep_l2 = sqrt(sum(integrate(l2(ep),trian,quad)))
-ej_l2 = sqrt(sum(integrate(l2(ej),trian,quad)))
-ej_hdiv = sqrt(sum(integrate(hdiv(ej),trian,quad)))
-eφ_l2 = sqrt(sum(integrate(l2(eφ),trian,quad)))
+eu_l2 = l2(eu)
+eu_h1 = h1(eu)
+ep_l2 = l2(ep)
+ej_l2 = l2(ej)
+ej_hdiv = hdiv(ej)
+eφ_l2 = l2(eφ)
 
 @test eu_l2 < 1e-12
 @test eu_h1 < 1e-12
@@ -169,4 +162,4 @@ eφ_l2 = sqrt(sum(integrate(l2(eφ),trian,quad)))
 @test ej_hdiv < 1e-12
 @test eφ_l2 < 1e-12
 
-end
+end #module
