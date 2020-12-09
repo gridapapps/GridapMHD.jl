@@ -74,11 +74,11 @@ function transient_duct_flow(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
 
   op  = TransientFEOperator(res,jac,jac_t,X,Y)
 
-  uh0 = interpolate_everywhere(VectorValue(0.0,0.0,0.0), U(0.0))
-  ph0 = interpolate_everywhere(0.0, P(0.0))
-  jh0 = interpolate_everywhere(VectorValue(0.0,0.0,0.0), J(0.0))
-  φh0 = interpolate_everywhere(0.0, Φ(0.0))
-  xh0 = interpolate_everywhere([uh0,ph0,jh0,φh0], X(0.0))
+  uh0 = interpolate(VectorValue(0.0,0.0,0.0),U(0.0))
+  ph0 = interpolate(0.0,P(0.0))
+  jh0 = interpolate(VectorValue(0.0,0.0,0.0),J(0.0))
+  φh0 = interpolate(0.0,Φ(0.0))
+  xh0 = interpolate([uh0,ph0,jh0,φh0],X(0.0))
 
   ls = LUSolver()
   nls = NLSolver(ls;
