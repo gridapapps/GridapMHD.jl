@@ -38,30 +38,24 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
   end
 
 
-  Vu = FESpace(
-      reffe=:Lagrangian, order=order, valuetype=VectorValue{3,Float64},
-      conformity=:H1, model=model, dirichlet_tags=fluid_dirichlet_tags)
+  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+      conformity=:H1, dirichlet_tags=fluid_dirichlet_tags)
   if constraint_presures[1]
-    Vp = FESpace(
-        reffe=:PLagrangian, order=order-1, valuetype=Float64,
-        conformity=:L2, model=model, constraint=:zeromean)
+    Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+    conformity=:L2, constraint=:zeromean)
   else
-    Vp = FESpace(
-        reffe=:PLagrangian, order=order-1, valuetype=Float64,
-        conformity=:L2, model=model)
+    Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+    conformity=:L2)
   end
 
-  Vj = FESpace(
-      reffe=:RaviartThomas, order=order-1, valuetype=VectorValue{3,Float64},
-      conformity=:Hdiv, model=model, dirichlet_tags=magnetic_dirichlet_tags)
+  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+      conformity=:Hdiv, dirichlet_tags=magnetic_dirichlet_tags)
   if constraint_presures[2]
-    Vφ = FESpace(
-        reffe=:QLagrangian, order=order-1, valuetype=Float64,
-        conformity=:L2, model=model, constraint=:zeromean)
+    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+      conformity=:L2, constraint=:zeromean)
   else
-    Vφ = FESpace(
-        reffe=:QLagrangian, order=order-1, valuetype=Float64,
-        conformity=:L2, model=model)
+    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+    conformity=:L2)
   end
 
   U = TransientTrialFESpace(Vu,fluid_dirichlet_conditions)
@@ -74,15 +68,14 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
 
   trian = Triangulation(model)
   degree = 2*(order)
-  quad = CellQuadrature(trian,degree)
+  dΩ = Measure(trian,degree)
 
-  res(t,x,xt,y) = xt[1]⋅y[1] +
-    InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force)
-  jac(t,x,xt,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B)
-  jac_t(t,x,xt,dxt,y) = dxt[1]⋅y[1]
+  res(t,x,xt,y) = ∫(xt[1]⋅y[1])*dΩ +
+    InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force,dΩ)
+  jac(t,x,xt,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B,dΩ)
+  jac_t(t,x,xt,dxt,y) = ∫(dxt[1]⋅y[1])*dΩ
 
-  t_Ω = FETerm(res,jac,jac_t,trian,quad)
-  op  = TransientFEOperator(X,Y,t_Ω)
+  op  = TransientFEOperator(res,jac,jac_t,X,Y)
 
   uh0 = interpolate(VectorValue(0.0,0.0,0.0),U(0.0))
   ph0 = interpolate(0.0,P(0.0))

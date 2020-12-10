@@ -119,7 +119,7 @@ add_entity!(model,inlet_boundary,"inlet")
 add_entity!(model,outlet_boundary,"outlet")
 
 # Call main MHD driver
-xh, trian, quad = driver_inductionless_MHD(;
+xh, trian, dΩ = driver_inductionless_MHD(;
   Re=Re,
   Ha=Ha,
   model=model,

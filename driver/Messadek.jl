@@ -35,7 +35,7 @@ function f_u(x)
   return VectorValue(0.0,0.0,0.0)
 end
 
-xh, trian, quad = transient_driver_inductionless_MHD(;
+xh, trian, dΩ = transient_driver_inductionless_MHD(;
   t0=0.0,
   tF=1.0,
   Δt=0.1,
