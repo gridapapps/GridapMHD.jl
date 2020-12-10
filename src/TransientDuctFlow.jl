@@ -82,7 +82,7 @@ function transient_duct_flow(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
 
   ls = LUSolver()
   nls = NLSolver(ls;
-    show_trace=true, method=:newton, linesearch=BackTracking())
+    show_trace=true, method=:newton, linesearch=BackTracking(), iterations=2)
   odes = ThetaMethod(nls,Δt,θ)
   solver = TransientFESolver(odes)
 
