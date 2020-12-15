@@ -46,7 +46,7 @@ function map1(coord)
 end
 
 # Background mesh definition
-partition = (20,16,5);
+partition = (10,12,4);
 #partition = (60,24,6);
 domain = (-0.05,0.2,-0.05,0.05,-0.0125,0.0125)
 bgmodel=CartesianDiscreteModel(domain,partition,map=map1);
@@ -118,11 +118,13 @@ add_entity!(model,walls,"walls")
 add_entity!(model,inlet_boundary,"inlet")
 add_entity!(model,outlet_boundary,"outlet")
 
+model1 = simplexify(model)
+
 # Call main MHD driver
 xh, trian, dΩ = driver_inductionless_MHD(;
   Re=Re,
   Ha=Ha,
-  model=model,
+  model=model1,
   fluid_dirichlet_tags = ["inlet","walls"],
   fluid_neumann_tags = ["outlet"],
   magnetic_dirichlet_tags = ["walls"],

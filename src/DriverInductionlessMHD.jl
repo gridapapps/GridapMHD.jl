@@ -2,6 +2,7 @@
 
 function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   Ha::Float64 = 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
+  c_w = 1.0, α=10.0,
   magnetic_dirichlet_tags = [], magnetic_neumann_tags = [],
   fluid_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
   magnetic_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
@@ -38,19 +39,23 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
       conformity=:H1, dirichlet_tags=fluid_dirichlet_tags)
   if constraint_presures[1]
     Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
-    conformity=:L2, constraint=:zeromean)
+    conformity=:H1, constraint=:zeromean)
   else
     Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
-    conformity=:L2)
+    conformity=:H1)
   end
-
-  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
-      conformity=:Hdiv, dirichlet_tags=magnetic_dirichlet_tags)
+  if length(magnetic_dirichlet_tags) == 0
+    Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+        conformity=:Hdiv)
+  else
+    Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+        conformity=:Hdiv, dirichlet_tags=magnetic_dirichlet_tags)
+  end
   if constraint_presures[2]
-    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1);
       conformity=:L2, constraint=:zeromean)
   else
-    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1);
     conformity=:L2)
   end
 
@@ -66,17 +71,30 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   degree = 2*(order)
   dΩ = Measure(trian,degree)
 
-  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force, dΩ)
-  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
+  res_Ω(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force, dΩ)
+  jac_Ω(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
 
-  op  = FEOperator(res,jac,X,Y)
+  if length(magnetic_neumann_tags) == 0
+    op  = FEOperator(res_Ω,jac_Ω,X,Y)
+  else
+    btrian_j = BoundaryTriangulation(model,tags=magnetic_neumann_tags)
+    dΓ = Measure(btrian_j,degree)
+    n = get_normal_vector(btrian_j)
+    res_Γ(x,y) = InductionlessMHD.dimensionless_conducting_wall(x, y, n, c_w, dΓ, α=α)
+    jac_Γ(x,dx,y) = InductionlessMHD.dimensionless_conducting_wall(dx, y, n, c_w, dΓ, α=α)
+
+    res(x,y) = res_Ω(x,y) + res_Γ(x,y)
+    jac(x,dx,y) = jac_Ω(x,dx,y) + jac_Γ(x,dx,y)
+    op  = FEOperator(res,jac,X,Y)
+  end
+
 
   if usegmres
     nls = NLSolver(GmresSolver(preconditioner=ilu,τ=precond_tau);
       show_trace=true, method=:newton, linesearch=linesearch, iterations=10)
   else
     nls = NLSolver(;
-      show_trace=true, method=:newton, linesearch=linesearch, iterations=10)
+      show_trace=true, method=:newton, linesearch=linesearch, iterations=3)
   end
   solver = FESolver(nls)
 

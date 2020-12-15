@@ -82,7 +82,7 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
   xh0 = interpolate([uh0,ph0,jh0,φh0],X(0.0))
 
   nls = NLSolver(;
-    show_trace=true, method=:newton, linesearch=BackTracking(), iterations=10)
+    show_trace=true, method=:newton, linesearch=Static(), iterations=10)
   odes = ThetaMethod(nls,Δt,θ)
   solver = TransientFESolver(odes)
 
