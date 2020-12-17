@@ -2,19 +2,17 @@
 
 function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   Ha::Float64 = 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
-  c_w = 1.0, α=10.0,
+  c_w = 1.0, α=10.0, B = VectorValue(0.0,1.0,0.0),
   magnetic_dirichlet_tags = [], magnetic_neumann_tags = [],
   fluid_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
   magnetic_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
   fluid_body_force = (x) -> VectorValue(0.0,0.0,0.0),
-  constraint_presures::NTuple{2,Bool}=(false,false),
+  constraint_presures::NTuple{2,Bool}=(false,false), max_nl_it=10,
   usegmres = true, precond_tau = 1e-9, linesearch=BackTracking(),
   resultsfile = nothing)
 
   N = Ha^2/Re
   K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
-
-  B = VectorValue(0.0,1.0,0.0)
 
   # Discretization
   order = 2
@@ -33,6 +31,8 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
     labels = get_face_labeling(model)
     add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
     add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
+    fluid_dirichlet_tags = ["dirichlet_u"]
+    magnetic_dirichlet_tags = ["dirichlet_j"]
   end
 
   Vu = FESpace(model, ReferenceFE(lagrangian,VectorValue{3,Float64},order);
@@ -100,10 +100,10 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
 
   if usegmres
     nls = NLSolver(GmresSolver(preconditioner=ilu,τ=precond_tau);
-      show_trace=true, method=:newton, linesearch=linesearch, iterations=10)
+      show_trace=true, method=:newton, linesearch=linesearch, iterations=max_nl_it)
   else
     nls = NLSolver(;
-      show_trace=true, method=:newton, linesearch=linesearch, iterations=3)
+      show_trace=true, method=:newton, linesearch=linesearch, iterations=max_nl_it)
   end
   solver = FESolver(nls)
 
