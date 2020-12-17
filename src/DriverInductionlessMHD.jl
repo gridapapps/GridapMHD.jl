@@ -35,27 +35,36 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
     add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
   end
 
-  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+  Vu = FESpace(model, ReferenceFE(lagrangian,VectorValue{3,Float64},order);
       conformity=:H1, dirichlet_tags=fluid_dirichlet_tags)
-  if constraint_presures[1]
-    Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
-    conformity=:H1, constraint=:zeromean)
+
+  if is_n_cube(model.grid_topology.polytopes[1])
+    p_conformity = :L2
   else
-    Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
-    conformity=:H1)
+    p_conformity = :H1
   end
+
+  if constraint_presures[1]
+    Vp = FESpace(model, ReferenceFE(lagrangian,Float64,order-1,space=:P);
+    conformity=p_conformity, constraint=:zeromean)
+  else
+    Vp = FESpace(model, ReferenceFE(lagrangian,Float64,order-1,space=:P);
+    conformity=p_conformity)
+  end
+
   if length(magnetic_dirichlet_tags) == 0
-    Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+    Vj = FESpace(model, ReferenceFE(raviart_thomas,Float64,order-1);
         conformity=:Hdiv)
   else
-    Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+    Vj = FESpace(model, ReferenceFE(raviart_thomas,Float64,order-1);
         conformity=:Hdiv, dirichlet_tags=magnetic_dirichlet_tags)
   end
+
   if constraint_presures[2]
-    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1);
+    Vφ = FESpace(model, ReferenceFE(lagrangian,Float64,order-1);
       conformity=:L2, constraint=:zeromean)
   else
-    Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1);
+    Vφ = FESpace(model, ReferenceFE(lagrangian,Float64,order-1);
     conformity=:L2)
   end
 

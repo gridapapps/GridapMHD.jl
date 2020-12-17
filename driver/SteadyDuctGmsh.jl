@@ -20,11 +20,11 @@ Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
 
 # Mesh load
-model = GmshDiscreteModel("driver/duct.msh")
-partition = (12,12,2)
+#model = GmshDiscreteModel("driver/duct.msh")
+partition = (6,6,2)
 domain = (-1,1,-1,1,0,0.1)
-#model0 = CartesianDiscreteModel(domain,partition)
-#model = simplexify(model0)
+model0 = CartesianDiscreteModel(domain,partition)
+model = simplexify(model0)
 
 # Boundary conditions location
 
