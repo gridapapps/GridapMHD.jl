@@ -13,7 +13,7 @@ function conductive_thin_wall(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
   g_j = VectorValue(0.0,0.0,0.0)
   B = VectorValue(0.0,Ha,0.0)/B0
 
-  # Discretizatoin
+  # Discretization
   order = 2
   domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
   map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,
@@ -33,16 +33,16 @@ function conductive_thin_wall(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
   add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
   add_tag_from_tags!(labels,"neumann_j",neumann_j)
 
-  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+  Vu = FESpace(model, ReferenceFE(lagrangian,VectorValue{3,Float64},order);
       conformity=:H1, dirichlet_tags="dirichlet_u")
 
-  Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+  Vp = FESpace(model, ReferenceFE(lagrangian,Float64,order-1,space=:P);
       conformity=:L2, constraint=:zeromean)
 
-  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+  Vj = FESpace(model, ReferenceFE(raviart_thomas,Float64,order-1);
       conformity=:Hdiv, dirichlet_tags="dirichlet_j")
 
-  Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+  Vφ = FESpace(model, ReferenceFE(lagrangian,Float64,order-1,space=:Q);
       conformity=:L2)
 
   U = TrialFESpace(Vu,g_u)

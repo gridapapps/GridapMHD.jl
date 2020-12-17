@@ -36,16 +36,16 @@ function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
   end
   @timeit "FE spaces" begin
 
-  Vu = FESpace(model, ReferenceFE(:Lagrangian,VectorValue{3,Float64},order);
+  Vu = FESpace(model, ReferenceFE(lagrangian,VectorValue{3,Float64},order);
       conformity=:H1, dirichlet_tags="dirichlet_u")
 
-  Vp = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:P);
+  Vp = FESpace(model, ReferenceFE(lagrangian,Float64,order-1,space=:P);
       conformity=:L2)
 
-  Vj = FESpace(model, ReferenceFE(:RaviartThomas,Float64,order-1);
+  Vj = FESpace(model, ReferenceFE(raviart_thomas,Float64,order-1);
       conformity=:Hdiv, dirichlet_tags="dirichlet_j")
 
-  Vφ = FESpace(model, ReferenceFE(:Lagrangian,Float64,order-1,space=:Q);
+  Vφ = FESpace(model, ReferenceFE(lagrangian,Float64,order-1,space=:Q);
       conformity=:L2)
 
   U = TrialFESpace(Vu,g_u)
