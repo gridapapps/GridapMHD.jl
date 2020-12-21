@@ -20,10 +20,16 @@ c_w = wall_conductivity * wall_thickness/σ
 U0 = 10.0
 B0 = 10.0
 L = 1.0
+
+
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
+K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
+∂p∂z = -Re * K / L^3
 
-xh, trian, dΩ = conductive_thin_wall(nx=5,ny=5,c_w=c_w,Re=10.0,Ha=10.0,α=10.0)
+f_u = VectorValue(0.0,0.0, -∂p∂z) * L/U0^2
+
+xh, trian, dΩ = conductive_thin_wall(nx=5,ny=5,c_w=c_w,Re=Re,Ha=Ha,α=10.0,f_u=f_u)
 
 uh, ph, jh, φh = xh
 divj = (∇⋅jh)

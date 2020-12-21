@@ -1,17 +1,22 @@
 
 
 function conductive_thin_wall(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0,
-    Ha::Float64 = 10.0, c_w::Float64 = 0.1, U0::Float64 = Re, B0::Float64 = Ha,
-    L::Float64 = 1.0, α::Float64 = 1.0, resultsfile = nothing)
+    Ha::Float64 = 10.0, c_w::Float64 = 0.1, α::Float64 = 1.0,
+    f_u = nothing, resultsfile = nothing)
 
+  L = 1.0
   N = Ha^2/Re
   K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
   ∂p∂z = -Re * K / L^3
 
-  f_u(x) = VectorValue(0.0,0.0, -∂p∂z) * L/U0^2
+  if f_u === nothing
+    _f_u = VectorValue(0.0,0.0, -∂p∂z) * L/Re^2 # Assumed ν=L=1 by default
+  else
+    _f_u = f_u
+  end
   g_u = VectorValue(0.0,0.0,0.0)
   g_j = VectorValue(0.0,0.0,0.0)
-  B = VectorValue(0.0,Ha,0.0)/B0
+  B = VectorValue(0.0,1.0,0.0)
 
   # Discretization
   order = 2

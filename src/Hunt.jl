@@ -1,20 +1,25 @@
 
 
 function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
-    U0::Float64 = Re, B0::Float64 = Ha, L::Float64 = 1.0, resultsfile = nothing)
+    f_u = nothing, resultsfile = nothing)
 
   reset_timer!()
 
   @timeit "model" begin
+  L = 1.0
   N = Ha^2/Re
   K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1))
   ∂p∂z = -Re * K / L^3
 
-  f_u(x) = VectorValue(0.0,0.0, -∂p∂z) * L/U0^2
+  if f_u === nothing
+    _f_u = VectorValue(0.0,0.0, -∂p∂z) * L/Re^2 # Assumed ν=L=1 by default
+  else
+    _f_u = f_u
+  end
   g_u = VectorValue(0.0,0.0,0.0)
   g_j = VectorValue(0.0,0.0,0.0)
   g_φ = 0.0
-  B = VectorValue(0.0,Ha,0.0)/B0
+  B = VectorValue(0.0,1.0,0.0)
 
   # Discretization
   order = 2
@@ -63,7 +68,7 @@ function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
   degree = 2*(order)
   dΩ = Measure(trian,degree)
 
-  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, f_u, dΩ)
+  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, _f_u, dΩ)
   jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
 
   op  = FEOperator(res,jac,X,Y)
