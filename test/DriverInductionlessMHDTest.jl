@@ -36,7 +36,7 @@ function map1(coord)
 end
 
 # Background mesh definition
-partition = (5,5,3);
+partition = (4,4,3);
 domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
 model=CartesianDiscreteModel(domain,partition,map=map1,isperiodic=(false,false,true));
 
@@ -105,5 +105,29 @@ eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, dΩ)
 
 @test eu_l2 < 0.3
 @test ej_l2 < 5
+
+# Test transient driver
+xh_t, trian, dΩ = transient_driver_inductionless_MHD(;
+  t0=0.0,
+  tF=1.0,
+  Δt=0.25,
+  θ=0.5,
+  Re=Re,
+  Ha=Ha,
+  model=model,
+  fluid_dirichlet_tags = ["side_walls","hartmann_walls"],
+  fluid_neumann_tags = [],
+  magnetic_dirichlet_tags = ["side_walls"],
+  magnetic_non_perfectly_conducting_walls_tag = ["hartmann_walls",],
+  magnetic_neumann_tags = [],
+  c_w = 0.0,
+  α = 10.0,
+  fluid_dirichlet_conditions = g_u ,
+  magnetic_dirichlet_conditions = g_j,
+  fluid_body_force = f_u,
+  constraint_presures = (false,false),
+  usegmres = true,
+  verbosity = Verbosity(3)
+)
 
 end #module

@@ -29,25 +29,17 @@ export numerical_setup
 export numerical_setup!
 export solve!
 
+## IO functions exports
+export Verbosity
+export startPVD
+export write_timestep
+export closePVD
+
 # Handy functions exports
-export writePVD
 export compute_u_j_errors
 export streching
 export cuboid
 export add_entity!
-
-# Benchmarks
-include("Hunt.jl")
-
-include("Shercliff.jl")
-
-include("ConductiveThinWall.jl")
-
-include("TransientDuctFlow.jl")
-
-include("DriverInductionlessMHD.jl")
-
-include("TransientDriverInductionlessMHD.jl")
 
 # Handy functions
 _l2(v, dΩ) = sqrt(sum(∫(v⋅v)*dΩ ))
@@ -62,6 +54,64 @@ function compute_u_j_errors(uh, jh, u, j, dΩ)
   ej_l2 = _l2(ej, dΩ)
 
   return eu_l2, ej_l2
+end
+
+# IO functions
+struct Verbosity
+  items::Dict
+  function Verbosity(level::Int = 1)
+    items = Dict{String,Bool}()
+    if level == 0 # Silent
+      items["preprocessSteps"] = false
+      items["linearSolver"] = false
+      items["nonlinearSolver"] = false
+      items["timeStep"] = false
+    elseif level == 1 # Standard
+      items["preprocessSteps"] = false
+      items["linearSolver"] = false
+      items["nonlinearSolver"] = true
+      items["timeStep"] = true
+    elseif level == 2 # Verbose
+      items["preprocessSteps"] = false
+      items["linearSolver"] = true
+      items["nonlinearSolver"] = true
+      items["timeStep"] = true
+    elseif level == 3 # Debug
+      items["preprocessSteps"] = true
+      items["linearSolver"] = true
+      items["nonlinearSolver"] = true
+      items["timeStep"] = true
+    else
+      @error "Unavailable verbosity level. Choose level 0 to 3, from less to more verbosity"
+    end
+    new(items)
+  end
+  function Verbosity(items::Dict)
+    new(items)
+  end
+end
+
+function preprocessStepOutput(v::Verbosity,msg)
+  if v.items["preprocessSteps"]
+    println(msg)
+  end
+end
+
+function linearSolverOutput(v::Verbosity)
+  return v.items["linearSolver"]
+end
+
+function nonlinearSolverOutput(v::Verbosity)
+  return v.items["nonlinearSolver"]
+end
+
+function timeStepOutput(v::Verbosity,dt,t,it)
+  if v.items["timeStep"]
+    println("######### TIME STEP $it #########")
+    println("Current time: $t")
+    println("Time step length: $dt")
+    println("#################################")
+  end
 end
 
 function startPVD(filename)
@@ -155,5 +205,18 @@ function add_entity!(model,in,name)
   add_tag!(labels,name,[entity])
 end
 
+
+# Benchmarks
+include("Hunt.jl")
+
+include("Shercliff.jl")
+
+include("ConductiveThinWall.jl")
+
+include("TransientDuctFlow.jl")
+
+include("DriverInductionlessMHD.jl")
+
+include("TransientDriverInductionlessMHD.jl")
 
 end # module
