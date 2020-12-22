@@ -21,29 +21,32 @@ export solve!
 struct GmresSolver <: LinearSolver
   preconditioner
   precond_kwargs::Dict
+  verbose::Bool
   function GmresSolver(;
-    preconditioner=IterativeSolvers.Identity, precond_kwargs...)
-    new(preconditioner,precond_kwargs)
+    verbose=false, preconditioner=IterativeSolvers.Identity, precond_kwargs...)
+    new(preconditioner,precond_kwargs, verbose)
   end
 end
 
 struct GmresSymbolicSetup <: SymbolicSetup
   preconditioner
   precond_kwargs::Dict
+  verbose::Bool
 end
 
 mutable struct GmresNumericalSetup{T<:AbstractMatrix} <: NumericalSetup
   A::T
   preconditioner
   precond_kwargs::Dict
+  verbose::Bool
 end
 
 function symbolic_setup(s::GmresSolver, mat::AbstractMatrix)
-  GmresSymbolicSetup(s.preconditioner, s.precond_kwargs)
+  GmresSymbolicSetup(s.preconditioner, s.precond_kwargs, s.verbose)
 end
 
 function numerical_setup(ss::GmresSymbolicSetup,mat::AbstractMatrix)
-  GmresNumericalSetup(mat, ss.preconditioner, ss.precond_kwargs)
+  GmresNumericalSetup(mat, ss.preconditioner, ss.precond_kwargs, ss.verbose)
 end
 
 function numerical_setup!(ns::GmresNumericalSetup, mat::AbstractMatrix)
@@ -59,7 +62,7 @@ function solve!(
   p=ns.preconditioner(ns.A; ns.precond_kwargs...)
   # initialize the solution to 0
   x .= 0.0
-  gmres!(x, ns.A, b,verbose=true, Pl=p, initially_zero=true)
+  gmres!(x, ns.A, b,verbose=ns.verbose, Pl=p, initially_zero=true)
 end
 
 end # module

@@ -16,10 +16,16 @@ using GridapMHD: compute_u_j_errors
 U0 = 10.0
 B0 = 10.0
 L = 1.0
+
+
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
+K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
+∂p∂z = -Re * K / L^3
 
-xh_t, trian, dΩ = transient_duct_flow(nx=5, ny=5, Re=10.0, Ha=10.0,
+f_u = VectorValue(0.0,0.0, -∂p∂z) * L/U0^2
+
+xh_t, trian, dΩ = transient_duct_flow(nx=5, ny=5, Re=Re, Ha=Ha, f_u=f_u,
     tF=1.0, θ=0.5, Δt=0.5)
 
 for (xh, t) in xh_t

@@ -6,6 +6,7 @@ using LineSearches: Static
 
 using GridapMHD
 using GridapMHD: driver_inductionless_MHD
+using GridapMHD: transient_driver_inductionless_MHD
 using GridapMHD: analytical_shercliff_u
 using GridapMHD: analytical_shercliff_j
 using GridapMHD: compute_u_j_errors
@@ -105,5 +106,33 @@ eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, dΩ)
 
 @test eu_l2 < 0.3
 @test ej_l2 < 5
+
+# Test transient driver
+g_u(t::Real) = x -> g_u(x)
+g_u(x,t) =  g_u(x)
+g_j(t::Real) = x -> g_j(x)
+g_j(x,t) = g_j(x)
+xh_t, trian, dΩ = transient_driver_inductionless_MHD(;
+  t0=0.0,
+  tF=0.25,
+  Δt=0.25,
+  θ=0.5,
+  Re=Re,
+  Ha=Ha,
+  model=model,
+  fluid_dirichlet_tags = ["side_walls","hartmann_walls"],
+  fluid_neumann_tags = [],
+  magnetic_dirichlet_tags = ["side_walls"],
+  magnetic_non_perfectly_conducting_walls_tag = ["hartmann_walls",],
+  magnetic_neumann_tags = [],
+  c_w = 0.0,
+  α = 10.0,
+  fluid_dirichlet_conditions = g_u ,
+  magnetic_dirichlet_conditions = g_j,
+  fluid_body_force = f_u,
+  constraint_presures = (false,false),
+  usegmres = true,
+  verbosity = Verbosity(3)
+)
 
 end #module

@@ -4,15 +4,15 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   Ha::Float64 = 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
   c_w = 1.0, α=10.0, B = VectorValue(0.0,1.0,0.0),
   magnetic_dirichlet_tags = [], magnetic_neumann_tags = [],
+  magnetic_non_perfectly_conducting_walls_tag = [],
   fluid_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
   magnetic_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
   fluid_body_force = (x) -> VectorValue(0.0,0.0,0.0),
   constraint_presures::NTuple{2,Bool}=(false,false), max_nl_it=10,
   usegmres = true, precond_tau = 1e-9, linesearch=BackTracking(),
-  resultsfile = nothing)
+  resultsfile = nothing, verbosity::Verbosity=Verbosity(1))
 
   N = Ha^2/Re
-  K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
 
   # Discretization
   order = 2
@@ -34,6 +34,8 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
     fluid_dirichlet_tags = ["dirichlet_u"]
     magnetic_dirichlet_tags = ["dirichlet_j"]
   end
+
+  preprocessStepOutput(verbosity,"Preprocess step (0/3): Starting preprocess")
 
   Vu = FESpace(model, ReferenceFE(lagrangian,VectorValue{3,Float64},order);
       conformity=:H1, dirichlet_tags=fluid_dirichlet_tags)
@@ -76,6 +78,8 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
   X = MultiFieldFESpace([U, P, J, Φ])
 
+  preprocessStepOutput(verbosity,"Preprocess step (1/3): Built FE spaces")
+
   trian = Triangulation(model)
   degree = 2*(order)
   dΩ = Measure(trian,degree)
@@ -83,10 +87,10 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   res_Ω(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force, dΩ)
   jac_Ω(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
 
-  if length(magnetic_neumann_tags) == 0
+  if length(magnetic_non_perfectly_conducting_walls_tag) == 0
     op  = FEOperator(res_Ω,jac_Ω,X,Y)
   else
-    btrian_j = BoundaryTriangulation(model,tags=magnetic_neumann_tags)
+    btrian_j = BoundaryTriangulation(model,tags=magnetic_non_perfectly_conducting_walls_tag)
     dΓ = Measure(btrian_j,degree)
     n = get_normal_vector(btrian_j)
     res_Γ(x,y) = InductionlessMHD.dimensionless_conducting_wall(x, y, n, c_w, dΓ, α=α)
@@ -97,15 +101,18 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
     op  = FEOperator(res,jac,X,Y)
   end
 
+  preprocessStepOutput(verbosity,"Preprocess step (2/3): Defined triangulation and formulation")
 
   if usegmres
-    nls = NLSolver(GmresSolver(preconditioner=ilu,τ=precond_tau);
-      show_trace=true, method=:newton, linesearch=linesearch, iterations=max_nl_it)
+    nls = NLSolver(GmresSolver(verbose=linearSolverOutput(verbosity), preconditioner=ilu,τ=precond_tau);
+      show_trace=nonlinearSolverOutput(verbosity), method=:newton, linesearch=linesearch, iterations=max_nl_it)
   else
     nls = NLSolver(;
-      show_trace=true, method=:newton, linesearch=linesearch, iterations=max_nl_it)
+      show_trace=nonlinearSolverOutput(verbosity), method=:newton, linesearch=linesearch, iterations=max_nl_it)
   end
   solver = FESolver(nls)
+
+  preprocessStepOutput(verbosity,"Preprocess step (3/3): Configured solver. Starting to solve.")
 
   xh = solve(solver,op)
 
