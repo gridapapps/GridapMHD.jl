@@ -36,7 +36,7 @@ function map1(coord)
 end
 
 # Background mesh definition
-partition = (4,4,3);
+partition = (5,5,3);
 domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
 model=CartesianDiscreteModel(domain,partition,map=map1,isperiodic=(false,false,true));
 
