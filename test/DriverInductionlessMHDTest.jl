@@ -6,6 +6,7 @@ using LineSearches: Static
 
 using GridapMHD
 using GridapMHD: driver_inductionless_MHD
+using GridapMHD: transient_driver_inductionless_MHD
 using GridapMHD: analytical_shercliff_u
 using GridapMHD: analytical_shercliff_j
 using GridapMHD: compute_u_j_errors
@@ -107,9 +108,13 @@ eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, dΩ)
 @test ej_l2 < 5
 
 # Test transient driver
+g_u(t::Real) = x -> g_u(x)
+g_u(x,t) =  g_u(x)
+g_j(t::Real) = x -> g_j(x)
+g_j(x,t) = g_j(x)
 xh_t, trian, dΩ = transient_driver_inductionless_MHD(;
   t0=0.0,
-  tF=1.0,
+  tF=0.25,
   Δt=0.25,
   θ=0.5,
   Re=Re,
