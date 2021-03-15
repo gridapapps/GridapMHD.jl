@@ -40,7 +40,8 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   Vu = FESpace(model, ReferenceFE(lagrangian,VectorValue{3,Float64},order);
       conformity=:H1, dirichlet_tags=fluid_dirichlet_tags)
 
-  if is_n_cube(model.grid_topology.polytopes[1])
+  grid_topology = get_grid_topology(model)
+  if is_n_cube(grid_topology.polytopes[1])
     p_conformity = :L2
   else
     p_conformity = :H1
