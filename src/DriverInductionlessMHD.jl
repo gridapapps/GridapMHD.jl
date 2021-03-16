@@ -1,6 +1,7 @@
 
 
-function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
+function driver_inductionless_MHD(;model=nothing, cutgeo=nothing,nx = 4,
+  Re::Float64 = 10.0,
   Ha::Float64 = 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
   c_w = 1.0, α=10.0, B = VectorValue(0.0,1.0,0.0),
   magnetic_dirichlet_tags = [], magnetic_neumann_tags = [],
@@ -91,7 +92,11 @@ function driver_inductionless_MHD(;model=nothing, nx = 4, Re::Float64 = 10.0,
   if length(magnetic_non_perfectly_conducting_walls_tag) == 0
     op  = FEOperator(res_Ω,jac_Ω,X,Y)
   else
-    btrian_j = BoundaryTriangulation(model,tags=magnetic_non_perfectly_conducting_walls_tag)
+    if cutgeo === nothing
+      btrian_j = BoundaryTriangulation(model,tags=magnetic_non_perfectly_conducting_walls_tag)
+    else
+      btrian_j = EmbeddedBoundary(cutgeo)
+    end
     dΓ = Measure(btrian_j,degree)
     n = get_normal_vector(btrian_j)
     res_Γ(x,y) = InductionlessMHD.dimensionless_conducting_wall(x, y, n, c_w, dΓ, α=α)
