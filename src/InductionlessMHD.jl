@@ -22,7 +22,7 @@ function dimensionless_a(X,Y,Re,N::Float64,B,dΩ, coord)
      (∇⋅j)*v_φ ) * dΩ
 end
 
-function dimensionless_a(X,Y,Re,N,B::Float64,dΩ, coord)
+function dimensionless_a(X,Y,Re,N,B::VectorValue,dΩ, coord)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
@@ -32,7 +32,17 @@ function dimensionless_a(X,Y,Re,N,B::Float64,dΩ, coord)
      (∇⋅j)*v_φ ) * dΩ
 end
 
-function dimensionless_a(X,Y,Re,N::Float64,B::Float64,dΩ, coord)
+function dimensionless_a(X,Y,Re,N::Float64,B::VectorValue,dΩ, coord)
+  u  , p  , j  , φ   = X
+  v_u, v_p, v_j, v_φ = Y
+
+  ∫( (1/Re)*inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - N*(j×B)⋅v_u +
+     (∇⋅u)*v_p +
+     j⋅v_j - φ*(∇⋅v_j) - (u×B)⋅v_j +
+     (∇⋅j)*v_φ ) * dΩ
+end
+
+function dimensionless_a(X,Y,Re,N::Float64,B::VectorValue,dΩ)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
@@ -79,6 +89,22 @@ end
 
 function dimensionless_jacobian(X,dX,Y,Re,N,B,dΩ, coord)
   dimensionless_a(dX,Y,Re,N,B,dΩ, coord) +
+  dconvective_term(X,dX,Y,dΩ)
+end
+
+function dimensionless_residual(X,Y,Re,N,B,dΩ)
+  dimensionless_a(X,Y,Re,N,B,dΩ) +
+  convective_term(X,Y,dΩ)
+end
+
+function dimensionless_residual(X,Y,Re,N,B,f_u,dΩ)
+  dimensionless_a(X,Y,Re,N,B,dΩ) +
+  convective_term(X,Y,dΩ) -
+  dimensionless_l(Y,f_u,dΩ)
+end
+
+function dimensionless_jacobian(X,dX,Y,Re,N,B,dΩ)
+  dimensionless_a(dX,Y,Re,N,B,dΩ) +
   dconvective_term(X,dX,Y,dΩ)
 end
 
