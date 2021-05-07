@@ -2,7 +2,37 @@ module InductionlessMHD
 
 using Gridap
 
-function dimensionless_a(X,Y,Re,N,B,dΩ)
+function dimensionless_a(X,Y,Re,N,B,dΩ, coord)
+  u  , p  , j  , φ   = X
+  v_u, v_p, v_j, v_φ = Y
+
+  ∫( (1/Re)*inner(∇(u),∇(v_u)) - p*(∇⋅v_u) + (N∘(coord))*((j×(B∘(coord)))⋅v_u)*(-1.0) +
+     (∇⋅u)*v_p +
+     j⋅v_j - φ*(∇⋅v_j) - (u×(B∘(coord)))⋅v_j +
+     (∇⋅j)*v_φ ) * dΩ
+end
+
+function dimensionless_a(X,Y,Re,N::Float64,B,dΩ, coord)
+  u  , p  , j  , φ   = X
+  v_u, v_p, v_j, v_φ = Y
+
+  ∫( (1/Re)*inner(∇(u),∇(v_u)) - p*(∇⋅v_u) - N*((j×(B∘(coord)))⋅v_u) +
+     (∇⋅u)*v_p +
+     j⋅v_j - φ*(∇⋅v_j) - (u×(B∘(coord)))⋅v_j +
+     (∇⋅j)*v_φ ) * dΩ
+end
+
+function dimensionless_a(X,Y,Re,N,B::Float64,dΩ, coord)
+  u  , p  , j  , φ   = X
+  v_u, v_p, v_j, v_φ = Y
+
+  ∫( (1/Re)*inner(∇(u),∇(v_u)) - p*(∇⋅v_u) + (N∘(coord))*((j×B)⋅v_u)*(-1.0) +
+     (∇⋅u)*v_p +
+     j⋅v_j - φ*(∇⋅v_j) - (u×B)⋅v_j +
+     (∇⋅j)*v_φ ) * dΩ
+end
+
+function dimensionless_a(X,Y,Re,N::Float64,B::Float64,dΩ, coord)
   u  , p  , j  , φ   = X
   v_u, v_p, v_j, v_φ = Y
 
@@ -36,19 +66,19 @@ function dconvective_term(X,dX,Y,dΩ)
   ∫( v_u⋅dconv(du,∇(du),u,∇(u)) ) * dΩ
 end
 
-function dimensionless_residual(X,Y,Re,N,B,dΩ)
-  dimensionless_a(X,Y,Re,N,B,dΩ) +
+function dimensionless_residual(X,Y,Re,N,B,dΩ, coord)
+  dimensionless_a(X,Y,Re,N,B,dΩ, coord) +
   convective_term(X,Y,dΩ)
 end
 
-function dimensionless_residual(X,Y,Re,N,B,f_u,dΩ)
-  dimensionless_a(X,Y,Re,N,B,dΩ) +
+function dimensionless_residual(X,Y,Re,N,B,f_u,dΩ, coord)
+  dimensionless_a(X,Y,Re,N,B,dΩ, coord) +
   convective_term(X,Y,dΩ) -
   dimensionless_l(Y,f_u,dΩ)
 end
 
-function dimensionless_jacobian(X,dX,Y,Re,N,B,dΩ)
-  dimensionless_a(dX,Y,Re,N,B,dΩ) +
+function dimensionless_jacobian(X,dX,Y,Re,N,B,dΩ, coord)
+  dimensionless_a(dX,Y,Re,N,B,dΩ, coord) +
   dconvective_term(X,dX,Y,dΩ)
 end
 
