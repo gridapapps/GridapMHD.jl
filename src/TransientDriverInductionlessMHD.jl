@@ -2,8 +2,8 @@
 
 function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.0,
   model=nothing, nx = 4, Δt::Float64 = 0.1, θ::Float64 = 1.0, Re::Float64 = 10.0,
-  Ha::Float64 = 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
-  c_w = 1.0, α=10.0,B = VectorValue(0.0,1.0,0.0),
+  Ha = (x) -> 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
+  c_w = 1.0, α=10.0,B = (x) -> VectorValue(0.0,1.0,0.0),
   magnetic_dirichlet_tags = [], magnetic_neumann_tags = [],
   magnetic_non_perfectly_conducting_walls_tag = [],
   fluid_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
@@ -13,9 +13,14 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
   j0 = (x) -> VectorValue(0.0,0.0,0.0), φ0 = (x) -> 0.0,
   constraint_presures::NTuple{2,Bool}=(false,false), max_nl_it=10,
   usegmres = true, precond_tau = 1e-9, linesearch=BackTracking(),
-  resultsfile = nothing, verbosity::Verbosity=Verbosity(1))
+  resultsfile = nothing, verbosity::Verbosity=Verbosity(1),nsubcells=2)
 
-  N = Ha^2/Re
+  if typeof(Ha) == typeof(10.0)
+    N = (Ha*Ha)/Re
+  else
+    N(x) = (Ha(x)*Ha(x))/Re
+  end
+
 
   # Discretization
   order = 2
@@ -87,9 +92,10 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
   degree = 2*(order)
   dΩ = Measure(trian,degree)
 
+  coord = get_physical_coordinate(trian)
   res_Ω(t,x,xt,y) = ∫(xt[1]⋅y[1])*dΩ +
-    InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force,dΩ)
-  jac_Ω(t,x,xt,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B,dΩ)
+    InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force,dΩ,coord)
+  jac_Ω(t,x,xt,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B,dΩ,coord)
   jac_t(t,x,xt,dxt,y) = ∫(dxt[1]⋅y[1])*dΩ
 
   if length(magnetic_non_perfectly_conducting_walls_tag) == 0
@@ -131,8 +137,8 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
 
   if resultsfile ≠ nothing
     startPVD(resultsfile)
-    write_timestep(resultsfile,t0,trian,
-        cellfields=["uh"=>uh0, "ph"=>ph0, "jh"=>jh0, "φh"=>φh0])
+    write_timestep(resultsfile,t0,trian,nsubcells=nsubcells,
+        cellfields=["uh"=>uh0, "ph"=>ph0, "jh"=>jh0, "phih"=>φh0])
     it = 0
     timeStepOutput(verbosity,Δt,0.0,it)
     for (xh, t) in xh_t
@@ -140,8 +146,8 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
       timeStepOutput(verbosity,Δt,t,it)
 
       uh, ph, jh, φh = xh
-      write_timestep(resultsfile,t,trian,order=2,
-        cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
+      write_timestep(resultsfile,t,trian,nsubcells=nsubcells,
+        cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "phih"=>φh])
     end
     closePVD(resultsfile)
     return (xh_t, trian, dΩ)

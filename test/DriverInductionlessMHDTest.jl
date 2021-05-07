@@ -20,10 +20,10 @@ U0 = 10.0
 B0 = 10.0
 L = 1.0
 Re = U0 * L / ν
-Ha = B0 * L * sqrt(σ/(ρ*ν))
+Ha(x) = B0 * L * sqrt(σ/(ρ*ν))
 
 
-K = Ha / (1-0.825*Ha^(-1/2)-Ha^(-1))
+K = Ha(0) / (1-0.825*Ha(0)^(-1/2)-Ha(0)^(-1))
 ∂p∂z = -Re * K / L^3
 
 f_u(x) = VectorValue(0.0,0.0, -∂p∂z) * L/U0^2
@@ -97,15 +97,17 @@ number_fourier_sumands = 10
 wall_thickness = 1.0
 wall_conductivity = 0.0
 u0(x) = analytical_shercliff_u(side_wall_semilength, hartmann_wall_semilength,
-  wall_thickness, wall_conductivity, σ, ν*ρ, ∂p∂z, Ha, number_fourier_sumands, x)
+  wall_thickness, wall_conductivity, σ, ν*ρ, ∂p∂z, Ha(0), number_fourier_sumands, x)
 
 j0(x) = analytical_shercliff_j(side_wall_semilength, hartmann_wall_semilength,
-  wall_thickness, wall_conductivity, σ, ν*ρ, ∂p∂z, Ha, number_fourier_sumands, x)
+  wall_thickness, wall_conductivity, σ, ν*ρ, ∂p∂z, Ha(0), number_fourier_sumands, x)
 
 eu_l2, ej_l2 = compute_u_j_errors(uh, jh, u0, j0, dΩ)
 
 @test eu_l2 < 0.3
 @test ej_l2 < 5
+
+Ha_ = Ha(0) # test for constant Hartmann
 
 # Test transient driver
 g_u(t::Real) = x -> g_u(x)
@@ -118,7 +120,7 @@ xh_t, trian, dΩ = transient_driver_inductionless_MHD(;
   Δt=0.25,
   θ=0.5,
   Re=Re,
-  Ha=Ha,
+  Ha=Ha_,
   model=model,
   fluid_dirichlet_tags = ["side_walls","hartmann_walls"],
   fluid_neumann_tags = [],

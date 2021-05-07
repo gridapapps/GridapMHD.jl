@@ -1,7 +1,7 @@
 name = "GridapMHD"
 uuid = "afadc09e-922c-4d62-8330-7a6898d360cc"
 authors = ["Jesús Bonilla", "Large Scale Scientific Computing"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
@@ -19,7 +19,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [compat]
-julia = "1.4"
+julia = "1.5"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

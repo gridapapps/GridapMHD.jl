@@ -2,8 +2,8 @@
 
 function driver_inductionless_MHD(;model=nothing, cutgeo=nothing,nx = 4,
   Re::Float64 = 10.0,
-  Ha::Float64 = 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
-  c_w = 1.0, α=10.0, B = VectorValue(0.0,1.0,0.0),
+  Ha = (x) -> 10.0, fluid_dirichlet_tags = [], fluid_neumann_tags = [],
+  c_w = 1.0, α=10.0, B = (x) -> VectorValue(0.0,1.0,0.0),
   magnetic_dirichlet_tags = [], magnetic_neumann_tags = [],
   magnetic_non_perfectly_conducting_walls_tag = [],
   fluid_dirichlet_conditions = (x) -> VectorValue(0.0,0.0,0.0),
@@ -11,9 +11,14 @@ function driver_inductionless_MHD(;model=nothing, cutgeo=nothing,nx = 4,
   fluid_body_force = (x) -> VectorValue(0.0,0.0,0.0),
   constraint_presures::NTuple{2,Bool}=(false,false), max_nl_it=10,
   usegmres = true, precond_tau = 1e-9, linesearch=BackTracking(),
-  resultsfile = nothing, verbosity::Verbosity=Verbosity(1))
+  resultsfile = nothing, verbosity::Verbosity=Verbosity(1),nsubcells=2)
 
-  N = Ha^2/Re
+  if typeof(Ha) == typeof(10.0)
+    N = (Ha*Ha)/Re
+  else
+    N(x) = (Ha(x)*Ha(x))/Re
+  end
+
 
   # Discretization
   order = 2
@@ -86,8 +91,9 @@ function driver_inductionless_MHD(;model=nothing, cutgeo=nothing,nx = 4,
   degree = 2*(order)
   dΩ = Measure(trian,degree)
 
-  res_Ω(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force, dΩ)
-  jac_Ω(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
+  coord = get_physical_coordinate(trian)
+  res_Ω(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, fluid_body_force, dΩ, coord)
+  jac_Ω(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ, coord)
 
   if length(magnetic_non_perfectly_conducting_walls_tag) == 0
     op  = FEOperator(res_Ω,jac_Ω,X,Y)
@@ -124,8 +130,8 @@ function driver_inductionless_MHD(;model=nothing, cutgeo=nothing,nx = 4,
 
   if resultsfile ≠ nothing
     uh, ph, jh, φh = xh
-    writevtk(trian, resultsfile,
-      cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
+    writevtk(trian, resultsfile, nsubcells=nsubcells,
+      cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "phih"=>φh])
   end
 
   (xh, trian, dΩ)
