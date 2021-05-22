@@ -11,7 +11,7 @@ function driver_inductionless_MHD(;model=nothing, cutgeo=nothing,nx = 4,
   fluid_body_force = (x) -> VectorValue(0.0,0.0,0.0),
   constraint_presures::NTuple{2,Bool}=(false,false), max_nl_it=10,
   usegmres = true, precond_tau = 1e-9, linesearch=BackTracking(),
-  resultsfile = nothing, verbosity::Verbosity=Verbosity(1),nsubcells=2)
+  resultsfile = nothing, verbosity::Verbosity=Verbosity(1),nsubcells=1,print_order=2)
 
   if typeof(Ha) == typeof(10.0)
     N = (Ha*Ha)/Re
@@ -130,7 +130,7 @@ function driver_inductionless_MHD(;model=nothing, cutgeo=nothing,nx = 4,
 
   if resultsfile ≠ nothing
     uh, ph, jh, φh = xh
-    writevtk(trian, resultsfile, nsubcells=nsubcells,
+    writevtk(trian, resultsfile, nsubcells=nsubcells, order=print_order,
       cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "phih"=>φh])
   end
 
