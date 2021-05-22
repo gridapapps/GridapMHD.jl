@@ -13,7 +13,7 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
   j0 = (x) -> VectorValue(0.0,0.0,0.0), φ0 = (x) -> 0.0,
   constraint_presures::NTuple{2,Bool}=(false,false), max_nl_it=10,
   usegmres = true, precond_tau = 1e-9, linesearch=BackTracking(),
-  resultsfile = nothing, verbosity::Verbosity=Verbosity(1),nsubcells=2)
+  resultsfile = nothing, verbosity::Verbosity=Verbosity(1),nsubcells=1,print_order=2)
 
   if typeof(Ha) == typeof(10.0)
     N = (Ha*Ha)/Re
@@ -137,7 +137,7 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
 
   if resultsfile ≠ nothing
     startPVD(resultsfile)
-    write_timestep(resultsfile,t0,trian,nsubcells=nsubcells,
+    write_timestep(resultsfile,t0,trian,nsubcells=nsubcells, order=print_order,
         cellfields=["uh"=>uh0, "ph"=>ph0, "jh"=>jh0, "phih"=>φh0])
     it = 0
     timeStepOutput(verbosity,Δt,0.0,it)
@@ -146,7 +146,7 @@ function transient_driver_inductionless_MHD(;t0::Float64 = 0.0, tF::Float64 = 1.
       timeStepOutput(verbosity,Δt,t,it)
 
       uh, ph, jh, φh = xh
-      write_timestep(resultsfile,t,trian,nsubcells=nsubcells,
+      write_timestep(resultsfile,t,trian,nsubcells=nsubcells, order=print_order,
         cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "phih"=>φh])
     end
     closePVD(resultsfile)

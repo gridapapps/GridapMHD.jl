@@ -97,7 +97,7 @@ function dimensionless_residual(X,Y,Re,N,B,dΩ)
   convective_term(X,Y,dΩ)
 end
 
-function dimensionless_residual(X,Y,Re,N,B,f_u,dΩ)
+function dimensionless_residual(X,Y,Re,N,B,f_u,dΩ::Measure)
   dimensionless_a(X,Y,Re,N,B,dΩ) +
   convective_term(X,Y,dΩ) -
   dimensionless_l(Y,f_u,dΩ)
