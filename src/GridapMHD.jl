@@ -3,14 +3,15 @@ module GridapMHD
 using Parameters
 using Gridap
 
-export Material
+export ConductingFluid
+export MagneticField
+export FluidForce
 export VelocityBc
 export TractionBc
 export InsulatingBc
 export ConductingBc
 export FluidForce
-export WallLaw
-export Params
+export SemiConductingBc
 
 include("Main.jl")
 
