@@ -32,11 +32,11 @@ function hunt(;
   add_tag_from_tags!(labels,"conducting",tags_φ)
 
   actions = [
-    ConductingFluid(domain=Ω,α=1,β=(1/Re),γ=N),
+    ConductingFluid(domain=Ω,α=1,β=(1/Re)),
     VelocityBc(domain="noslip"),
     InsulatingBc(domain="insulating"),
     ConductingBc(domain="conducting"),
-    MagneticField(domain=Ω,B=B),
+    MagneticField(domain=Ω,B=B,γ=N),
     ]
 
   out = main(model,actions;kwargs...)

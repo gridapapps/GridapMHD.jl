@@ -4,6 +4,7 @@ using Random
 using Parameters
 using Gridap
 using Gridap.Helpers
+using Gridap.CellData
 
 export ConductingFluid
 export MagneticField

@@ -36,16 +36,16 @@ abstract type Action end
 abstract type BoundaryAction <: Action end
 abstract type BodyAction <: Action end
 
-@with_kw struct ConductingFluid{A,B,C,D} <: BodyAction
+@with_kw struct ConductingFluid{A,B,C} <: BodyAction
   domain::A
   α::B
   β::C
-  γ::D
 end
 
-@with_kw struct MagneticField{A,X} <: BodyAction
+@with_kw struct MagneticField{A,X,D} <: BodyAction
   domain::A
   B::X
+  γ::D
 end
 
 @with_kw struct FluidForce{A,B} <: BodyAction
@@ -78,10 +78,12 @@ end
 end
 
 # j⋅n + cw*n⋅∇(j)⋅n = jw
-@with_kw struct ConductingThinWall{A,B,C} <: BoundaryAction
+# imposed via a penalty of value τ
+@with_kw struct ConductingThinWall{A,B,C,D} <: BoundaryAction
   domain::A
   cw::B
   jw::C = 0.0
+  τ::D = 1.0
 end
 
 function main(
@@ -132,6 +134,8 @@ function main(
     Random.seed!(1234)
     xh = FEFunction(U,rand(num_free_dofs(U)))
   else
+
+
     xh = zero(U)
   end
 
@@ -143,6 +147,96 @@ function main(
   out = (solution=xh,)
   out
 end
+
+function a_and_ℓ(actions::Vector{<:Actions},dx,dy,context)
+  a_cont = DomainContribution()
+  ℓ_cont = DomainContribution()
+  for action in actions
+    a_c, ℓ_c = a_and_ℓ(action,dx,dy,context)
+    if a_c !== nothing
+      a_cont = a_cont + a_c
+    end
+    if ℓ_c !== nothing
+      ℓ_cont = ℓ_cont + ℓ_c
+    end
+  end
+  a_cont, ℓ_cont
+end
+
+function a_and_ℓ(action::Action,dx,dy,context)
+  nothing, nothing
+end
+
+function a_and_ℓ(action::ConductingFluid,dx,dy,context)
+  u, p, j, φ = dx
+  v_u, v_p, v_j, v_φ = dy
+  k = context.k
+  model = context.model
+  α = action.α
+  β = action.β
+  Ω = get_domain(model,action)
+  dΩ = Measure(Ω,2*k)
+  a_c = ∫(
+    β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u)  +
+    (∇⋅u)*v_p +
+    j⋅v_j - φ*(∇⋅v_j) +
+    (∇⋅j)*v_φ ) * dΩ
+  a_c, nothing
+end
+
+function a_and_ℓ(action::MagneticField,dx,dy,context)
+  u, p, j, φ = dx
+  v_u, v_p, v_j, v_φ = dy
+  k = context.k
+  model = context.model
+  B = action.B
+  γ = action.γ
+  Ω = get_domain(model,action)
+  dΩ = Measure(Ω,2*k)
+  a_c = ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
+  a_c, nothing
+end
+
+function a_and_ℓ(action::ConductingThinWall,dx,dy,context)
+  u, p, j, φ = dx
+  v_u, v_p, v_j, v_φ = dy
+  k = context.k
+  model = context.model
+  cw = action.cw
+  jw = action.jw
+  τ = action.τ
+  Γ = get_domain(model,action)
+  n_Γ = get_normal_vector(Γ)
+  dΓ = Measure(Γ,2*k)
+  a_c = ∫( τ*((v_j⋅n_Γ)*(j⋅n_Γ) + cw*(v_j⋅n_Γ)*(n_Γ⋅(∇(j)⋅n_Γ))) )*dΓ
+  ℓ_c = ∫( τ*(v_j⋅n_Γ)*jw ) * dΓ
+  a_c, ℓ_c
+end
+
+function a_and_ℓ(action::FluidForce,dy,context)
+  v_u, v_p, v_j, v_φ = dy
+  k = context.k
+  model = context.model
+  f = action.f
+  Ω = get_domain(model,action)
+  dΩ = Measure(Ω,2*k)
+  (nothing, ∫( v_u⋅f )*dΩ)
+end
+
+function a_and_ℓ(action::ConductingBc,dy,context)
+  v_u, v_p, v_j, v_φ = dy
+  k = context.k
+  model = context.model
+  φ = action.φ
+  Γ = get_domain(model,action)
+  n_Γ = get_normal_vector(Γ)
+  dΓ = Measure(Γ,2*k)
+  (nothing, ∫( -(v_j⋅n_Γ)*φ )*dΓ)
+end
+
+
+
+
 
 function find_strong_bcs_u(bcs)
   tags = String[]
