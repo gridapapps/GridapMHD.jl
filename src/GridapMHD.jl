@@ -1,7 +1,9 @@
 module GridapMHD
 
+using Random
 using Parameters
 using Gridap
+using Gridap.Helpers
 
 export ConductingFluid
 export MagneticField
@@ -11,7 +13,7 @@ export TractionBc
 export InsulatingBc
 export ConductingBc
 export FluidForce
-export SemiConductingBc
+export ConductingThinWall
 
 include("Main.jl")
 

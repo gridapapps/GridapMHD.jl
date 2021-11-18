@@ -13,7 +13,7 @@ L = 1.0
 Re = U0 * L / ν
 Ha = B0 * L * sqrt(σ/(ρ*ν))
 
-GridapMHD.hunt(nx=5,ny=5,Re=Re,Ha=Ha,debug_setup=true,title="hunt")
+GridapMHD.hunt(nx=10,ny=10,Re=Re,Ha=Ha,debug=true,vtk=true,title="hunt")
 
 end # module
 

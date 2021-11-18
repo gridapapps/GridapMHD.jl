@@ -4,8 +4,9 @@
 # u⋅∇(u) -ν*Δ(u) + (1/ρ)*∇(p) - (1/ρ)*(j×B) = (1/ρ)*f
 # ∇⋅j = 0
 # j + σ*∇(φ) - σ*(u×B) = 0
+# solving for u,p,j,φ for a given B,ρ,σ
 #
-# One can provide scaling factors
+# One can provide characteristic quantities
 # u0,B0,L
 #
 # To introduce these change of variables
@@ -31,86 +32,69 @@
 # α = (1/N), β = (1/Ha^2), γ = 1 (option 2,MHD)
 #
 
-@with_kw struct ConductingFluid{A,B,C,D}
+abstract type Action end
+abstract type BoundaryAction <: Action end
+abstract type BodyAction <: Action end
+
+@with_kw struct ConductingFluid{A,B,C,D} <: BodyAction
   domain::A
   α::B
   β::C
   γ::D
 end
 
-@with_kw struct MagneticField{A,B}
+@with_kw struct MagneticField{A,X} <: BodyAction
   domain::A
-  value::B
+  B::X
 end
 
-@with_kw struct FluidForce{A,B}
+@with_kw struct FluidForce{A,B} <: BodyAction
   domain::A
-  value::B
+  f::B
 end
 
-# u = value
-@with_kw struct VelocityBc{A,B}
+# u = u
+@with_kw struct VelocityBc{A,B} <: BoundaryAction
   domain::A
-  value::B = VectorValue(0.,0.,0.)
+  u::B = VectorValue(0.,0.,0.)
 end
 
-# n⋅∇(u) - p*n = value
-@with_kw struct TractionBc{A,B}
+# n⋅∇(u) - p*n = t
+@with_kw struct TractionBc{A,B} <: BoundaryAction
   domain::A
-  value::B
+  t::B
 end
 
-# j = value (imposed in normal direction only)
-@with_kw struct InsulatingBc{A,B}
+# j = j (imposed in normal direction only)
+@with_kw struct InsulatingBc{A,B} <: BoundaryAction
   domain::A
-  value::B = VectorValue(0.,0.,0.)
+  j::B = VectorValue(0.,0.,0.)
 end
 
-# φ = value
-@with_kw struct ConductingBc{A,B}
+# φ = φ
+@with_kw struct ConductingBc{A,B} <: BoundaryAction
   domain::A
-  value::B = 0.0
+  φ::B = 0.0
 end
 
-# j⋅n + cw*n⋅∇(j)⋅n = value
-@with_kw struct SemiConductingBc{A,B,C}
+# j⋅n + cw*n⋅∇(j)⋅n = jw
+@with_kw struct ConductingThinWall{A,B,C} <: BoundaryAction
   domain::A
   cw::B
-  value::C = 0.0
-end
-
-function find_strong_bcs_u(bcs)
-  tags = String[]
-  vals = []
-  for bc in bcs
-    if isa(bc,VelocityBc)
-      push!(tags,bc.domain)
-      push!(vals,bc.value)
-    end
-  end
-  tags, vals
-end
-
-function find_strong_bcs_j(bcs)
-  tags = String[]
-  vals = []
-  for bc in bcs
-    if isa(bc,InsulatingBc)
-      push!(tags,bc.domain)
-      push!(vals,bc.value)
-    end
-  end
-  tags, vals
+  jw::C = 0.0
 end
 
 function main(
-  fluid::ConductingFluid,
-  actions::Vector;
-  debug_setup=false,
+  model::DiscreteModel,
+  actions::Vector{<:Action};
+  debug=false,
+  vtk=true,
   title="test")
 
-  Ω = fluid.domain
-  model = get_background_model(Ω)
+  @check count(i->isa(i,ConductingFluid),actions) == 1 "Only one instance of ConductingFluid allowed"
+  ifluid = findall(i->isa(i,ConductingFluid),actions) |> first
+  fluid = actions[ifluid]
+  Ω = get_domain(model,fluid)
   u_tags, u_vals = find_strong_bcs_u(actions)
   j_tags, j_vals = find_strong_bcs_j(actions)
 
@@ -135,45 +119,53 @@ function main(
   U_j = TrialFESpace(V_j,j_vals)
   U_φ = TrialFESpace(V_φ)
   U = MultiFieldFESpace([U_u,U_p,U_j,U_φ])
-  xh = zero(U)
 
-  if debug_setup
-    rh = FEFunction(U,rand(num_free_dofs(U)))
-    uh,ph,jh,φh = rh
-    writevtk(Ω,"$(title)_Ω_fluid",
-      order=2,
-      cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh])
+  if debug
+    # Create some plot data
     for (i,action) in enumerate(actions)
-      debug_setup_action(title,model,i,action)
+      trian = get_domain(model,action)
+      pn = propertynames(action)
+      cellfields = [ string(p)=>getproperty(action,p) for p in pn if p != :domain ]
+      writevtk(trian,"$(title)_action_$i",order=k,cellfields=cellfields)
     end
+    # Create a random solution (useful to debug the FESpaces)
+    Random.seed!(1234)
+    xh = FEFunction(U,rand(num_free_dofs(U)))
+  else
+    xh = zero(U)
+  end
+
+  uh,ph,jh,φh = xh
+  if vtk
+    writevtk(Ω,"$(title)_Ω_fluid",cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh])
   end
 
   out = (solution=xh,)
-
   out
 end
 
-function debug_setup_action(title,model,i,action)
+function find_strong_bcs_u(bcs)
+  tags = String[]
+  vals = []
+  for bc in bcs
+    if isa(bc,VelocityBc)
+      push!(tags,bc.domain)
+      push!(vals,bc.u)
+    end
+  end
+  tags, vals
 end
 
-function debug_setup_action(title,model,i,action::MagneticField)
-  Ω = get_domain(model,action)
-  writevtk(Ω,order=2,"$(title)_action_$(i)",cellfields=["B"=>action.value])
-end
-
-function debug_setup_action(title,model,i,action::ConductingBc)
-  Ω = get_domain(model,action)
-  writevtk(Ω,order=2,"$(title)_action_$(i)",cellfields=["φ_bc"=>action.value])
-end
-
-function debug_setup_action(title,model,i,action::VelocityBc)
-  Ω = get_domain(model,action)
-  writevtk(Ω,order=2,"$(title)_action_$(i)",cellfields=["u_bc"=>action.value])
-end
-
-function debug_setup_action(title,model,i,action::InsulatingBc)
-  Ω = get_domain(model,action)
-  writevtk(Ω,order=2,"$(title)_action_$(i)",cellfields=["j_bc"=>action.value])
+function find_strong_bcs_j(bcs)
+  tags = String[]
+  vals = []
+  for bc in bcs
+    if isa(bc,InsulatingBc)
+      push!(tags,bc.domain)
+      push!(vals,bc.j)
+    end
+  end
+  tags, vals
 end
 
 function get_domain(model,action)
@@ -184,20 +176,11 @@ function get_domain(model,action,domain::Triangulation)
   domain
 end
 
-function get_domain(model,action::MagneticField,tag::String)
+function get_domain(model,action::BodyAction,tag::String)
   Triangulation(model,tags=tag)
 end
 
-function get_domain(model,action::ConductingBc,tag::String)
+function get_domain(model,action::BoundaryAction,tag::String)
   Boundary(model,tags=tag)
 end
-
-function get_domain(model,action::InsulatingBc,tag::String)
-  Boundary(model,tags=tag)
-end
-
-function get_domain(model,action::VelocityBc,tag::String)
-  Boundary(model,tags=tag)
-end
-
 

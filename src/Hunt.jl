@@ -24,22 +24,22 @@ function hunt(;
   Ω = Interior(model)
 
   labels = get_face_labeling(model)
-  dirichlet_tags_u = append!(collect(1:20),[23,24,25,26])
-  dirichlet_tags_j = append!(collect(1:20),[25,26])
-  add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
-  add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
-  add_tag_from_tags!(labels,"hartman",[23,24])
+  tags_u = append!(collect(1:20),[23,24,25,26])
+  tags_j = append!(collect(1:20),[25,26])
+  tags_φ = [23,24]
+  add_tag_from_tags!(labels,"noslip",tags_u)
+  add_tag_from_tags!(labels,"insulating",tags_j)
+  add_tag_from_tags!(labels,"conducting",tags_φ)
 
-  fluid = ConductingFluid(domain=Ω,α=1,β=(1/Re),γ=N)
   actions = [
-    VelocityBc(domain="dirichlet_u"),
-    InsulatingBc(domain="dirichlet_j"),
-    ConductingBc(domain="hartman"),
-    MagneticField(domain=Ω,value=B),
+    ConductingFluid(domain=Ω,α=1,β=(1/Re),γ=N),
+    VelocityBc(domain="noslip"),
+    InsulatingBc(domain="insulating"),
+    ConductingBc(domain="conducting"),
+    MagneticField(domain=Ω,B=B),
     ]
 
-  out = main(fluid,actions;kwargs...)
-
+  out = main(model,actions;kwargs...)
 
   out
 end
