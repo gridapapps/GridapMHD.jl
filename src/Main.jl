@@ -91,7 +91,8 @@ function main(
   actions::Vector{<:Action};
   debug=false,
   vtk=true,
-  title="test")
+  title="test",
+  solver = NonlinearSolver())
 
   @check count(i->isa(i,ConductingFluid),actions) == 1 "Only one instance of ConductingFluid allowed"
   ifluid = findall(i->isa(i,ConductingFluid),actions) |> first
@@ -134,109 +135,166 @@ function main(
     Random.seed!(1234)
     xh = FEFunction(U,rand(num_free_dofs(U)))
   else
-
-
-    xh = zero(U)
+    # Build and solve the problem
+    trian_and_meas = []
+    for action in actions
+      trian = get_domain(model,action)
+      m = Measure(trian,2*k)
+      push!(trian_and_meas,(trian,m))
+    end
+    context = nothing
+    res(x,dy) =
+      c(actions,x,dy,context,trian_and_meas) +
+      a(actions,x,dy,context,trian_and_meas) -
+      ℓ(actions,dy,context,trian_and_meas)
+    jac(x,dx,dy) =
+      dc(actions,x,dx,dy,context,trian_and_meas) +
+      a(actions,dx,dy,context,trian_and_meas)
+    op=FEOperator(res,jac,U,V)
+    xh = solve(solver,op)
   end
 
   uh,ph,jh,φh = xh
   if vtk
     writevtk(Ω,"$(title)_Ω_fluid",cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh])
   end
-
   out = (solution=xh,)
   out
 end
 
-function a_and_ℓ(actions::Vector{<:Actions},dx,dy,context)
-  a_cont = DomainContribution()
-  ℓ_cont = DomainContribution()
-  for action in actions
-    a_c, ℓ_c = a_and_ℓ(action,dx,dy,context)
-    if a_c !== nothing
-      a_cont = a_cont + a_c
-    end
-    if ℓ_c !== nothing
-      ℓ_cont = ℓ_cont + ℓ_c
+function a(actions::Vector{<:Action},dx,dy,context,trian_and_meas)
+  cont = DomainContribution()
+  for (i,action) in enumerate(actions)
+    dc = a(action,dx,dy,context,trian_and_meas[i])
+    if dc !== nothing
+      cont = cont + dc
     end
   end
-  a_cont, ℓ_cont
+  cont
 end
 
-function a_and_ℓ(action::Action,dx,dy,context)
-  nothing, nothing
+function a(action::Action,dx,dy,context,trian_and_meas)
+  nothing
 end
 
-function a_and_ℓ(action::ConductingFluid,dx,dy,context)
+function a(action::ConductingFluid,dx,dy,context,trian_and_meas)
   u, p, j, φ = dx
   v_u, v_p, v_j, v_φ = dy
-  k = context.k
-  model = context.model
-  α = action.α
+  Ω, dΩ = trian_and_meas
   β = action.β
-  Ω = get_domain(model,action)
-  dΩ = Measure(Ω,2*k)
-  a_c = ∫(
+  ∫(
     β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u)  +
     (∇⋅u)*v_p +
     j⋅v_j - φ*(∇⋅v_j) +
     (∇⋅j)*v_φ ) * dΩ
-  a_c, nothing
 end
 
-function a_and_ℓ(action::MagneticField,dx,dy,context)
+function a(action::MagneticField,dx,dy,context,trian_and_meas)
   u, p, j, φ = dx
   v_u, v_p, v_j, v_φ = dy
-  k = context.k
-  model = context.model
+  Ω, dΩ = trian_and_meas
   B = action.B
   γ = action.γ
-  Ω = get_domain(model,action)
-  dΩ = Measure(Ω,2*k)
-  a_c = ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
-  a_c, nothing
+  ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
 end
 
-function a_and_ℓ(action::ConductingThinWall,dx,dy,context)
+function a(action::ConductingThinWall,dx,dy,context,trian_and_meas)
   u, p, j, φ = dx
   v_u, v_p, v_j, v_φ = dy
-  k = context.k
-  model = context.model
+  Γ, dΓ = trian_and_meas
+  n_Γ = get_normal_vector(Γ)
   cw = action.cw
+  τ = action.τ
+  ∫( τ*((v_j⋅n_Γ)*(j⋅n_Γ) + cw*(v_j⋅n_Γ)*(n_Γ⋅(∇(j)⋅n_Γ))) )*dΓ
+end
+
+function ℓ(actions::Vector{<:Action},dy,context,trian_and_meas)
+  cont = DomainContribution()
+  for (i,action) in enumerate(actions)
+    dc = ℓ(action,dy,context,trian_and_meas[i])
+    if dc !== nothing
+      cont = cont + dc
+    end
+  end
+  cont
+end
+
+function ℓ(action::Action,dy,context,trian_and_meas)
+  nothing
+end
+
+function ℓ(action::ConductingThinWall,dy,context,trian_and_meas)
+  u, p, j, φ = dx
+  v_u, v_p, v_j, v_φ = dy
+  Γ, dΓ = trian_and_meas
+  n_Γ = get_normal_vector(Γ)
   jw = action.jw
   τ = action.τ
-  Γ = get_domain(model,action)
-  n_Γ = get_normal_vector(Γ)
-  dΓ = Measure(Γ,2*k)
-  a_c = ∫( τ*((v_j⋅n_Γ)*(j⋅n_Γ) + cw*(v_j⋅n_Γ)*(n_Γ⋅(∇(j)⋅n_Γ))) )*dΓ
-  ℓ_c = ∫( τ*(v_j⋅n_Γ)*jw ) * dΓ
-  a_c, ℓ_c
+  ∫( τ*(v_j⋅n_Γ)*jw ) * dΓ
 end
 
-function a_and_ℓ(action::FluidForce,dy,context)
+function ℓ(action::FluidForce,dy,context,trian_and_meas)
   v_u, v_p, v_j, v_φ = dy
-  k = context.k
-  model = context.model
+  Ω, dΩ = trian_and_meas
   f = action.f
-  Ω = get_domain(model,action)
-  dΩ = Measure(Ω,2*k)
-  (nothing, ∫( v_u⋅f )*dΩ)
+  ∫( v_u⋅f )*dΩ
 end
 
-function a_and_ℓ(action::ConductingBc,dy,context)
+function ℓ(action::ConductingBc,dy,context,trian_and_meas)
   v_u, v_p, v_j, v_φ = dy
-  k = context.k
-  model = context.model
+  Γ, dΓ = trian_and_meas
   φ = action.φ
-  Γ = get_domain(model,action)
-  n_Γ = get_normal_vector(Γ)
-  dΓ = Measure(Γ,2*k)
-  (nothing, ∫( -(v_j⋅n_Γ)*φ )*dΓ)
+  ∫( -(v_j⋅n_Γ)*φ )*dΓ
 end
 
+function c(actions::Vector{<:Action},x,dy,context,trian_and_meas)
+  cont = DomainContribution()
+  for (i,action) in enumerate(actions)
+    d = c(action,x,dy,context,trian_and_meas[i])
+    if d !== nothing
+      cont = cont + d
+    end
+  end
+  cont
+end
 
+function c(action::Action,x,dy,context,trian_and_meas)
+  nothing
+end
 
+conv(u,∇u) = (∇u')⋅u
 
+function c(action::ConductingFluid,x,dy,context,trian_and_meas)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  Ω, dΩ = trian_and_meas
+  α = action.α
+  ∫( α*v_u⋅conv∘(u,∇(u)) ) * dΩ
+end
+
+function dc(actions::Vector{<:Action},x,dx,dy,context,trian_and_meas)
+  cont = DomainContribution()
+  for (i,action) in enumerate(actions)
+    d = c(action,x,dx,dy,context,trian_and_meas[i])
+    if d !== nothing
+      cont = cont + d
+    end
+  end
+  cont
+end
+
+function dc(action::Action,x,dx,dy,context,trian_and_meas)
+  nothing
+end
+
+function dc(action::ConductingFluid,x,dx,dy,context,trian_and_meas)
+  u, p, j, φ = x
+  du , dp , dj , dφ  = dx
+  v_u, v_p, v_j, v_φ = dy
+  Ω, dΩ = trian_and_meas
+  α = action.α
+  ∫( α*v_u⋅(conv∘(u,∇(du)) + conv∘(du,∇(u))) ) * dΩ
+end
 
 function find_strong_bcs_u(bcs)
   tags = String[]
