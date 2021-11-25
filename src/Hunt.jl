@@ -34,8 +34,8 @@ function hunt(;
   actions = [
     ConductingFluid(domain=Ω,α=1,β=(1/Re)),
     VelocityBc(domain="noslip"),
-    InsulatingBc(domain="insulating"),
-    ConductingBc(domain="conducting"),
+    CurrentBc(domain="insulating"),
+    PotentialBc(domain="conducting"),
     MagneticField(domain=Ω,B=B,γ=N),
     ]
 

@@ -66,13 +66,13 @@ end
 end
 
 # j = j (imposed in normal direction only)
-@with_kw struct InsulatingBc{A,B} <: BoundaryAction
+@with_kw struct CurrentBc{A,B} <: BoundaryAction
   domain::A
   j::B = VectorValue(0.,0.,0.)
 end
 
 # φ = φ
-@with_kw struct ConductingBc{A,B} <: BoundaryAction
+@with_kw struct PotentialBc{A,B} <: BoundaryAction
   domain::A
   φ::B = 0.0
 end
@@ -240,7 +240,7 @@ function ℓ(action::FluidForce,dy,context,trian_and_meas)
   ∫( v_u⋅f )*dΩ
 end
 
-function ℓ(action::ConductingBc,dy,context,trian_and_meas)
+function ℓ(action::PotentialBc,dy,context,trian_and_meas)
   v_u, v_p, v_j, v_φ = dy
   Γ, dΓ = trian_and_meas
   φ = action.φ
@@ -312,7 +312,7 @@ function find_strong_bcs_j(bcs)
   tags = String[]
   vals = []
   for bc in bcs
-    if isa(bc,InsulatingBc)
+    if isa(bc,CurrentBc)
       push!(tags,bc.domain)
       push!(vals,bc.j)
     end

@@ -11,8 +11,8 @@ export MagneticField
 export FluidForce
 export VelocityBc
 export TractionBc
-export InsulatingBc
-export ConductingBc
+export CurrentBc
+export PotentialBc
 export FluidForce
 export ConductingThinWall
 
