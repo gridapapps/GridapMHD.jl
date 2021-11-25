@@ -4,7 +4,7 @@
 # u⋅∇(u) -ν*Δ(u) + (1/ρ)*∇(p) - (1/ρ)*(j×B) = (1/ρ)*f
 # ∇⋅j = 0
 # j + σ*∇(φ) - σ*(u×B) = 0
-# solving for u,p,j,φ for a given B,ρ,σ
+# solving for u,p,j,φ for a given B,ν,ρ,σ
 #
 # One can provide characteristic quantities
 # u0,B0,L
@@ -90,9 +90,10 @@ function main(
   model::DiscreteModel,
   actions::Vector{<:Action};
   debug=false,
-  vtk=true,
   title="test",
-  solver = NonlinearSolver())
+  solver = NLSolver(show_trace=true,method=:newton))
+
+  info = Dict{String,Float64}()
 
   @check count(i->isa(i,ConductingFluid),actions) == 1 "Only one instance of ConductingFluid allowed"
   ifluid = findall(i->isa(i,ConductingFluid),actions) |> first
@@ -100,6 +101,7 @@ function main(
   Ω = get_domain(model,fluid)
   u_tags, u_vals = find_strong_bcs_u(actions)
   j_tags, j_vals = find_strong_bcs_j(actions)
+  info["cells fluid"] = num_cells(Ω)
 
   # Reference FES
   k = 2
@@ -115,6 +117,11 @@ function main(
   V_j = TestFESpace(Ω,reffe_j;dirichlet_tags=j_tags)
   V_φ = TestFESpace(Ω,reffe_φ;conformity=:L2)
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ])
+  info["dofs u"] = num_free_dofs(V_u)
+  info["dofs p"] = num_free_dofs(V_p)
+  info["dofs j"] = num_free_dofs(V_j)
+  info["dofs φ"] = num_free_dofs(V_φ)
+  info["dofs total"] = num_free_dofs(V)
 
   # Trial Spaces TODO improve for parallel computations
   U_u = TrialFESpace(V_u,u_vals)
@@ -154,11 +161,7 @@ function main(
     xh = solve(solver,op)
   end
 
-  uh,ph,jh,φh = xh
-  if vtk
-    writevtk(Ω,"$(title)_Ω_fluid",cellfields=["uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh])
-  end
-  out = (solution=xh,)
+  out = (solution=xh,info=info)
   out
 end
 
@@ -269,13 +272,13 @@ function c(action::ConductingFluid,x,dy,context,trian_and_meas)
   v_u, v_p, v_j, v_φ = dy
   Ω, dΩ = trian_and_meas
   α = action.α
-  ∫( α*v_u⋅conv∘(u,∇(u)) ) * dΩ
+  ∫( α*v_u⋅(conv∘(u,∇(u))) ) * dΩ
 end
 
 function dc(actions::Vector{<:Action},x,dx,dy,context,trian_and_meas)
   cont = DomainContribution()
   for (i,action) in enumerate(actions)
-    d = c(action,x,dx,dy,context,trian_and_meas[i])
+    d = dc(action,x,dx,dy,context,trian_and_meas[i])
     if d !== nothing
       cont = cont + d
     end
@@ -293,7 +296,7 @@ function dc(action::ConductingFluid,x,dx,dy,context,trian_and_meas)
   v_u, v_p, v_j, v_φ = dy
   Ω, dΩ = trian_and_meas
   α = action.α
-  ∫( α*v_u⋅(conv∘(u,∇(du)) + conv∘(du,∇(u))) ) * dΩ
+  ∫( α*v_u⋅( (conv∘(u,∇(du))) + (conv∘(du,∇(u))) ) ) * dΩ
 end
 
 function find_strong_bcs_u(bcs)
