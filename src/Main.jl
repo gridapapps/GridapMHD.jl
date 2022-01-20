@@ -32,6 +32,7 @@
 # α = (1/N), β = (1/Ha^2), γ = 1 (option 2,MHD)
 #
 # Some boundary conditions
+# (for simplicity we drop the bars, i.e. ū is simply u)
 # 
 # Velocity bc
 # u = u (imposed strongly)
