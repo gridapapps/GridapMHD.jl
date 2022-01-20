@@ -1,107 +1,130 @@
+function hunt(;
+  nx=3,
+  ny=3,
+  ν=1.0,
+  ρ=1.0,
+  σ=1.0,
+  B=VectorValue(0.0,1.0,0.0),
+  f=VectorValue(0.0,0.0,1.0),
+  L=1.0,
+  u0=1.0,
+  B0=norm(B),
+  nsums = 10,
+  vtk=true,
+  title="test",
+  debug=false,
+  )
 
+  domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
 
-function hunt(;nx::Int=3, ny::Int=3, Re::Float64 = 10.0, Ha::Float64 = 10.0,
-    f_u = nothing, resultsfile = nothing)
-
-  reset_timer!()
-
-  @timeit "model" begin
-  L = 1.0
+  # Reduced quantities
+  Re = u0*L/ν
+  Ha = B0*L*sqrt(σ/(ρ*ν))
   N = Ha^2/Re
-  K = Ha / (1-0.95598*Ha^(-1/2)-Ha^(-1))
-  ∂p∂z = -Re * K / L^3
+  f̄ = (L/(ρ*u0^2))*f
+  B̄ = (1/B0)*B
+  α = 1.0
+  β = 1.0/Re
+  γ = N
+  domain = domain_phys ./ L
 
-  if f_u === nothing
-    _f_u = VectorValue(0.0,0.0, -∂p∂z) * L/Re^2 # Assumed ν=L=1 by default
-  else
-    _f_u = f_u
-  end
-  g_u = VectorValue(0.0,0.0,0.0)
-  g_j = VectorValue(0.0,0.0,0.0)
-  g_φ = 0.0
-  B = VectorValue(0.0,1.0,0.0)
-
-  # Discretization
-  order = 2
-  domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
-  map(x) = VectorValue(sign(x[1])*(abs(x[1])*0.5)^0.5,
-                       sign(x[2])*(abs(x[2])*0.5)^0.5, x[3]*sqrt(2)/2)*2/sqrt(2)
-
-
-  dirichlet_tags_u = append!(collect(1:20),[23,24,25,26])
-  dirichlet_tags_j = append!(collect(1:20),[25,26])
-
+  # Prepare problem in terms of reduced quantities
+  map(x) = (2/sqrt(2))*VectorValue(
+    sign(x[1])*(abs(x[1])*0.5)^0.5,
+    sign(x[2])*(abs(x[2])*0.5)^0.5,
+    x[3]*sqrt(2)/2)
   partition=(nx,ny,3)
-  model = CartesianDiscreteModel(domain,partition;
-    isperiodic=(false,false,true), map=map)
-
+  model = CartesianDiscreteModel(
+    domain,partition;isperiodic=(false,false,true),map=map)
+  Ω = Interior(model)
   labels = get_face_labeling(model)
-  add_tag_from_tags!(labels,"dirichlet_u",dirichlet_tags_u)
-  add_tag_from_tags!(labels,"dirichlet_j",dirichlet_tags_j)
+  tags_u = append!(collect(1:20),[23,24,25,26])
+  tags_j = append!(collect(1:20),[25,26])
+  add_tag_from_tags!(labels,"noslip",tags_u)
+  add_tag_from_tags!(labels,"insulating",tags_j)
+
+  params = Dict(
+    :debug=>debug,
+    :fluid=>Dict(
+      :domain=>Ω,
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :u=>Dict(
+        :tags=>"noslip",
+        :values=>VectorValue(0,0,0)),
+      :j=>Dict(
+        :tags=>"insulating",
+        :values=>VectorValue(0,0,0)),
+      :f=>f̄,
+      :B=>B̄,
+      :φ=>[],
+      :t=>[],
+      :thin_wall=>[]
+    ),
+    :solver=>NLSolver(show_trace=true,method=:newton)
+  )
+
+  # Solve it
+  xh = main(params)
+
+  # Rescale quantities
+  ūh,p̄h,j̄h,φ̄h = xh
+  uh = u0*ūh
+  ph = (ρ*u0^2)*p̄h
+  jh = (σ*u0*B0)*j̄h
+  φh = (u0*B0*L)*φ̄h
+  grid_phys = UnstructuredGrid(get_grid(model))
+  node_coords = get_node_coordinates(grid_phys)
+  node_coords .= L .* node_coords
+  Ω_phys = Gridap.Geometry.BodyFittedTriangulation(Ω.model,grid_phys,Ω.tface_to_mface)
+
+  # Post process
+
+  μ = ρ*ν
+  grad_pz = -f[3]/ρ
+  u(x) = analytical_hunt_u(L,L,μ,grad_pz,Ha,nsums,x)
+  j(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,nsums,x)
+
+  if vtk
+    writevtk(Ω_phys,"$(title)_Ω_fluid",
+      cellfields=[
+      "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,"u"=>u,"j"=>j,])
   end
-  @timeit "FE spaces" begin
 
-  Vu = FESpace(model, ReferenceFE(lagrangian,VectorValue{3,Float64},order);
-      conformity=:H1, dirichlet_tags="dirichlet_u")
+  k = 2
+  dΩ_phys = Measure(Ω_phys,2*k)
+  eu = u - uh
+  ej = j - jh
+  eu_h1 = sqrt(sum(∫( ∇(eu)⊙∇(eu) + eu⋅eu  )dΩ_phys))
+  eu_l2 = sqrt(sum(∫( eu⋅eu )dΩ_phys))
+  ej_l2 = sqrt(sum(∫( ej⋅ej )dΩ_phys))
 
-  Vp = FESpace(model, ReferenceFE(lagrangian,Float64,order-1,space=:P);
-      conformity=:L2)
+  info = Dict{Symbol,Any}()
+  info[:ncells_fluid] = num_cells(Ω)
+  info[:ndofs_u] = length(get_free_dof_values(ūh))
+  info[:ndofs_p] = length(get_free_dof_values(p̄h))
+  info[:ndofs_j] = length(get_free_dof_values(j̄h))
+  info[:ndofs_φ] = length(get_free_dof_values(φ̄h))
+  info[:ndofs] = length(get_free_dof_values(xh))
+  info[:Re] = Re
+  info[:Ha] = Ha
+  info[:eu_h1] = eu_h1
+  info[:eu_l2] = eu_l2
+  info[:ej_l2] = ej_l2
 
-  Vj = FESpace(model, ReferenceFE(raviart_thomas,Float64,order-1);
-      conformity=:Hdiv, dirichlet_tags="dirichlet_j")
-
-  Vφ = FESpace(model, ReferenceFE(lagrangian,Float64,order-1,space=:Q);
-      conformity=:L2)
-
-  U = TrialFESpace(Vu,g_u)
-  P = TrialFESpace(Vp)
-  J = TrialFESpace(Vj,g_j)
-  Φ = TrialFESpace(Vφ)
-
-  Y = MultiFieldFESpace([Vu, Vp, Vj, Vφ])
-  X = MultiFieldFESpace([U, P, J, Φ])
-  end
-
-  @timeit "Integration" begin
-  # Integration
-  trian = Triangulation(model)
-  degree = 2*(order)
-  dΩ = Measure(trian,degree)
-
-  res(x,y) = InductionlessMHD.dimensionless_residual(x, y, Re, N, B, _f_u, dΩ)
-  jac(x,dx,y) = InductionlessMHD.dimensionless_jacobian(x, dx, y, Re, N, B, dΩ)
-
-  op  = FEOperator(res,jac,X,Y)
-  end
-
-  @timeit "Setup solver" begin
-  # Solver
-  nls = NLSolver(GmresSolver(preconditioner=ilu,τ=1e-6);
-    show_trace=true, method=:newton, linesearch=BackTracking())
-  solver = FESolver(nls)
-  end
-
-  @timeit "solve" xh = solve(solver,op)
-
-  print_timer()
-  println()
-
-  if resultsfile != nothing
-    uh, ph, jh, φh = xh
-    writevtk(trian, resultsfile,
-      cellfields=["uh"=>uh, "ph"=>ph, "jh"=>jh, "φh"=>φh])
-  end
-  (xh, trian, dΩ)
+  info
 end
 
+function analytical_hunt_u(
+  a::Float64,       # semi-length of side walls
+  b::Float64,       # semi-length of Hartmann walls
+  μ::Float64,       # fluid viscosity
+  grad_pz::Float64, # presure gradient
+  Ha::Float64,      # Hartmann number
+  n::Int,           # number of sumands included in Fourier series
+  x)                # evaluation point
 
-function analytical_hunt_u(a::Float64,       # semi-length of side walls
-                           b::Float64,       # semi-length of Hartmann walls
-                           μ::Float64,       # fluid viscosity
-                           grad_pz::Float64, # presure gradient
-                           Ha::Float64,      # Hartmann number
-                           n::Int,           # number of sumands included in Fourier series
-                           x)                # evaluation point
   l = b/a
   ξ = x[1]/a
   η = x[2]/a
@@ -126,18 +149,20 @@ function analytical_hunt_u(a::Float64,       # semi-length of side walls
   end
   u_z = V/μ * (-grad_pz) * a^2
 
-  return VectorValue(0.0*u_z,0.0*u_z,u_z)
+  VectorValue(0.0*u_z,0.0*u_z,u_z)
 end
 
 
-function analytical_hunt_j(a::Float64,       # semi-length of side walls
-                           b::Float64,       # semi-length of Hartmann walls
-                           σ::Float64,       # fluid conductivity
-                           μ::Float64,       # fluid viscosity
-                           grad_pz::Float64, # presure gradient
-                           Ha::Float64,      # Hartmann number
-                           n::Int,           # number of sumands included in Fourier series
-                           x)                # evaluation point
+function analytical_hunt_j(
+  a::Float64,       # semi-length of side walls
+  b::Float64,       # semi-length of Hartmann walls
+  σ::Float64,       # fluid conductivity
+  μ::Float64,       # fluid viscosity
+  grad_pz::Float64, # presure gradient
+  Ha::Float64,      # Hartmann number
+  n::Int,           # number of sumands included in Fourier series
+  x)                # evaluation point
+
   l = b/a
   ξ = x[1]/a
   η = x[2]/a
@@ -167,5 +192,7 @@ function analytical_hunt_j(a::Float64,       # semi-length of side walls
   j_x = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * H_dy
   j_y = a^2*σ^0.5 / μ^0.5 * (-grad_pz) * (-H_dx)
 
-  return VectorValue(j_x,j_y,0.0)
+  VectorValue(j_x,j_y,0.0)
 end
+
+
