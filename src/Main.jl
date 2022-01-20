@@ -31,311 +31,211 @@
 # α = 1, β = (1/Re), γ = N (option 1,CFD)
 # α = (1/N), β = (1/Ha^2), γ = 1 (option 2,MHD)
 #
+# Some boundary conditions
+# 
+# Velocity bc
+# u = u (imposed strongly)
+#
+# Charge bc
+# j = j (imposed strongly in the normal direction to the boundary)
+#
+# Traction bC
+# # n⋅∇(u) - p*n = t
+#
+# Potential bc
+# φ = φ (Imposed weakly)
+#
+# Thin wall bc
+# j⋅n + cw*n⋅∇(j)⋅n = jw (imposed weakly via a penalty of value τ)
 
-abstract type Action end
-abstract type BoundaryAction <: Action end
-abstract type BodyAction <: Action end
 
-@with_kw struct ConductingFluid{A,B,C} <: BodyAction
-  domain::A
-  α::B
-  β::C
-end
+function main(params::Dict)
 
-@with_kw struct MagneticField{A,X,D} <: BodyAction
-  domain::A
-  B::X
-  γ::D
-end
-
-@with_kw struct FluidForce{A,B} <: BodyAction
-  domain::A
-  f::B
-end
-
-# u = u
-@with_kw struct VelocityBc{A,B} <: BoundaryAction
-  domain::A
-  u::B = VectorValue(0.,0.,0.)
-end
-
-# n⋅∇(u) - p*n = t
-@with_kw struct TractionBc{A,B} <: BoundaryAction
-  domain::A
-  t::B
-end
-
-# j = j (imposed in normal direction only)
-@with_kw struct CurrentBc{A,B} <: BoundaryAction
-  domain::A
-  j::B = VectorValue(0.,0.,0.)
-end
-
-# φ = φ
-@with_kw struct PotentialBc{A,B} <: BoundaryAction
-  domain::A
-  φ::B = 0.0
-end
-
-# j⋅n + cw*n⋅∇(j)⋅n = jw
-# imposed via a penalty of value τ
-@with_kw struct ConductingThinWall{A,B,C,D} <: BoundaryAction
-  domain::A
-  cw::B
-  jw::C = 0.0
-  τ::D = 1.0
-end
-
-function main(
-  model::DiscreteModel,
-  actions::Vector{<:Action};
-  debug=false,
-  title="test",
-  solver = NLSolver(show_trace=true,method=:newton))
-
-  info = Dict{String,Float64}()
-
-  @check count(i->isa(i,ConductingFluid),actions) == 1 "Only one instance of ConductingFluid allowed"
-  ifluid = findall(i->isa(i,ConductingFluid),actions) |> first
-  fluid = actions[ifluid]
-  Ω = get_domain(model,fluid)
-  u_tags, u_vals = find_strong_bcs_u(actions)
-  j_tags, j_vals = find_strong_bcs_j(actions)
-  info["cells fluid"] = num_cells(Ω)
-
-  # Reference FES
-  k = 2
+  k = haskey(params[:fluid],:k) ? params[:fluid][:k] : 2
+  Ω = params[:fluid][:domain]
   T = Float64
-  reffe_u = ReferenceFE(lagrangian,VectorValue{3,T},k)
+  D = num_cell_dims(Ω)
+  reffe_u = ReferenceFE(lagrangian,VectorValue{D,T},k)
   reffe_p = ReferenceFE(lagrangian,T,k-1;space=:P)
   reffe_j = ReferenceFE(raviart_thomas,T,k-1)
   reffe_φ = ReferenceFE(lagrangian,T,k-1)
 
   # Test spaces
-  V_u = TestFESpace(Ω,reffe_u;dirichlet_tags=u_tags)
+  V_u = TestFESpace(Ω,reffe_u;dirichlet_tags=params[:fluid][:u][:tags])
   V_p = TestFESpace(Ω,reffe_p)
-  V_j = TestFESpace(Ω,reffe_j;dirichlet_tags=j_tags)
+  V_j = TestFESpace(Ω,reffe_j;dirichlet_tags=params[:fluid][:j][:tags])
   V_φ = TestFESpace(Ω,reffe_φ;conformity=:L2)
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ])
-  info["dofs u"] = num_free_dofs(V_u)
-  info["dofs p"] = num_free_dofs(V_p)
-  info["dofs j"] = num_free_dofs(V_j)
-  info["dofs φ"] = num_free_dofs(V_φ)
-  info["dofs total"] = num_free_dofs(V)
 
-  # Trial Spaces TODO improve for parallel computations
-  U_u = TrialFESpace(V_u,u_vals)
+  # Trial spaces
+  # TODO improve for parallel computations
+  U_u = TrialFESpace(V_u,params[:fluid][:u][:values])
   U_p = TrialFESpace(V_p)
-  U_j = TrialFESpace(V_j,j_vals)
+  U_j = TrialFESpace(V_j,params[:fluid][:j][:values])
   U_φ = TrialFESpace(V_φ)
   U = MultiFieldFESpace([U_u,U_p,U_j,U_φ])
 
-  if debug
-    # Create some plot data
-    for (i,action) in enumerate(actions)
-      trian = get_domain(model,action)
-      pn = propertynames(action)
-      cellfields = [ string(p)=>getproperty(action,p) for p in pn if p != :domain ]
-      writevtk(trian,"$(title)_action_$i",order=k,cellfields=cellfields)
-    end
-    # Create a random solution (useful to debug the FESpaces)
+  if params[:debug]
     Random.seed!(1234)
     xh = FEFunction(U,rand(num_free_dofs(U)))
   else
-    # Build and solve the problem
-    trian_and_meas = []
-    for action in actions
-      trian = get_domain(model,action)
-      m = Measure(trian,2*k)
-      push!(trian_and_meas,(trian,m))
-    end
-    context = nothing
-    res(x,dy) =
-      c(actions,x,dy,context,trian_and_meas) +
-      a(actions,x,dy,context,trian_and_meas) -
-      ℓ(actions,dy,context,trian_and_meas)
-    jac(x,dx,dy) =
-      dc(actions,x,dx,dy,context,trian_and_meas) +
-      a(actions,dx,dy,context,trian_and_meas)
-    op=FEOperator(res,jac,U,V)
+    res, jac = weak_form(params,k)
+    op = FEOperator(res,jac,U,V)
+    solver = params[:solver]
     xh = solve(solver,op)
   end
 
-  out = (solution=xh,info=info)
-  out
+  xh
 end
 
-function a(actions::Vector{<:Action},dx,dy,context,trian_and_meas)
-  cont = DomainContribution()
-  for (i,action) in enumerate(actions)
-    dc = a(action,dx,dy,context,trian_and_meas[i])
-    if dc !== nothing
-      cont = cont + dc
+function weak_form(params,k)
+
+  fluid = params[:fluid]
+
+  Ω = fluid[:domain]
+  dΩ = Measure(Ω,2*k)
+  D = num_cell_dims(Ω)
+  z = zero(VectorValue{D,Float64})
+
+  α = fluid[:α]
+  β = fluid[:β]
+  γ = fluid[:γ]
+  f = isa(fluid[:f],VectorValue) ? fluid[:f] : z
+  B = isa(fluid[:B],VectorValue) ? fluid[:B] : z
+
+  params_φ = []
+  for i in 1:length(fluid[:φ])
+    φ_i = fluid[:φ][i][:value]
+    Γ = fluid[:φ][i][:domain]
+    dΓ = Measure(Γ,2*k)
+    n_Γ = get_normal_vector(Γ)
+    push!(params_φ,(φ_i,n_Γ,dΓ))
+  end
+
+  params_thin_wall = []
+  for i in 1:length(fluid[:thin_wall])
+    cw_i = fluid[:thin_wall][i][:cw]
+    jw_i = fluid[:thin_wall][i][:jw]
+    Γ = fluid[:thin_wall][i][:domain]
+    dΓ = Measure(Γ,2*k)
+    n_Γ = get_normal_vector(Γ)
+    push!(params_thin_wall,(cw_i,jw_i,n_Γ,dΓ))
+  end
+
+  params_f = []
+  if !isa(fluid[:f],VectorValue)
+    for i in 1:length(fluid[:f])
+      f_i = fluid[:f][i][:value]
+      Ω_i = fluid[:f][i][:domain]
+      dΩ_i = Measure(Ω_i,2*k)
+      push!(params_f,(f_i,dΩ_i))
     end
   end
-  cont
-end
 
-function a(action::Action,dx,dy,context,trian_and_meas)
-  nothing
-end
-
-function a(action::ConductingFluid,dx,dy,context,trian_and_meas)
-  u, p, j, φ = dx
-  v_u, v_p, v_j, v_φ = dy
-  Ω, dΩ = trian_and_meas
-  β = action.β
-  ∫(
-    β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u)  +
-    (∇⋅u)*v_p +
-    j⋅v_j - φ*(∇⋅v_j) +
-    (∇⋅j)*v_φ ) * dΩ
-end
-
-function a(action::MagneticField,dx,dy,context,trian_and_meas)
-  u, p, j, φ = dx
-  v_u, v_p, v_j, v_φ = dy
-  Ω, dΩ = trian_and_meas
-  B = action.B
-  γ = action.γ
-  ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
-end
-
-function a(action::ConductingThinWall,dx,dy,context,trian_and_meas)
-  u, p, j, φ = dx
-  v_u, v_p, v_j, v_φ = dy
-  Γ, dΓ = trian_and_meas
-  n_Γ = get_normal_vector(Γ)
-  cw = action.cw
-  τ = action.τ
-  ∫( τ*((v_j⋅n_Γ)*(j⋅n_Γ) + cw*(v_j⋅n_Γ)*(n_Γ⋅(∇(j)⋅n_Γ))) )*dΓ
-end
-
-function ℓ(actions::Vector{<:Action},dy,context,trian_and_meas)
-  cont = DomainContribution()
-  for (i,action) in enumerate(actions)
-    dc = ℓ(action,dy,context,trian_and_meas[i])
-    if dc !== nothing
-      cont = cont + dc
+  params_B = []
+  if !isa(fluid[:B],VectorValue)
+    for i in 1:length(fluid[:B])
+      B_i = fluid[:B][i][:value]
+      Ω_i = fluid[:B][i][:domain]
+      dΩ_i = Measure(Ω_i,2*k)
+      push!(params_f,(γ,B_i,dΩ_i))
     end
   end
-  cont
-end
 
-function ℓ(action::Action,dy,context,trian_and_meas)
-  nothing
-end
-
-function ℓ(action::ConductingThinWall,dy,context,trian_and_meas)
-  u, p, j, φ = dx
-  v_u, v_p, v_j, v_φ = dy
-  Γ, dΓ = trian_and_meas
-  n_Γ = get_normal_vector(Γ)
-  jw = action.jw
-  τ = action.τ
-  ∫( τ*(v_j⋅n_Γ)*jw ) * dΓ
-end
-
-function ℓ(action::FluidForce,dy,context,trian_and_meas)
-  v_u, v_p, v_j, v_φ = dy
-  Ω, dΩ = trian_and_meas
-  f = action.f
-  ∫( v_u⋅f )*dΩ
-end
-
-function ℓ(action::PotentialBc,dy,context,trian_and_meas)
-  v_u, v_p, v_j, v_φ = dy
-  Γ, dΓ = trian_and_meas
-  φ = action.φ
-  ∫( -(v_j⋅n_Γ)*φ )*dΓ
-end
-
-function c(actions::Vector{<:Action},x,dy,context,trian_and_meas)
-  cont = DomainContribution()
-  for (i,action) in enumerate(actions)
-    d = c(action,x,dy,context,trian_and_meas[i])
-    if d !== nothing
-      cont = cont + d
+  function a(x,dy)
+    r = a_mhd(x,dy,β,γ,B,dΩ)
+    for p in params_thin_wall
+      r = r + a_thin_wall(x,dy,p...)
     end
+    for p in params_B
+      r = r + a_B(x,dy,p...)
+    end
+    r
   end
-  cont
-end
 
-function c(action::Action,x,dy,context,trian_and_meas)
-  nothing
+  function ℓ(dy)
+    r = ℓ_mhd(dy,f,dΩ)
+    for p in params_φ
+      r = r + ℓ_φ(dy,p...)
+    end
+    for p in params_thin_wall
+      r = r + ℓ_thin_wall(dy,p...)
+    end
+    for p in params_f
+      r = r + ℓ_f(dy,p...)
+    end
+    r
+  end
+
+  function c(x,dy)
+    r = c_mhd(x,dy,α,dΩ)
+    r
+  end
+
+  function dc(x,dx,dy)
+    r = dc_mhd(x,dx,dy,α,dΩ)
+    r
+  end
+
+  res(x,dy) = c(x,dy) + a(x,dy) - ℓ(dy)
+  jac(x,dx,dy) = dc(x,dx,dy) + a(dx,dy)
+
+  res, jac
 end
 
 conv(u,∇u) = (∇u')⋅u
 
-function c(action::ConductingFluid,x,dy,context,trian_and_meas)
+function a_mhd(x,dy,β,γ,B,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
-  Ω, dΩ = trian_and_meas
-  α = action.α
+  ∫(
+    β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u) -(γ*(j×B)⋅v_u) +
+    (∇⋅u)*v_p +
+    j⋅v_j - φ*(∇⋅v_j) - (u×B)⋅v_j +
+    (∇⋅j)*v_φ ) * dΩ
+end
+
+function ℓ_mhd(dy,f,dΩ)
+  v_u, v_p, v_j, v_φ = dy
+  ∫( v_u⋅f )*dΩ
+end
+
+function c_mhd(x,dy,α,dΩ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
   ∫( α*v_u⋅(conv∘(u,∇(u))) ) * dΩ
 end
 
-function dc(actions::Vector{<:Action},x,dx,dy,context,trian_and_meas)
-  cont = DomainContribution()
-  for (i,action) in enumerate(actions)
-    d = dc(action,x,dx,dy,context,trian_and_meas[i])
-    if d !== nothing
-      cont = cont + d
-    end
-  end
-  cont
-end
-
-function dc(action::Action,x,dx,dy,context,trian_and_meas)
-  nothing
-end
-
-function dc(action::ConductingFluid,x,dx,dy,context,trian_and_meas)
+function dc_mhd(x,dx,dy,α,dΩ)
   u, p, j, φ = x
   du , dp , dj , dφ  = dx
   v_u, v_p, v_j, v_φ = dy
-  Ω, dΩ = trian_and_meas
-  α = action.α
   ∫( α*v_u⋅( (conv∘(u,∇(du))) + (conv∘(du,∇(u))) ) ) * dΩ
 end
 
-function find_strong_bcs_u(bcs)
-  tags = String[]
-  vals = []
-  for bc in bcs
-    if isa(bc,VelocityBc)
-      push!(tags,bc.domain)
-      push!(vals,bc.u)
-    end
-  end
-  tags, vals
+function ℓ_φ(dy,φ,n_Γ,dΓ)
+  v_u, v_p, v_j, v_φ = dy
+  ∫( -(v_j⋅n_Γ)*φ )*dΓ
 end
 
-function find_strong_bcs_j(bcs)
-  tags = String[]
-  vals = []
-  for bc in bcs
-    if isa(bc,CurrentBc)
-      push!(tags,bc.domain)
-      push!(vals,bc.j)
-    end
-  end
-  tags, vals
+function ℓ_f(dy,f,dΩ)
+  v_u, v_p, v_j, v_φ = dy
+  ∫( v_u⋅f )*dΩ
 end
 
-function get_domain(model,action)
-  get_domain(model,action,action.domain)
+function ℓ_thin_wall(dy,cw,jw,n_Γ,dΓ)
+  ∫( τ*(v_j⋅n_Γ)*jw ) * dΓ
 end
 
-function get_domain(model,action,domain::Triangulation)
-  domain
+function a_thin_wall(x,dy,cw,jw,n_Γ,dΓ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫( τ*((v_j⋅n_Γ)*(j⋅n_Γ) + cw*(v_j⋅n_Γ)*(n_Γ⋅(∇(j)⋅n_Γ))) )*dΓ
 end
 
-function get_domain(model,action::BodyAction,tag::String)
-  Triangulation(model,tags=tag)
-end
-
-function get_domain(model,action::BoundaryAction,tag::String)
-  Boundary(model,tags=tag)
+function a_B(x,dy,γ,B,dΩ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
 end
 

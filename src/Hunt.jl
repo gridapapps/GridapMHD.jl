@@ -42,19 +42,34 @@ function hunt(;
   tags_j = append!(collect(1:20),[25,26])
   add_tag_from_tags!(labels,"noslip",tags_u)
   add_tag_from_tags!(labels,"insulating",tags_j)
-  actions = [
-    ConductingFluid(domain=Ω,α=α,β=β),
-    FluidForce(domain=Ω,f=f̄),
-    VelocityBc(domain="noslip"),
-    CurrentBc(domain="insulating"),
-    MagneticField(domain=Ω,B=B̄,γ=γ),
-    ]
+
+  params = Dict(
+    :debug=>debug,
+    :fluid=>Dict(
+      :domain=>Ω,
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :u=>Dict(
+        :tags=>"noslip",
+        :values=>VectorValue(0,0,0)),
+      :j=>Dict(
+        :tags=>"insulating",
+        :values=>VectorValue(0,0,0)),
+      :f=>f̄,
+      :B=>B̄,
+      :φ=>[],
+      :t=>[],
+      :thin_wall=>[]
+    ),
+    :solver=>NLSolver(show_trace=true,method=:newton)
+  )
 
   # Solve it
-  out = main(model,actions;debug=debug,title=title)
+  xh = main(params)
 
   # Rescale quantities
-  ūh,p̄h,j̄h,φ̄h = out.solution
+  ūh,p̄h,j̄h,φ̄h = xh
   uh = u0*ūh
   ph = (ρ*u0^2)*p̄h
   jh = (σ*u0*B0)*j̄h
@@ -85,12 +100,18 @@ function hunt(;
   eu_l2 = sqrt(sum(∫( eu⋅eu )dΩ_phys))
   ej_l2 = sqrt(sum(∫( ej⋅ej )dΩ_phys))
 
-  info = out.info
-  info["Re"] = Re
-  info["Ha"] = Ha
-  info["eu_h1"] = eu_h1
-  info["eu_l2"] = eu_l2
-  info["ej_l2"] = ej_l2
+  info = Dict{Symbol,Any}()
+  info[:ncells_fluid] = num_cells(Ω)
+  info[:ndofs_u] = length(get_free_dof_values(ūh))
+  info[:ndofs_p] = length(get_free_dof_values(p̄h))
+  info[:ndofs_j] = length(get_free_dof_values(j̄h))
+  info[:ndofs_φ] = length(get_free_dof_values(φ̄h))
+  info[:ndofs] = length(get_free_dof_values(xh))
+  info[:Re] = Re
+  info[:Ha] = Ha
+  info[:eu_h1] = eu_h1
+  info[:eu_l2] = eu_l2
+  info[:ej_l2] = ej_l2
 
   info
 end
