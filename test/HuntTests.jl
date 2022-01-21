@@ -10,7 +10,10 @@ info = GridapMHD.hunt(
   B=VectorValue(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt")
+  title="hunt",
+  solver="petsc",
+  petsc_options="-snes_monitor -ksp_monitor -ksp_view -pc_type lu"
+ )
 display(info)
 
 end # module

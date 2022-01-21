@@ -13,6 +13,8 @@ function hunt(;
   vtk=true,
   title="test",
   debug=false,
+  solver="julia",
+  petsc_options="-snes_monitor -ksp_monitor"
   )
 
   domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
@@ -62,11 +64,20 @@ function hunt(;
       :t=>[],
       :thin_wall=>[]
     ),
-    :solver=>NLSolver(show_trace=true,method=:newton)
   )
 
   # Solve it
-  xh = main(params)
+  if solver == "julia"
+    params[:solver] = NLSolver(show_trace=true,method=:newton)
+    xh = main(params)
+  elseif solver == "petsc"
+    GridapPETSc.Init(args=split(petsc_options))
+    params[:solver] = PETScNonlinearSolver()
+    xh = main(params)
+    GridapPETSc.Finalize()
+  else
+    error()
+  end
 
   # Rescale quantities
   ūh,p̄h,j̄h,φ̄h = xh
