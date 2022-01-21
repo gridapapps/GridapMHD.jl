@@ -17,6 +17,9 @@ function hunt(;
   petsc_options="-snes_monitor -ksp_monitor"
   )
 
+  t = PTimer(get_part_ids(sequential,1),verbose=true)
+  tic!(t,barrier=true)
+
   domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
 
   # Reduced quantities
@@ -46,6 +49,7 @@ function hunt(;
   add_tag_from_tags!(labels,"insulating",tags_j)
 
   params = Dict(
+    :ptimer=>t,
     :debug=>debug,
     :fluid=>Dict(
       :domain=>Ω,
@@ -60,26 +64,30 @@ function hunt(;
         :values=>VectorValue(0,0,0)),
       :f=>f̄,
       :B=>B̄,
-      :φ=>[],
-      :t=>[],
-      :thin_wall=>[]
     ),
   )
+
+  toc!(t,"pre_process")
 
   # Solve it
   if solver == "julia"
     params[:solver] = NLSolver(show_trace=true,method=:newton)
     xh = main(params)
   elseif solver == "petsc"
-    GridapPETSc.Init(args=split(petsc_options))
+    xh = GridapPETSc.with(args=split(petsc_options)) do
+    params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
+    params[:vector_type] = Vector{PetscScalar}
     params[:solver] = PETScNonlinearSolver()
     xh = main(params)
-    GridapPETSc.Finalize()
+    end
   else
     error()
   end
+  t = params[:ptimer]
 
   # Rescale quantities
+
+  tic!(t,barrier=true)
   ūh,p̄h,j̄h,φ̄h = xh
   uh = u0*ūh
   ph = (ρ*u0^2)*p̄h
@@ -110,6 +118,8 @@ function hunt(;
   eu_h1 = sqrt(sum(∫( ∇(eu)⊙∇(eu) + eu⋅eu  )dΩ_phys))
   eu_l2 = sqrt(sum(∫( eu⋅eu )dΩ_phys))
   ej_l2 = sqrt(sum(∫( ej⋅ej )dΩ_phys))
+  toc!(t,"post_process")
+  display(t)
 
   info = Dict{Symbol,Any}()
   info[:ncells_fluid] = num_cells(Ω)

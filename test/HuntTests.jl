@@ -11,8 +11,6 @@ info = GridapMHD.hunt(
   debug=false,
   vtk=true,
   title="hunt",
-  solver="petsc",
-  petsc_options="-snes_monitor -ksp_monitor -ksp_view -pc_type lu"
  )
 display(info)
 
