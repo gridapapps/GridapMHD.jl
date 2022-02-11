@@ -100,7 +100,10 @@ function main(params::Dict)
   tic!(t;barrier=true)
   if params[:debug]
     Random.seed!(1234)
-    xh = FEFunction(U,rand(num_free_dofs(U)))
+    vt = get_vector_type(U)
+    free_ids = get_free_dof_ids(U)
+    free_vals = _rand(vt,free_ids)
+    xh = FEFunction(U,free_vals)
   else
     res, jac = weak_form(params,k)
     Tm = params[:matrix_type]
@@ -113,6 +116,18 @@ function main(params::Dict)
   toc!(t,"solve")
 
   xh
+end
+
+function _rand(vt::Type{<:Vector{T}},r::AbstractUnitRange) where T
+  rand(T,length(r))
+end
+
+function _rand(vt::Type{<:PVector{T,A}},ids::PRange) where {T,A}
+  values = map_parts(ids.partition) do partition
+    Tv = eltype(A)
+    _rand(Tv,1:num_lids(partition))
+  end
+  PVector(values,ids)
 end
 
 function add_defaults!(params,defaults)
@@ -130,7 +145,7 @@ function weak_form(params,k)
 
   fluid = params[:fluid]
 
-  Ω = fluid[:domain]
+  Ω = Triangulation(fluid[:domain])
   dΩ = Measure(Ω,2*k)
   D = num_cell_dims(Ω)
   z = zero(VectorValue{D,Float64})

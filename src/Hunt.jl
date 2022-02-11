@@ -1,6 +1,26 @@
 function hunt(;
-  nx=3,
-  ny=3,
+  backend=nothing,
+  np=nothing,
+  parts=nothing,
+  kwargs...)
+  @assert parts === nothing
+  if backend === nothing
+    @assert np === nothing
+    info = _hunt(;kwargs...)
+  else
+    @assert backend !== nothing
+    info = prun(backend,(np...,1)) do _parts
+      _hunt(;parts=_parts,kwargs...)
+    end
+  end
+  info[:np] = np
+  info[:backend] = backend
+  info
+end
+
+function _hunt(;
+  parts=nothing,
+  nc=(3,3),
   ν=1.0,
   ρ=1.0,
   σ=1.0,
@@ -13,7 +33,7 @@ function hunt(;
   vtk=true,
   title="test",
   debug=false,
-  solver="julia",
+  solver=:julia,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
@@ -38,9 +58,9 @@ function hunt(;
     sign(x[1])*(abs(x[1])*0.5)^0.5,
     sign(x[2])*(abs(x[2])*0.5)^0.5,
     x[3]*sqrt(2)/2)
-  partition=(nx,ny,3)
+  partition=(nc[1],nc[2],3)
   model = CartesianDiscreteModel(
-    domain,partition;isperiodic=(false,false,true),map=map)
+    parts,domain,partition;isperiodic=(false,false,true),map=map)
   Ω = Interior(model)
   labels = get_face_labeling(model)
   tags_u = append!(collect(1:20),[23,24,25,26])
@@ -52,7 +72,7 @@ function hunt(;
     :ptimer=>t,
     :debug=>debug,
     :fluid=>Dict(
-      :domain=>Ω,
+      :domain=>model,
       :α=>α,
       :β=>β,
       :γ=>γ,
@@ -70,10 +90,10 @@ function hunt(;
   toc!(t,"pre_process")
 
   # Solve it
-  if solver == "julia"
+  if solver == :julia
     params[:solver] = NLSolver(show_trace=true,method=:newton)
     xh = main(params)
-  elseif solver == "petsc"
+  elseif solver == :petsc
     xh = GridapPETSc.with(args=split(petsc_options)) do
     params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
     params[:vector_type] = Vector{PetscScalar}
@@ -93,10 +113,8 @@ function hunt(;
   ph = (ρ*u0^2)*p̄h
   jh = (σ*u0*B0)*j̄h
   φh = (u0*B0*L)*φ̄h
-  grid_phys = UnstructuredGrid(get_grid(model))
-  node_coords = get_node_coordinates(grid_phys)
-  node_coords .= L .* node_coords
-  Ω_phys = Gridap.Geometry.BodyFittedTriangulation(Ω.model,grid_phys,Ω.tface_to_mface)
+
+  Ω_phys = _warp(model,Ω,L)
 
   # Post process
 
@@ -108,7 +126,7 @@ function hunt(;
   if vtk
     writevtk(Ω_phys,"$(title)_Ω_fluid",
       cellfields=[
-      "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,"u"=>u,"j"=>j,])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,"u"=>u,"j"=>j,])
   end
 
   k = 2
@@ -122,7 +140,7 @@ function hunt(;
   display(t)
 
   info = Dict{Symbol,Any}()
-  info[:ncells_fluid] = num_cells(Ω)
+  info[:ncells_fluid] = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
   info[:ndofs_j] = length(get_free_dof_values(j̄h))
@@ -135,6 +153,27 @@ function hunt(;
   info[:ej_l2] = ej_l2
 
   info
+end
+
+# This is not very elegant. This needs to be solved by Gridap and GridapDistributed
+function _warp(model::DiscreteModel,Ω::Triangulation,L)
+  grid_phys = UnstructuredGrid(get_grid(model))
+  node_coords = get_node_coordinates(grid_phys)
+  node_coords .= L .* node_coords
+  Ω_phys = Gridap.Geometry.BodyFittedTriangulation(Ω.model,grid_phys,Ω.tface_to_mface)
+end
+
+function _warp(
+  model::GridapDistributed.DistributedDiscreteModel,
+  Ω::GridapDistributed.DistributedTriangulation,L)
+  trians = map_parts(model.models,Ω.trians) do model,Ω
+    grid_phys = UnstructuredGrid(get_grid(model))
+    node_coords = get_node_coordinates(grid_phys)
+    node_coords .= L .* node_coords
+    gp = GridPortion(grid_phys,Ω.tface_to_mface)
+    Ω_phys = Gridap.Geometry.BodyFittedTriangulation(model,gp,Ω.tface_to_mface)
+  end
+  GridapDistributed.DistributedTriangulation(trians,model)
 end
 
 function analytical_hunt_u(
