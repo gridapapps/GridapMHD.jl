@@ -114,7 +114,11 @@ function _hunt(;
   jh = (σ*u0*B0)*j̄h
   φh = (u0*B0*L)*φ̄h
 
-  Ω_phys = _warp(model,Ω,L)
+  if L == 1.0
+    Ω_phys = Ω
+  else
+    Ω_phys = _warp(model,Ω,L)
+  end
 
   # Post process
 
@@ -125,6 +129,7 @@ function _hunt(;
 
   if vtk
     writevtk(Ω_phys,"$(title)_Ω_fluid",
+      order=2,
       cellfields=[
         "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,"u"=>u,"j"=>j,])
   end
