@@ -13,19 +13,7 @@ info = GridapMHD.hunt(
   debug=false,
   vtk=true,
   title="hunt",
-  solver=:petsc,
- )
-
-info = GridapMHD.hunt(
-  nc=(4,4),
-  np=(2,2),
-  backend=sequential,
-  L=2.0,
-  B=VectorValue(0.,50.,0.),
-  debug=false,
-  vtk=true,
-  title="hunt",
-  solver=:petsc,
+  solver=:julia,
  )
 
 info = GridapMHD.hunt(
@@ -49,7 +37,6 @@ info = GridapMHD.hunt(
   title="hunt",
   solver=:julia,
  )
-#display(info)
 
 end # module
 
