@@ -37,7 +37,12 @@ function _hunt(;
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
-  t = PTimer(get_part_ids(sequential,1),verbose=true)
+  if parts === nothing
+    t_parts = get_part_ids(sequential,1)
+  else
+    t_parts = parts
+  end
+  t = PTimer(t_parts,verbose=true)
   tic!(t,barrier=true)
 
   domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
@@ -95,7 +100,8 @@ function _hunt(;
     xh = main(params)
   elseif solver == :petsc
     xh = GridapPETSc.with(args=split(petsc_options)) do
-    params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
+    #params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
+    params[:matrix_type] = SparseMatrixCSC{PetscScalar,PetscInt}
     params[:vector_type] = Vector{PetscScalar}
     params[:solver] = PETScNonlinearSolver()
     xh = main(params)
