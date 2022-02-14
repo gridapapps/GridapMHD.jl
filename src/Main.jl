@@ -52,7 +52,23 @@
 
 function main(params::Dict)
 
-  k = haskey(params[:fluid],:k) ? params[:fluid][:k] : 2
+  defaults = Dict(
+    :solver=>NLSolver(show_trace=true,method=:newton),
+    :matrix_type=>SparseMatrixCSC{Float64,Int},
+    :vector_type=>Vector{Float64},
+    :ptimer=>PTimer(get_part_ids(sequential,1)),
+    :fluid=>Dict(
+      :k=>2,
+      :φ=>[],
+      :t=>[],
+      :thin_wall=>[]
+    )
+  )
+  add_defaults!(params,defaults)
+
+  t = params[:ptimer]
+  tic!(t;barrier=true)
+  k = params[:fluid][:k]
   Ω = params[:fluid][:domain]
   T = Float64
   D = num_cell_dims(Ω)
@@ -70,30 +86,66 @@ function main(params::Dict)
 
   # Trial spaces
   # TODO improve for parallel computations
-  U_u = TrialFESpace(V_u,params[:fluid][:u][:values])
+  tic!(t;barrier=true)
+  z = zero(VectorValue{D,Float64})
+  u_bc = params[:fluid][:u][:values]
+  j_bc = params[:fluid][:j][:values]
+  U_u = u_bc == z ? V_u : TrialFESpace(V_u,u_bc)
+  U_j = j_bc == z ? V_j : TrialFESpace(V_j,j_bc)
   U_p = TrialFESpace(V_p)
-  U_j = TrialFESpace(V_j,params[:fluid][:j][:values])
   U_φ = TrialFESpace(V_φ)
   U = MultiFieldFESpace([U_u,U_p,U_j,U_φ])
+  toc!(t,"fe_spaces")
 
+  tic!(t;barrier=true)
   if params[:debug]
     Random.seed!(1234)
-    xh = FEFunction(U,rand(num_free_dofs(U)))
+    vt = get_vector_type(U)
+    free_ids = get_free_dof_ids(U)
+    free_vals = _rand(vt,free_ids)
+    xh = FEFunction(U,free_vals)
   else
     res, jac = weak_form(params,k)
-    op = FEOperator(res,jac,U,V)
+    Tm = params[:matrix_type]
+    Tv = params[:vector_type]
+    assem = SparseMatrixAssembler(Tm,Tv,U,V)
+    op = FEOperator(res,jac,U,V,assem)
     solver = params[:solver]
     xh = solve(solver,op)
   end
+  toc!(t,"solve")
 
   xh
+end
+
+function _rand(vt::Type{<:Vector{T}},r::AbstractUnitRange) where T
+  rand(T,length(r))
+end
+
+function _rand(vt::Type{<:PVector{T,A}},ids::PRange) where {T,A}
+  values = map_parts(ids.partition) do partition
+    Tv = eltype(A)
+    _rand(Tv,1:num_lids(partition))
+  end
+  PVector(values,ids)
+end
+
+function add_defaults!(params,defaults)
+  for (key,val) in defaults
+    if !haskey(params,key)
+      params[key] = val
+    elseif isa(val,AbstractDict)
+      @assert isa(params[key],AbstractDict)
+      add_defaults!(params[key],val)
+    end
+  end
 end
 
 function weak_form(params,k)
 
   fluid = params[:fluid]
 
-  Ω = fluid[:domain]
+  Ω = Triangulation(fluid[:domain])
   dΩ = Measure(Ω,2*k)
   D = num_cell_dims(Ω)
   z = zero(VectorValue{D,Float64})
