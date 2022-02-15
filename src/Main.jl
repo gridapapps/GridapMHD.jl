@@ -54,6 +54,7 @@ function main(params::Dict)
 
   defaults = Dict(
     :solver=>NLSolver(show_trace=true,method=:newton),
+    :solver_postpro=> (x->nothing),
     :matrix_type=>SparseMatrixCSC{Float64,Int},
     :vector_type=>Vector{Float64},
     :ptimer=>PTimer(get_part_ids(sequential,1)),
@@ -111,7 +112,10 @@ function main(params::Dict)
     assem = SparseMatrixAssembler(Tm,Tv,U,V)
     op = FEOperator(res,jac,U,V,assem)
     solver = params[:solver]
-    xh = solve(solver,op)
+    xh = zero(U)
+    xh,cache = solve!(xh,solver,op)
+    solver_postpro = params[:solver_postpro]
+    solver_postpro(cache)
   end
   toc!(t,"solve")
 
