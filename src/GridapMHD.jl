@@ -13,6 +13,7 @@ using Gridap.Geometry
 using Gridap.FESpaces
 using GridapDistributed
 using GridapPETSc
+using GridapPETSc.PETSC
 
 include("Main.jl")
 

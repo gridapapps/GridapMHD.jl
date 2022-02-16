@@ -37,6 +37,8 @@ function _hunt(;
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
+  info = Dict{Symbol,Any}()
+
   if parts === nothing
     t_parts = get_part_ids(sequential,1)
   else
@@ -100,10 +102,11 @@ function _hunt(;
     xh = main(params)
   elseif solver == :petsc
     xh = GridapPETSc.with(args=split(petsc_options)) do
-    #params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-    params[:matrix_type] = SparseMatrixCSC{PetscScalar,PetscInt}
+    params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
+    #params[:matrix_type] = SparseMatrixCSC{PetscScalar,PetscInt}
     params[:vector_type] = Vector{PetscScalar}
     params[:solver] = PETScNonlinearSolver()
+    params[:solver_postpro] = cache -> snes_postpro(cache,info)
     xh = main(params)
     end
   else
@@ -150,7 +153,6 @@ function _hunt(;
   toc!(t,"post_process")
   display(t)
 
-  info = Dict{Symbol,Any}()
   info[:ncells_fluid] = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
@@ -266,4 +268,13 @@ function analytical_hunt_j(
   VectorValue(j_x,j_y,0.0)
 end
 
+function snes_postpro(cache,info)
+  snes = cache.snes[]
+  i_petsc = Ref{PetscInt}()
+  @check_error_code PETSC.SNESGetIterationNumber(snes,i_petsc)
+  info[:nls_iters] = Int(i_petsc[])
+  @check_error_code PETSC.SNESGetLinearSolveIterations(snes,i_petsc)
+  info[:ls_iters] = Int(i_petsc[])
+  nothing
+end
 
