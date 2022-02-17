@@ -2,20 +2,40 @@ function hunt(;
   backend=nothing,
   np=nothing,
   parts=nothing,
+  title = "hunt",
+  path=".",
   kwargs...)
+
   @assert parts === nothing
   if backend === nothing
     @assert np === nothing
-    info = _hunt(;kwargs...)
+    info, t = _hunt(;title=title,path=path,kwargs...)
   else
     @assert backend !== nothing
-    info = prun(backend,(np...,1)) do _parts
-      _hunt(;parts=_parts,kwargs...)
+    info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      _hunt(;parts=_parts,title=title,path=path,kwargs...)
     end
   end
   info[:np] = np
   info[:backend] = backend
+  map_main(t.data) do data
+    for (k,v) in data
+      info[Symbol("time_$k")] = v.max
+    end
+    save(joinpath(path,"$title.bson"),info)
+  end
   info
+end
+
+function _find_backend(s)
+  if s === :sequential
+    backend = sequential
+  elseif s === :mpi
+    backend = mpi
+  else
+    error()
+  end
+  backend
 end
 
 function _hunt(;
@@ -24,14 +44,15 @@ function _hunt(;
   ν=1.0,
   ρ=1.0,
   σ=1.0,
-  B=VectorValue(0.0,1.0,0.0),
-  f=VectorValue(0.0,0.0,1.0),
+  B=(0.0,1.0,0.0),
+  f=(0.0,0.0,1.0),
   L=1.0,
   u0=1.0,
-  B0=norm(B),
+  B0=norm(VectorValue(B)),
   nsums = 10,
   vtk=true,
   title="test",
+  path=".",
   debug=false,
   solver=:julia,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
@@ -53,8 +74,8 @@ function _hunt(;
   Re = u0*L/ν
   Ha = B0*L*sqrt(σ/(ρ*ν))
   N = Ha^2/Re
-  f̄ = (L/(ρ*u0^2))*f
-  B̄ = (1/B0)*B
+  f̄ = (L/(ρ*u0^2))*VectorValue(f)
+  B̄ = (1/B0)*VectorValue(B)
   α = 1.0
   β = 1.0/Re
   γ = N
@@ -137,7 +158,7 @@ function _hunt(;
   j(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,nsums,x)
 
   if vtk
-    writevtk(Ω_phys,"$(title)_Ω_fluid",
+    writevtk(Ω_phys,joinpath(path,"$(title)_Ω_fluid"),
       order=2,
       cellfields=[
         "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,"u"=>u,"j"=>j,])
@@ -165,7 +186,7 @@ function _hunt(;
   info[:eu_l2] = eu_l2
   info[:ej_l2] = ej_l2
 
-  info
+  info, t
 end
 
 # This is not very elegant. This needs to be solved by Gridap and GridapDistributed

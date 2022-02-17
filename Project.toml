@@ -4,6 +4,8 @@ authors = ["Jesús Bonilla", "Francesc Verdugo", "Large Scale Scientific Computi
 version = "0.3.0"
 
 [deps]
+BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
+FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
 GridapDistributed = "f9701e48-63b3-45aa-9a63-9bc6c271f355"
 GridapPETSc = "bcdc36c2-0c3e-11ea-095a-c9dadae499f1"
@@ -15,6 +17,8 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 
 [compat]
+BSON = "0.3"
+FileIO = "1"
 Gridap = "0.17.8"
 GridapDistributed = "0.2.5"
 GridapPETSc = "0.4.3"
