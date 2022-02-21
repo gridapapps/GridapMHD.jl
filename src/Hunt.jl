@@ -174,6 +174,9 @@ function _hunt(;
   eu_ref_h1 = sqrt(sum(∫( ∇(eu_ref)⊙∇(eu_ref) + eu_ref⋅eu_ref  )dΩ_phys))
   eu_ref_l2 = sqrt(sum(∫( eu_ref⋅eu_ref )dΩ_phys))
   ej_ref_l2 = sqrt(sum(∫( ej_ref⋅ej_ref )dΩ_phys))
+  uh_l2 = sqrt(sum(∫( uh⋅uh )dΩ_phys))
+  uh_h1 = sqrt(sum(∫( ∇(uh)⊙∇(uh) + uh⋅uh )dΩ_phys))
+  jh_l2 = sqrt(sum(∫( jh⋅jh )dΩ_phys))
   toc!(t,"post_process")
 
   if vtk
@@ -204,6 +207,9 @@ function _hunt(;
   info[:eu_ref_h1] = eu_ref_h1
   info[:eu_ref_l2] = eu_ref_l2
   info[:ej_ref_l2] = ej_ref_l2
+  info[:uh_h1] = uh_h1
+  info[:uh_l2] = uh_l2
+  info[:jh_l2] = jh_l2
 
   info, t
 end
