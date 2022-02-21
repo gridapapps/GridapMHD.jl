@@ -28,7 +28,7 @@ end
 
 allparams = Dict(
  :ha=>[500],
- :cx=>[15,30,45,64,90,129],
+ :cx=>[15,30,45,64,90,129,179],
  :px=>[2],
  :nr=>[1],
  :ns=>[100],
@@ -47,7 +47,8 @@ dicts = map(params) do params
    :q=>"normal",
    :walltime=>"00:30:00",
    :ncpus=>px^2,
-   :mem=>120,
+   :mem=>"180gb",
+   :jobfs=>"2gb",
    :name=>title,
    :n=>px^2,
    :nc=>(cx,cx),

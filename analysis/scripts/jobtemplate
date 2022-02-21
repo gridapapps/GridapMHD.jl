@@ -3,10 +3,11 @@
 #PBS -l walltime={{walltime}}
 #PBS -l ncpus={{ncpus}}
 #PBS -l mem={{mem}}
+#PBS -l jobfs={{jobfs}}
 #PBS -N {{{name}}}
 #PBS -l wd
 
-source env.sh
+source /scratch/bt62/fv3851/GridapMHD.jl/analysis/scripts/env.sh
 
 mpiexec -n {{n}} julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD.so -O3 --check-bounds=no -e\
 '
@@ -19,8 +20,8 @@ hunt(
   B={{B}},
   debug={{debug}},
   vtk={{vtk}},
-  title={{{title}}},
-  path={{{path}}},
+  title="{{{title}}}",
+  path="{{{path}}}",
   nruns={{nruns}},
   nsums={{nsums}},
   solver=:petsc,
