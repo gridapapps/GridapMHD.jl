@@ -2,7 +2,7 @@ module HuntTests
 
 using GridapMHD: hunt
 
-info = hunt(
+hunt(
   nc=(4,4),
   L=1.0,
   B=(0.,50.,0.),
@@ -12,7 +12,7 @@ info = hunt(
   solver=:julia,
  )
 
-info = hunt(
+hunt(
   nc=(4,4),
   L=1.0,
   B=(0.,50.,0.),
@@ -22,7 +22,7 @@ info = hunt(
   solver=:julia,
  )
 
-info = hunt(
+hunt(
   nc=(4,4),
   np=(1,1),
   backend=:mpi,
@@ -34,7 +34,7 @@ info = hunt(
   solver=:julia,
  )
 
-info = hunt(
+hunt(
   nc=(4,4),
   np=(2,2),
   backend=:sequential,
@@ -45,7 +45,6 @@ info = hunt(
   title="hunt",
   solver=:julia,
  )
-
 
 end # module
 
