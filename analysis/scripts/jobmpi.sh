@@ -8,18 +8,15 @@
 
 source env.sh
 
-#mpiexec -n 4 julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD.so -O3 --check-bounds=no -e\
-mpiexec -n 4 julia --project=$GRIDAPMHD  -O0 --check-bounds=yes -e\
+mpiexec -n 4 julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD.so -O3 --check-bounds=no -e\
 '
-using Gridap
-using GridapMHD
-using PartitionedArrays
-GridapMHD.hunt(
+using GridapMHD: hunt
+hunt(
   nc=(4,4),
   np=(2,2),
-  backend=mpi,
+  backend=:mpi,
   L=1.0,
-  B=VectorValue(0.,50.,0.),
+  B=(0.,50.,0.),
   debug=false,
   vtk=true,
   title="hunt",
