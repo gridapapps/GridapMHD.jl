@@ -24,6 +24,7 @@ hunt(
   path="{{{path}}}",
   nruns={{nruns}},
   nsums={{nsums}},
+  kmap={{kmap}},
   solver=:petsc,
   petsc_options="{{{petsc_options}}}"
  )'
