@@ -21,6 +21,7 @@ function hunt(;
     end
     info[:np] = np
     info[:backend] = backend
+    info[:title] = title
     map_main(t.data) do data
       for (k,v) in data
         info[Symbol("time_$k")] = v.max
@@ -61,6 +62,7 @@ function _hunt(;
   debug=false,
   solver=:julia,
   verbose=true,
+  kmap=1,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
@@ -89,7 +91,7 @@ function _hunt(;
 
   # Prepare problem in terms of reduced quantities
   layer(x,a) = sign(x)*abs(x)^(1/a)
-  map((x,y,z)) = VectorValue(layer(x,3),y,z)
+  map((x,y,z)) = VectorValue(layer(x,kmap),y,z)
   partition=(nc[1],nc[2],3)
   model = CartesianDiscreteModel(
     parts,domain,partition;isperiodic=(false,false,true),map=map)
@@ -163,7 +165,7 @@ function _hunt(;
   j_ref(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,2*nsums,x)
 
   k = 2
-  dΩ_phys = Measure(Ω_phys,2*k)
+  dΩ_phys = Measure(Ω_phys,2*(k+1))
   eu = u - uh
   ej = j - jh
   eu_h1 = sqrt(sum(∫( ∇(eu)⊙∇(eu) + eu⋅eu  )dΩ_phys))
@@ -210,6 +212,7 @@ function _hunt(;
   info[:uh_h1] = uh_h1
   info[:uh_l2] = uh_l2
   info[:jh_l2] = jh_l2
+  info[:kmap] = kmap
 
   info, t
 end
