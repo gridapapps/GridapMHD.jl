@@ -6,6 +6,7 @@ version = "0.3.0"
 [deps]
 Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
 GridapDistributed = "f9701e48-63b3-45aa-9a63-9bc6c271f355"
+GridapGmsh = "3025c34a-b394-11e9-2a55-3fee550c04c8"
 GridapPETSc = "bcdc36c2-0c3e-11ea-095a-c9dadae499f1"
 PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
