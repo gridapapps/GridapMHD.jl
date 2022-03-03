@@ -16,9 +16,13 @@ using GridapPETSc
 using GridapPETSc.PETSC
 using FileIO
 using BSON
+using GridapGmsh
+
 
 include("Main.jl")
 
 include("Hunt.jl")
+
+include("expansion.jl")
 
 end # module
