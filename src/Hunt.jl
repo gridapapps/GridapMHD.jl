@@ -3,28 +3,34 @@ function hunt(;
   np=nothing,
   parts=nothing,
   title = "hunt",
+  nruns=1,
   path=".",
   kwargs...)
 
-  @assert parts === nothing
-  if backend === nothing
-    @assert np === nothing
-    info, t = _hunt(;title=title,path=path,kwargs...)
-  else
-    @assert backend !== nothing
-    info, t = prun(_find_backend(backend),(np...,1)) do _parts
-      _hunt(;parts=_parts,title=title,path=path,kwargs...)
+  for ir in 1:nruns
+    _title = title*"_r$ir"
+    @assert parts === nothing
+    if backend === nothing
+      @assert np === nothing
+      info, t = _hunt(;title=_title,path=path,kwargs...)
+    else
+      @assert backend !== nothing
+      info, t = prun(_find_backend(backend),(np...,1)) do _parts
+        _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      end
+    end
+    info[:np] = np
+    info[:backend] = backend
+    info[:title] = title
+    map_main(t.data) do data
+      for (k,v) in data
+        info[Symbol("time_$k")] = v.max
+      end
+      save(joinpath(path,"$_title.bson"),info)
     end
   end
-  info[:np] = np
-  info[:backend] = backend
-  map_main(t.data) do data
-    for (k,v) in data
-      info[Symbol("time_$k")] = v.max
-    end
-    save(joinpath(path,"$title.bson"),info)
-  end
-  info
+
+  nothing
 end
 
 function _find_backend(s)
@@ -55,6 +61,8 @@ function _hunt(;
   path=".",
   debug=false,
   solver=:julia,
+  verbose=true,
+  kmap=1,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
@@ -65,7 +73,7 @@ function _hunt(;
   else
     t_parts = parts
   end
-  t = PTimer(t_parts,verbose=true)
+  t = PTimer(t_parts,verbose=verbose)
   tic!(t,barrier=true)
 
   domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
@@ -82,10 +90,8 @@ function _hunt(;
   domain = domain_phys ./ L
 
   # Prepare problem in terms of reduced quantities
-  map(x) = (2/sqrt(2))*VectorValue(
-    sign(x[1])*(abs(x[1])*0.5)^0.5,
-    sign(x[2])*(abs(x[2])*0.5)^0.5,
-    x[3]*sqrt(2)/2)
+  layer(x,a) = sign(x)*abs(x)^(1/a)
+  map((x,y,z)) = VectorValue(layer(x,kmap),y,z)
   partition=(nc[1],nc[2],3)
   model = CartesianDiscreteModel(
     parts,domain,partition;isperiodic=(false,false,true),map=map)
@@ -124,7 +130,6 @@ function _hunt(;
   elseif solver == :petsc
     xh = GridapPETSc.with(args=split(petsc_options)) do
     params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-    #params[:matrix_type] = SparseMatrixCSC{PetscScalar,PetscInt}
     params[:vector_type] = Vector{PetscScalar}
     params[:solver] = PETScNonlinearSolver()
     params[:solver_postpro] = cache -> snes_postpro(cache,info)
@@ -156,25 +161,41 @@ function _hunt(;
   grad_pz = -f[3]/ρ
   u(x) = analytical_hunt_u(L,L,μ,grad_pz,Ha,nsums,x)
   j(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,nsums,x)
-
-  if vtk
-    writevtk(Ω_phys,joinpath(path,"$(title)_Ω_fluid"),
-      order=2,
-      cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,"u"=>u,"j"=>j,])
-  end
+  u_ref(x) = analytical_hunt_u(L,L,μ,grad_pz,Ha,2*nsums,x)
+  j_ref(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,2*nsums,x)
 
   k = 2
-  dΩ_phys = Measure(Ω_phys,2*k)
+  dΩ_phys = Measure(Ω_phys,2*(k+1))
   eu = u - uh
   ej = j - jh
   eu_h1 = sqrt(sum(∫( ∇(eu)⊙∇(eu) + eu⋅eu  )dΩ_phys))
   eu_l2 = sqrt(sum(∫( eu⋅eu )dΩ_phys))
   ej_l2 = sqrt(sum(∫( ej⋅ej )dΩ_phys))
+  eu_ref = u_ref - uh
+  ej_ref = j_ref - jh
+  eu_ref_h1 = sqrt(sum(∫( ∇(eu_ref)⊙∇(eu_ref) + eu_ref⋅eu_ref  )dΩ_phys))
+  eu_ref_l2 = sqrt(sum(∫( eu_ref⋅eu_ref )dΩ_phys))
+  ej_ref_l2 = sqrt(sum(∫( ej_ref⋅ej_ref )dΩ_phys))
+  uh_l2 = sqrt(sum(∫( uh⋅uh )dΩ_phys))
+  uh_h1 = sqrt(sum(∫( ∇(uh)⊙∇(uh) + uh⋅uh )dΩ_phys))
+  jh_l2 = sqrt(sum(∫( jh⋅jh )dΩ_phys))
   toc!(t,"post_process")
-  display(t)
 
-  info[:ncells_fluid] = num_cells(model)
+  if vtk
+    writevtk(Ω_phys,joinpath(path,title),
+      order=2,
+      cellfields=[
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,
+        "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
+    toc!(t,"vtk")
+  end
+  if verbose
+    display(t)
+  end
+
+  info[:nc] = nc
+  info[:nsums] = nsums
+  info[:ncells] = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
   info[:ndofs_j] = length(get_free_dof_values(j̄h))
@@ -185,6 +206,13 @@ function _hunt(;
   info[:eu_h1] = eu_h1
   info[:eu_l2] = eu_l2
   info[:ej_l2] = ej_l2
+  info[:eu_ref_h1] = eu_ref_h1
+  info[:eu_ref_l2] = eu_ref_l2
+  info[:ej_ref_l2] = ej_ref_l2
+  info[:uh_h1] = uh_h1
+  info[:uh_l2] = uh_l2
+  info[:jh_l2] = jh_l2
+  info[:kmap] = kmap
 
   info, t
 end
