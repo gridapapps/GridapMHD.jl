@@ -12,7 +12,7 @@ function expansion(;
     else
       @assert backend !== nothing
       @assert np !== nothing
-      info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      info, t = prun(_find_backend(backend),np) do _parts
         _expansion(;parts=_parts,title=title,path=path,mesh=mesh,kwargs...)
       end
     end
@@ -30,16 +30,16 @@ function expansion(;
   nothing
 end
 
-# function _find_backend(s)
-#   if s === :sequential
-#     backend = sequential
-#   elseif s === :mpi
-#     backend = mpi
-#   else
-#     error()
-#   end
-#   backend
-# end
+function _find_backend(s)
+  if s === :sequential
+    backend = sequential
+  elseif s === :mpi
+    backend = mpi
+  else
+    error()
+  end
+  backend
+end
 
 function _expansion(;
   parts=nothing,
