@@ -1,75 +1,159 @@
+function expansion(;
+  backend=nothing,
+  np=nothing,
+  title = "Expansion",
+  mesh = "coarse",
+  path=".",
+  kwargs...)
 
-function expansion()
-  title = "expansion"
-  debug = false
+    if backend === nothing
+      @assert np === nothing
+      info, t = _expansion(;title=title,path=path,mesh=mesh,kwargs...)
+    else
+      @assert backend !== nothing
+      @assert np !== nothing
+      info, t = prun(_find_backend(backend),(np...,1)) do _parts
+        _expansion(;parts=_parts,title=title,path=path,mesh=mesh,kwargs...)
+      end
+    end
+    info[:np] = np
+    info[:backend] = backend
+    info[:title] = title
+    info[:mesh] = mesh
+    map_main(t.data) do data
+      for (k,v) in data
+        info[Symbol("time_$k")] = v.max
+      end
+      save(joinpath(path,"$title.bson"),info)
+    end
 
-  t = PTimer(get_part_ids(sequential,1),verbose=true)
+  nothing
+end
+
+# function _find_backend(s)
+#   if s === :sequential
+#     backend = sequential
+#   elseif s === :mpi
+#     backend = mpi
+#   else
+#     error()
+#   end
+#   backend
+# end
+
+function _expansion(;
+  parts=nothing,
+  title = "Expansion",
+  mesh = "coarse",
+  vtk=true,
+  path=".",
+  debug = false,
+  verbose=true,
+  solver=:julia,
+  N=1.0,
+  Ha=1.0,
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  )
+
+  info = Dict{Symbol,Any}()
+
+  if parts === nothing
+    t_parts = get_part_ids(sequential,1)
+  else
+    t_parts = parts
+  end
+  t = PTimer(t_parts,verbose=verbose)
   tic!(t,barrier=true)
-  msh_file = joinpath(@__FILE__,"..","..","meshes","Expansion_coarse.msh") |> normpath
-  model = GmshDiscreteModel(msh_file)
-  writevtk(model,"expansion_model")
-  toc!(t,"model")
+
+  # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
+  # after and before the expansion respectively.
+  # We assume L=1 in the mesh read from msh_file   
+  msh_file = joinpath(@__FILE__,"..","..","meshes",title*"_"*mesh*".msh") |> normpath
+  model = GmshDiscreteModel(parts,msh_file)
+  if debug && vtk
+    writevtk(model,"expansion_model")
+    toc!(t,"model")
+  end
   Ω = Interior(model,tags="PbLi")
   toc!(t,"triangulation")
 
-  z = VectorValue(0,0,0)
+  # Parameters and bounday conditions
 
-  u_inlet((x,y,z)) = VectorValue(16*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+  # Option 1 (CFD)
+  # α = 1.0
+  # β = 1.0/Re
+  # γ = N
+  # Option 2 (MHD) is chosen in the experimental article
+  α = (1.0/N)
+  β = (1.0/Ha^2)
+  γ = 1.0
+
+  # This gives mean(u_inlet)=1
+  u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
 
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
     :fluid=>Dict(
       :domain=>Ω,
-      :α=>1.0,
-      :β=>1.0,
-      :γ=>1.0,
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
       :u=>Dict(
         :tags=>["inlet", "wall"],
-        :values=>[u_inlet, VectorValue(0,0,0)]
+        :values=>[u_inlet, VectorValue(0.0,0.0,0.0)]
       ),
       :j=>Dict(
         :tags=>["wall"],
-        :values=>[VectorValue(0,0,0)]
+        :values=>[VectorValue(0.0,0.0,0.0)]
       ),
-      :f=>z,
-      :B=>z,
+      :f=>VectorValue(0.0,0.0,0.0),
+      :B=>VectorValue(0.0,1.0,0.0),
     ),
-#    :solver=>NLSolver(show_trace=true,method=:newton,iterations=1),
   )
 
-  xh = main(params)
+  toc!(t,"pre_process")
+
+  # Solve it
+  if solver == :julia
+    params[:solver] = NLSolver(show_trace=true,method=:newton)
+    xh = main(params)
+  elseif solver == :petsc
+    xh = GridapPETSc.with(args=split(petsc_options)) do
+    params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
+    params[:vector_type] = Vector{PetscScalar}
+    params[:solver] = PETScNonlinearSolver()
+    params[:solver_postpro] = cache -> snes_postpro(cache,info)
+    xh = main(params)
+    end
+  else
+    error()
+  end
+  t = params[:ptimer]
+  tic!(t,barrier=true)
 
   uh,ph,jh,φh = xh
 
-  # U_u = get_fe_space(uh)
-  # U_j = get_fe_space(jh)
+  if vtk
+    writevtk(Ω,joinpath(path,title),
+      order=2,
+      cellfields=[
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
+    toc!(t,"vtk")
+  end
+  if verbose
+    display(t)
+  end
 
-  # tic!(t)
-  # u(x) = VectorValue(sum(x),sum(x),sum(x))
-  # j(x) = VectorValue(sum(x),sum(x),sum(x))
-  # uh = interpolate(u,U_u)
-  # jh = interpolate(j,U_j)
-  # toc!(t,"interpolation")
+  info[:ncells] = num_cells(model)
+  info[:ndofs_u] = length(get_free_dof_values(uh))
+  info[:ndofs_p] = length(get_free_dof_values(ph))
+  info[:ndofs_j] = length(get_free_dof_values(jh))
+  info[:ndofs_φ] = length(get_free_dof_values(φh))
+  info[:ndofs] = length(get_free_dof_values(xh))
+  info[:Ha] = Ha
+  info[:N]  = N
+  info[:Re] = Ha^2/N
+  info, t
 
-  # eh_u = u - uh
-  # eh_j = j - jh
-  # dΩ = Measure(Ω,2*2)
-  # eh_u_l2 = sqrt(sum(∫( eh_u⋅eh_u )dΩ))
-  # eh_j_l2 = sqrt(sum(∫( eh_j⋅eh_j )dΩ))
-  # toc!(t,"error_norms")
-
-  writevtk(Ω,"$(title)_Ω",
-  # cellfields=[
-  # "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,"u"=>u,"j"=>j,])
-  cellfields=[
-  "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
-
-  out = Dict{Symbol,Any}()
-  # out[:eh_u_l2] = eh_u_l2
-  # out[:eh_j_l2] = eh_j_l2
-
-  display(t)
-
-  out
 end
