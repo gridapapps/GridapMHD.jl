@@ -12,8 +12,11 @@ using Gridap.ReferenceFEs
 using Gridap.Geometry
 using Gridap.FESpaces
 using GridapDistributed
-using GridapPETSc
 using GridapGmsh
+using GridapPETSc
+using GridapPETSc.PETSC
+using FileIO
+using BSON
 
 include("Main.jl")
 

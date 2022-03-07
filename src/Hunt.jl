@@ -1,23 +1,79 @@
 function hunt(;
-  nx=3,
-  ny=3,
+  backend=nothing,
+  np=nothing,
+  parts=nothing,
+  title = "hunt",
+  nruns=1,
+  path=".",
+  kwargs...)
+
+  for ir in 1:nruns
+    _title = title*"_r$ir"
+    @assert parts === nothing
+    if backend === nothing
+      @assert np === nothing
+      info, t = _hunt(;title=_title,path=path,kwargs...)
+    else
+      @assert backend !== nothing
+      info, t = prun(_find_backend(backend),(np...,1)) do _parts
+        _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      end
+    end
+    info[:np] = np
+    info[:backend] = backend
+    info[:title] = title
+    map_main(t.data) do data
+      for (k,v) in data
+        info[Symbol("time_$k")] = v.max
+      end
+      save(joinpath(path,"$_title.bson"),info)
+    end
+  end
+
+  nothing
+end
+
+function _find_backend(s)
+  if s === :sequential
+    backend = sequential
+  elseif s === :mpi
+    backend = mpi
+  else
+    error()
+  end
+  backend
+end
+
+function _hunt(;
+  parts=nothing,
+  nc=(3,3),
   ν=1.0,
   ρ=1.0,
   σ=1.0,
-  B=VectorValue(0.0,1.0,0.0),
-  f=VectorValue(0.0,0.0,1.0),
+  B=(0.0,1.0,0.0),
+  f=(0.0,0.0,1.0),
   L=1.0,
   u0=1.0,
-  B0=norm(B),
+  B0=norm(VectorValue(B)),
   nsums = 10,
   vtk=true,
   title="test",
+  path=".",
   debug=false,
-  solver="julia",
+  solver=:julia,
+  verbose=true,
+  kmap=1,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
-  t = PTimer(get_part_ids(sequential,1),verbose=true)
+  info = Dict{Symbol,Any}()
+
+  if parts === nothing
+    t_parts = get_part_ids(sequential,1)
+  else
+    t_parts = parts
+  end
+  t = PTimer(t_parts,verbose=verbose)
   tic!(t,barrier=true)
 
   domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
@@ -26,21 +82,19 @@ function hunt(;
   Re = u0*L/ν
   Ha = B0*L*sqrt(σ/(ρ*ν))
   N = Ha^2/Re
-  f̄ = (L/(ρ*u0^2))*f
-  B̄ = (1/B0)*B
+  f̄ = (L/(ρ*u0^2))*VectorValue(f)
+  B̄ = (1/B0)*VectorValue(B)
   α = 1.0
   β = 1.0/Re
   γ = N
   domain = domain_phys ./ L
 
   # Prepare problem in terms of reduced quantities
-  map(x) = (2/sqrt(2))*VectorValue(
-    sign(x[1])*(abs(x[1])*0.5)^0.5,
-    sign(x[2])*(abs(x[2])*0.5)^0.5,
-    x[3]*sqrt(2)/2)
-  partition=(nx,ny,3)
+  layer(x,a) = sign(x)*abs(x)^(1/a)
+  map((x,y,z)) = VectorValue(layer(x,kmap),y,z)
+  partition=(nc[1],nc[2],3)
   model = CartesianDiscreteModel(
-    domain,partition;isperiodic=(false,false,true),map=map)
+    parts,domain,partition;isperiodic=(false,false,true),map=map)
   Ω = Interior(model)
   labels = get_face_labeling(model)
   tags_u = append!(collect(1:20),[23,24,25,26])
@@ -52,7 +106,7 @@ function hunt(;
     :ptimer=>t,
     :debug=>debug,
     :fluid=>Dict(
-      :domain=>Ω,
+      :domain=>model,
       :α=>α,
       :β=>β,
       :γ=>γ,
@@ -70,14 +124,15 @@ function hunt(;
   toc!(t,"pre_process")
 
   # Solve it
-  if solver == "julia"
+  if solver == :julia
     params[:solver] = NLSolver(show_trace=true,method=:newton)
     xh = main(params)
-  elseif solver == "petsc"
+  elseif solver == :petsc
     xh = GridapPETSc.with(args=split(petsc_options)) do
     params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
     params[:vector_type] = Vector{PetscScalar}
     params[:solver] = PETScNonlinearSolver()
+    params[:solver_postpro] = cache -> snes_postpro(cache,info)
     xh = main(params)
     end
   else
@@ -93,10 +148,12 @@ function hunt(;
   ph = (ρ*u0^2)*p̄h
   jh = (σ*u0*B0)*j̄h
   φh = (u0*B0*L)*φ̄h
-  grid_phys = UnstructuredGrid(get_grid(model))
-  node_coords = get_node_coordinates(grid_phys)
-  node_coords .= L .* node_coords
-  Ω_phys = Gridap.Geometry.BodyFittedTriangulation(Ω.model,grid_phys,Ω.tface_to_mface)
+
+  if L == 1.0
+    Ω_phys = Ω
+  else
+    Ω_phys = _warp(model,Ω,L)
+  end
 
   # Post process
 
@@ -104,25 +161,41 @@ function hunt(;
   grad_pz = -f[3]/ρ
   u(x) = analytical_hunt_u(L,L,μ,grad_pz,Ha,nsums,x)
   j(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,nsums,x)
-
-  if vtk
-    writevtk(Ω_phys,"$(title)_Ω_fluid",
-      cellfields=[
-      "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,"u"=>u,"j"=>j,])
-  end
+  u_ref(x) = analytical_hunt_u(L,L,μ,grad_pz,Ha,2*nsums,x)
+  j_ref(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,2*nsums,x)
 
   k = 2
-  dΩ_phys = Measure(Ω_phys,2*k)
+  dΩ_phys = Measure(Ω_phys,2*(k+1))
   eu = u - uh
   ej = j - jh
   eu_h1 = sqrt(sum(∫( ∇(eu)⊙∇(eu) + eu⋅eu  )dΩ_phys))
   eu_l2 = sqrt(sum(∫( eu⋅eu )dΩ_phys))
   ej_l2 = sqrt(sum(∫( ej⋅ej )dΩ_phys))
+  eu_ref = u_ref - uh
+  ej_ref = j_ref - jh
+  eu_ref_h1 = sqrt(sum(∫( ∇(eu_ref)⊙∇(eu_ref) + eu_ref⋅eu_ref  )dΩ_phys))
+  eu_ref_l2 = sqrt(sum(∫( eu_ref⋅eu_ref )dΩ_phys))
+  ej_ref_l2 = sqrt(sum(∫( ej_ref⋅ej_ref )dΩ_phys))
+  uh_l2 = sqrt(sum(∫( uh⋅uh )dΩ_phys))
+  uh_h1 = sqrt(sum(∫( ∇(uh)⊙∇(uh) + uh⋅uh )dΩ_phys))
+  jh_l2 = sqrt(sum(∫( jh⋅jh )dΩ_phys))
   toc!(t,"post_process")
-  display(t)
 
-  info = Dict{Symbol,Any}()
-  info[:ncells_fluid] = num_cells(Ω)
+  if vtk
+    writevtk(Ω_phys,joinpath(path,title),
+      order=2,
+      cellfields=[
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,
+        "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
+    toc!(t,"vtk")
+  end
+  if verbose
+    display(t)
+  end
+
+  info[:nc] = nc
+  info[:nsums] = nsums
+  info[:ncells] = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
   info[:ndofs_j] = length(get_free_dof_values(j̄h))
@@ -133,8 +206,36 @@ function hunt(;
   info[:eu_h1] = eu_h1
   info[:eu_l2] = eu_l2
   info[:ej_l2] = ej_l2
+  info[:eu_ref_h1] = eu_ref_h1
+  info[:eu_ref_l2] = eu_ref_l2
+  info[:ej_ref_l2] = ej_ref_l2
+  info[:uh_h1] = uh_h1
+  info[:uh_l2] = uh_l2
+  info[:jh_l2] = jh_l2
+  info[:kmap] = kmap
 
-  info
+  info, t
+end
+
+# This is not very elegant. This needs to be solved by Gridap and GridapDistributed
+function _warp(model::DiscreteModel,Ω::Triangulation,L)
+  grid_phys = UnstructuredGrid(get_grid(model))
+  node_coords = get_node_coordinates(grid_phys)
+  node_coords .= L .* node_coords
+  Ω_phys = Gridap.Geometry.BodyFittedTriangulation(Ω.model,grid_phys,Ω.tface_to_mface)
+end
+
+function _warp(
+  model::GridapDistributed.DistributedDiscreteModel,
+  Ω::GridapDistributed.DistributedTriangulation,L)
+  trians = map_parts(model.models,Ω.trians) do model,Ω
+    grid_phys = UnstructuredGrid(get_grid(model))
+    node_coords = get_node_coordinates(grid_phys)
+    node_coords .= L .* node_coords
+    gp = GridPortion(grid_phys,Ω.tface_to_mface)
+    Ω_phys = Gridap.Geometry.BodyFittedTriangulation(model,gp,Ω.tface_to_mface)
+  end
+  GridapDistributed.DistributedTriangulation(trians,model)
 end
 
 function analytical_hunt_u(
@@ -216,4 +317,13 @@ function analytical_hunt_j(
   VectorValue(j_x,j_y,0.0)
 end
 
+function snes_postpro(cache,info)
+  snes = cache.snes[]
+  i_petsc = Ref{PetscInt}()
+  @check_error_code PETSC.SNESGetIterationNumber(snes,i_petsc)
+  info[:nls_iters] = Int(i_petsc[])
+  @check_error_code PETSC.SNESGetLinearSolveIterations(snes,i_petsc)
+  info[:ls_iters] = Int(i_petsc[])
+  nothing
+end
 
