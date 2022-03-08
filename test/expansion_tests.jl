@@ -2,8 +2,9 @@ module expansion_tests
 
 using GridapMHD
 
-out = GridapMHD.expansion()
+GridapMHD.expansion()
+GridapMHD.expansion(np=2,backend=:sequential)
+GridapMHD.expansion(np=1,backend=:mpi)
 
-display(out)
 
 end # module
