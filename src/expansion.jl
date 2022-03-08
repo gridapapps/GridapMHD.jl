@@ -30,17 +30,6 @@ function expansion(;
   nothing
 end
 
-function _find_backend(s)
-  if s === :sequential
-    backend = sequential
-  elseif s === :mpi
-    backend = mpi
-  else
-    error()
-  end
-  backend
-end
-
 function _expansion(;
   parts=nothing,
   title = "Expansion",
@@ -95,7 +84,7 @@ function _expansion(;
     :ptimer=>t,
     :debug=>debug,
     :fluid=>Dict(
-      :domain=>Ω,
+      :domain=>model,
       :α=>α,
       :β=>β,
       :γ=>γ,
