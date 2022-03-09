@@ -92,10 +92,15 @@ function _expansion(;
         :tags=>["inlet", "wall"],
         :values=>[u_inlet, VectorValue(0.0,0.0,0.0)]
       ),
+      # :j=>Dict(
+      #   :tags=>["wall"],
+      #   :values=>[VectorValue(0.0,0.0,0.0)]
+      # ),
       :j=>Dict(
-        :tags=>["wall"],
-        :values=>[VectorValue(0.0,0.0,0.0)]
+        :tags=>Int[],
+        :values=>Int[],
       ),
+      :thin_wall=>[Dict(:τ=>100.0,:cw=>0.028,:jw=>0,:τ=>0.2,:domain=>Boundary(model,tags="wall"))],
       :f=>VectorValue(0.0,0.0,0.0),
       :B=>VectorValue(0.0,1.0,0.0),
     ),

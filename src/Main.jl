@@ -171,12 +171,13 @@ function weak_form(params,k)
 
   params_thin_wall = []
   for i in 1:length(fluid[:thin_wall])
+    τ_i = fluid[:thin_wall][i][:τ]
     cw_i = fluid[:thin_wall][i][:cw]
     jw_i = fluid[:thin_wall][i][:jw]
     Γ = fluid[:thin_wall][i][:domain]
     dΓ = Measure(Γ,2*k)
     n_Γ = get_normal_vector(Γ)
-    push!(params_thin_wall,(cw_i,jw_i,n_Γ,dΓ))
+    push!(params_thin_wall,(τ_i,cw_i,jw_i,n_Γ,dΓ))
   end
 
   params_f = []
@@ -280,11 +281,12 @@ function ℓ_f(dy,f,dΩ)
   ∫( v_u⋅f )*dΩ
 end
 
-function ℓ_thin_wall(dy,cw,jw,n_Γ,dΓ)
+function ℓ_thin_wall(dy,τ,cw,jw,n_Γ,dΓ)
+  v_u, v_p, v_j, v_φ = dy
   ∫( τ*(v_j⋅n_Γ)*jw ) * dΓ
 end
 
-function a_thin_wall(x,dy,cw,jw,n_Γ,dΓ)
+function a_thin_wall(x,dy,τ,cw,jw,n_Γ,dΓ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
   ∫( τ*((v_j⋅n_Γ)*(j⋅n_Γ) + cw*(v_j⋅n_Γ)*(n_Γ⋅(∇(j)⋅n_Γ))) )*dΓ
