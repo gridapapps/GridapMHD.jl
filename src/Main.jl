@@ -80,7 +80,7 @@ function main(params::Dict)
 
   # Test spaces
   V_u = TestFESpace(Ω,reffe_u;dirichlet_tags=params[:fluid][:u][:tags])
-  V_p = TestFESpace(Ω,reffe_p)
+  V_p = TestFESpace(Ω,reffe_p;conformity=p_conformity(Ω))
   V_j = TestFESpace(Ω,reffe_j;dirichlet_tags=params[:fluid][:j][:tags])
   V_φ = TestFESpace(Ω,reffe_φ;conformity=:L2)
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ])
@@ -132,6 +132,47 @@ function _rand(vt::Type{<:PVector{T,A}},ids::PRange) where {T,A}
     _rand(Tv,1:num_lids(partition))
   end
   PVector(values,ids)
+end
+
+function p_conformity(poly::Polytope)
+  if is_simplex(poly)
+    conf = :H1
+  elseif is_n_cube(poly)
+    conf = :L2
+  else
+    @unreachable "unsupported cell topology"
+  end
+  conf
+end
+
+function p_conformity(Ω::Triangulation)
+  reffes = get_reffes(Ω)
+  @assert length(reffes) == 1
+  reffe = first(reffes)
+  poly = get_polytope(reffe)
+  p_conformity(poly)
+end
+
+function p_conformity(Ω::GridapDistributed.DistributedTriangulation)
+  p = map_parts(Ω.trians) do Ω
+    reffes = get_reffes(Ω)
+    @assert length(reffes) == 1
+    reffe = first(reffes)
+    poly = get_polytope(reffe)
+    poly
+  end
+  poly = get_part(p) # We assume same polytope in all parts
+  p_conformity(poly)
+end
+
+function p_conformity(model::DiscreteModel)
+  Ω = Interior(model)
+  p_conformity(Ω)
+end
+
+function p_conformity(model::GridapDistributed.DistributedDiscreteModel)
+  Ω = Interior(model)
+  p_conformity(Ω)
 end
 
 function add_defaults!(params,defaults)
