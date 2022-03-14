@@ -1,0 +1,145 @@
+[ Info: using system MPI
+┌ Info: Using implementation
+│   libmpi = "/opt/openmpi_gcc/4.0.4/lib/libmpi"
+│   mpiexec_cmd = `/opt/openmpi_gcc/4.0.4/bin/mpiexec`
+└   MPI_LIBRARY_VERSION_STRING = "Open MPI v4.0.4, package: Open MPI root@be02 Distribution, ident: 4.0.4, repo rev: v4.0.4, Jun 10, 2020\0"
+┌ Info: MPI implementation detected
+│   impl = OpenMPI::MPIImpl = 2
+│   version = v"4.0.4"
+└   abi = "OpenMPI"
+┌ Info:  Non-empty JULIA_PETSC_LIBRARY environment variable found.
+│ Trying to use the PETSc installation it points to.
+└ JULIA_PETSC_LIBRARY=/home/froca/software/petsc/3.15.5/lib/libpetsc.so
+┌ Info: PETSc configuration summary:
+│ libpetsc_provider = JULIA_PETSC_LIBRARY
+│ libpetsc_path     = /home/froca/software/petsc/3.15.5/lib/libpetsc.so
+│ PetscReal         = Float64
+│ PetscScalar       = Float64
+└ PetscInt          = Int64
+[ Info: Using the gmsh installation installed via BinaryBuilder.
+[ Info: gmsh binary found in /home/froca/.julia/artifacts/4653460f3c6b714482628cbde55e1ca3845b68b4/bin/gmsh
+[ Info: Using the gmsh Julia API found in /home/froca/.julia/artifacts/4653460f3c6b714482628cbde55e1ca3845b68b4/lib/gmsh.jl
+    Building MPI ────────→ `~/.julia/scratchspaces/44cfe95a-1eb2-52ea-b672-e2afdf69b78f/d56a80d8cf8b9dc3050116346b3d83432b1912c0/build.log`
+    Building GridapPETSc → `~/.julia/scratchspaces/44cfe95a-1eb2-52ea-b672-e2afdf69b78f/df7b07e157c9a50f0c39a7ec00392584d6210384/build.log`
+    Building GridapGmsh ─→ `~/.julia/scratchspaces/44cfe95a-1eb2-52ea-b672-e2afdf69b78f/d7e4e6b11b44a99aa400871e5f89be1be23814d2/build.log`
+Precompiling project...
+[32m  ✓ [39mMPI
+[32m  ✓ [39mPartitionedArrays
+[32m  ✓ [39mGridapDistributed
+[32m  ✓ [39mGridapPETSc
+[32m  ✓ [39mGridapGmsh
+[32m  ✓ [39mGridapMHD
+  6 dependencies successfully precompiled in 38 seconds (79 already precompiled)
+--------------------------------------------------------------------------
+By default, for Open MPI 4.0 and later, infiniband ports on a device
+are not used by default.  The intent is to use UCX for these devices.
+You can override this policy by setting the btl_openib_allow_ib MCA parameter
+to true.
+
+  Local host:              be02
+  Local adapter:           mlx4_0
+  Local port:              1
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   be02
+  Local device: mlx4_0
+--------------------------------------------------------------------------
+[be02:32165] 8 more processes have sent help message help-mpi-btl-openib.txt / ib port not selected
+[be02:32165] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+[be02:32165] 8 more processes have sent help message help-mpi-btl-openib.txt / error in device init
+┌ Error: 
+│   exception =
+│    UndefVarError: kmap not defined
+│    Stacktrace:
+│     [1] _hunt(; parts::PartitionedArrays.MPIData{Int64, 3}, nc::Tuple{Int64, Int64}, ν::Float64, ρ::Float64, σ::Float64, B::Tuple{Float64, Float64, Float64}, f::Tuple{Float64, Float64, Float64}, L::Float64, u0::Float64, B0::Float64, nsums::Int64, vtk::Bool, title::String, path::String, debug::Bool, solver::Symbol, verbose::Bool, kmap_s::Int64, kmap_Ha::Int64, petsc_options::String)
+│       @ GridapMHD /projects/blankets/GridapMHD.jl/src/Hunt.jl:216
+│     [2] #12
+│       @ /projects/blankets/GridapMHD.jl/src/Hunt.jl:19 [inlined]
+│     [3] prun(driver::GridapMHD.var"#12#14"{String, Base.Pairs{Symbol, Any, NTuple{8, Symbol}, NamedTuple{(:nc, :L, :B, :debug, :vtk, :solver, :kmap_s, :kmap_Ha), Tuple{Tuple{Int64, Int64}, Float64, Tuple{Float64, Float64, Float64}, Bool, Bool, Symbol, Int64, Int64}}}, String}, b::PartitionedArrays.MPIBackend, nparts::Tuple{Int64, Int64, Int64})
+│       @ PartitionedArrays ~/.julia/packages/PartitionedArrays/fem1y/src/MPIBackend.jl:33
+│     [4] hunt(; backend::Symbol, np::Tuple{Int64, Int64}, parts::Nothing, title::String, nruns::Int64, path::String, kwargs::Base.Pairs{Symbol, Any, NTuple{8, Symbol}, NamedTuple{(:nc, :L, :B, :debug, :vtk, :solver, :kmap_s, :kmap_Ha), Tuple{Tuple{Int64, Int64}, Float64, Tuple{Float64, Float64, Float64}, Bool, Bool, Symbol, Int64, Int64}}})
+│       @ GridapMHD /projects/blankets/GridapMHD.jl/src/Hunt.jl:18
+│     [5] top-level scope
+│       @ none:3
+│     [6] eval
+│       @ ./boot.jl:373 [inlined]
+│     [7] exec_options(opts::Base.JLOptions)
+│       @ Base ./client.jl:268
+│     [8] _start()
+│       @ Base ./client.jl:495
+└ @ PartitionedArrays ~/.julia/packages/PartitionedArrays/fem1y/src/MPIBackend.jl:35
+┌ Error: 
+│   exception =
+│    UndefVarError: kmap not defined
+│    Stacktrace:
+│     [1] _hunt(; parts::PartitionedArrays.MPIData{Int64, 3}, nc::Tuple{Int64, Int64}, ν::Float64, ρ::Float64, σ::Float64, B::Tuple{Float64, Float64, Float64}, f::Tuple{Float64, Float64, Float64}, L::Float64, u0::Float64, B0::Float64, nsums::Int64, vtk::Bool, title::String, path::String, debug::Bool, solver::Symbol, verbose::Bool, kmap_s::Int64, kmap_Ha::Int64, petsc_options::String)
+│       @ GridapMHD /projects/blankets/GridapMHD.jl/src/Hunt.jl:216
+│     [2] #12
+│       @ /projects/blankets/GridapMHD.jl/src/Hunt.jl:19 [inlined]
+│     [3] prun(driver::GridapMHD.var"#12#14"{String, Base.Pairs{Symbol, Any, NTuple{8, Symbol}, NamedTuple{(:nc, :L, :B, :debug, :vtk, :solver, :kmap_s, :kmap_Ha), Tuple{Tuple{Int64, Int64}, Float64, Tuple{Float64, Float64, Float64}, Bool, Bool, Symbol, Int64, Int64}}}, String}, b::PartitionedArrays.MPIBackend, nparts::Tuple{Int64, Int64, Int64})
+│       @ PartitionedArrays ~/.julia/packages/PartitionedArrays/fem1y/src/MPIBackend.jl:33
+│     [4] hunt(; backend::Symbol, np::Tuple{Int64, Int64}, parts::Nothing, title::String, nruns::Int64, path::String, kwargs::Base.Pairs{Symbol, Any, NTuple{8, Symbol}, NamedTuple{(:nc, :L, :B, :debug, :vtk, :solver, :kmap_s, :kmap_Ha), Tuple{Tuple{Int64, Int64}, Float64, Tuple{Float64, Float64, Float64}, Bool, Bool, Symbol, Int64, Int64}}})
+│       @ GridapMHD /projects/blankets/GridapMHD.jl/src/Hunt.jl:18
+│     [5] top-level scope
+│       @ none:3
+│     [6] eval
+│       @ ./boot.jl:373 [inlined]
+│     [7] exec_options(opts::Base.JLOptions)
+│       @ Base ./client.jl:268
+│     [8] _start()
+│       @ Base ./client.jl:495
+└ @ PartitionedArrays ~/.julia/packages/PartitionedArrays/fem1y/src/MPIBackend.jl:35
+┌ Error: 
+│   exception =
+│    UndefVarError: kmap not defined
+│    Stacktrace:
+│     [1] _hunt(; parts::PartitionedArrays.MPIData{Int64, 3}, nc::Tuple{Int64, Int64}, ν::Float64, ρ::Float64, σ::Float64, B::Tuple{Float64, Float64, Float64}, f::Tuple{Float64, Float64, Float64}, L::Float64, u0::Float64, B0::Float64, nsums::Int64, vtk::Bool, title::String, path::String, debug::Bool, solver::Symbol, verbose::Bool, kmap_s::Int64, kmap_Ha::Int64, petsc_options::String)
+│       @ GridapMHD /projects/blankets/GridapMHD.jl/src/Hunt.jl:216
+│     [2] #12
+│       @ /projects/blankets/GridapMHD.jl/src/Hunt.jl:19 [inlined]
+│     [3] prun(driver::GridapMHD.var"#12#14"{String, Base.Pairs{Symbol, Any, NTuple{8, Symbol}, NamedTuple{(:nc, :L, :B, :debug, :vtk, :solver, :kmap_s, :kmap_Ha), Tuple{Tuple{Int64, Int64}, Float64, Tuple{Float64, Float64, Float64}, Bool, Bool, Symbol, Int64, Int64}}}, String}, b::PartitionedArrays.MPIBackend, nparts::Tuple{Int64, Int64, Int64})
+│       @ PartitionedArrays ~/.julia/packages/PartitionedArrays/fem1y/src/MPIBackend.jl:33
+│     [4] hunt(; backend::Symbol, np::Tuple{Int64, Int64}, parts::Nothing, title::String, nruns::Int64, path::String, kwargs::Base.Pairs{Symbol, Any, NTuple{8, Symbol}, NamedTuple{(:nc, :L, :B, :debug, :vtk, :solver, :kmap_s, :kmap_Ha), Tuple{Tuple{Int64, Int64}, Float64, Tuple{Float64, Float64, Float64}, Bool, Bool, Symbol, Int64, Int64}}})
+│       @ GridapMHD /projects/blankets/GridapMHD.jl/src/Hunt.jl:18
+│     [5] top-level scope
+│       @ none:3
+│     [6] eval
+│       @ ./boot.jl:373 [inlined]
+│     [7] exec_options(opts::Base.JLOptions)
+│       @ Base ./client.jl:268
+│     [8] _start()
+│       @ Base ./client.jl:495
+└ @ PartitionedArrays ~/.julia/packages/PartitionedArrays/fem1y/src/MPIBackend.jl:35
+┌ Error: 
+│   exception =
+│    UndefVarError: kmap not defined
+│    Stacktrace:
+│     [1] _hunt(; parts::PartitionedArrays.MPIData{Int64, 3}, nc::Tuple{Int64, Int64}, ν::Float64, ρ::Float64, σ::Float64, B::Tuple{Float64, Float64, Float64}, f::Tuple{Float64, Float64, Float64}, L::Float64, u0::Float64, B0::Float64, nsums::Int64, vtk::Bool, title::String, path::String, debug::Bool, solver::Symbol, verbose::Bool, kmap_s::Int64, kmap_Ha::Int64, petsc_options::String)
+│       @ GridapMHD /projects/blankets/GridapMHD.jl/src/Hunt.jl:216
+│     [2] #12
+│       @ /projects/blankets/GridapMHD.jl/src/Hunt.jl:19 [inlined]
+│     [3] prun(driver::GridapMHD.var"#12#14"{String, Base.Pairs{Symbol, Any, NTuple{8, Symbol}, NamedTuple{(:nc, :L, :B, :debug, :vtk, :solver, :kmap_s, :kmap_Ha), Tuple{Tuple{Int64, Int64}, Float64, Tuple{Float64, Float64, Float64}, Bool, Bool, Symbol, Int64, Int64}}}, String}, b::PartitionedArrays.MPIBackend, nparts::Tuple{Int64, Int64, Int64})
+│       @ PartitionedArrays ~/.julia/packages/PartitionedArrays/fem1y/src/MPIBackend.jl:33
+│     [4] hunt(; backend::Symbol, np::Tuple{Int64, Int64}, parts::Nothing, title::String, nruns::Int64, path::String, kwargs::Base.Pairs{Symbol, Any, NTuple{8, Symbol}, NamedTuple{(:nc, :L, :B, :debug, :vtk, :solver, :kmap_s, :kmap_Ha), Tuple{Tuple{Int64, Int64}, Float64, Tuple{Float64, Float64, Float64}, Bool, Bool, Symbol, Int64, Int64}}})
+│       @ GridapMHD /projects/blankets/GridapMHD.jl/src/Hunt.jl:18
+│     [5] top-level scope
+│       @ none:3
+│     [6] eval
+│       @ ./boot.jl:373 [inlined]
+│     [7] exec_options(opts::Base.JLOptions)
+│       @ Base ./client.jl:268
+│     [8] _start()
+│       @ Base ./client.jl:495
+└ @ PartitionedArrays ~/.julia/packages/PartitionedArrays/fem1y/src/MPIBackend.jl:35
+--------------------------------------------------------------------------
+MPI_ABORT was invoked on rank 1 in communicator MPI_COMM_WORLD
+with errorcode 1.
+
+NOTE: invoking MPI_ABORT causes Open MPI to kill all MPI processes.
+You may or may not see output from other processes, depending on
+exactly when Open MPI kills them.
+--------------------------------------------------------------------------
+[be02:32165] 3 more processes have sent help message help-mpi-api.txt / mpi-abort
