@@ -85,11 +85,11 @@ Line(18) = {17, 15};
 //Defino los nodos de las líneas
 
 //+
-Transfinite Curve {-2, 15, 5, -12} = 20 Using Progression 1.2; //Nodos axiales
+Transfinite Curve {-2, 15, 5, -12} = 10 Using Progression 1.2; //Nodos axiales
 //+
-Transfinite Curve {-1, 17, 8, 16, -18, -9} = 10 Using Progression 1.35; //Nodos dirección Hartmann en el canal pequeño
+Transfinite Curve {-1, 17, 8, 16, -18, -9} = 6 Using Progression 1.35; //Nodos dirección Hartmann en el canal pequeño
 //+
-Transfinite Curve {3, -7, 13, -11, -14, 10, -4, 6} = 10 Using Progression 1.35; //Nodos dirección Hartmann en el canal pequeño
+Transfinite Curve {3, -7, 13, -11, -14, 10, -4, 6} = 6 Using Progression 1.35; //Nodos dirección Hartmann en el canal pequeño
 
 //Defino la superfice
 
@@ -109,7 +109,7 @@ Transfinite Surface {2} = {5, 6, 12, 13};
 Recombine Surface {1,2}; //Esto hace desaparecer los triangulos
 //+
 Extrude {0.0,0.0,2.0} {
-    Surface{1,2}; Layers{{4,10,4}, {0.1,0.9,1}}; Recombine; //Pongo 8 nodos en las capas limites side para Ha = 1000
+    Surface{1,2}; Layers{{3,6,3}, {0.1,0.9,1}}; Recombine; //Pongo 8 nodos en las capas limites side para Ha = 1000
 }
 
 //Defino las tags para las condiciones de contorno (los números de las superficies los genera gmsh automáticamente al extruir)
