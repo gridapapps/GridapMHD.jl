@@ -60,49 +60,18 @@
 # j⋅n + cw*n⋅∇(j)⋅n = jw (imposed weakly via a penalty of value τ)
 
 """
-    init_params(params::Dict{Symbol})
+    add_default_params(params::Dict{Symbol}) -> full_params
 
-Check validity of the main parameter dictionary `params`.
-Valid mandatory and optional keys are detailed as follows.
-Returns a copy of `params` with default values for the optional keys
-not provided in `params`.
-
-# Mandatory keys
-- `:model`: The finite element mesh representing the union of the fluid and solid domains.
-- `:fluid`: A `Dict` defining the fluid domain and fluid parameters.
-   See [`init_params_fluid`](@ref) for further details.
-- `:bcs`: A `Dict` defining the boundary conditions and other external loads.
-  See [`init_params_bcs`](@ref) for further details.
-
-# Optional keys
-- `:solid => nothing`:
-  A `Dict` defining the solid domain and solid parameters.
-  If not provided or set to `nothing` the solid domain is not taken into account.
-  See [`init_params_solid`](@ref) for further details.
-- `:k => 2`:
-  Maximum interpolation order (i.e., the order used for the fluid velocity).
-- `:solver => default_solver()`:
-  Nonlinear solver to compute the solution.
-    It should be an instance of some type implementing the `NonlinearSolver` interface of Gridap.
-- `:debug => false`:
-  If true, setup the problem, but do not solve it. Otherwise, solve it.
-- `:check_valid => true`: If `true`, check that all given keys are valid. Otherwise, silently ignore invalid keys.
-- `:matrix_type => SparseMatrixCSC{Float64,Int32}`:
-   Matrix type to assemble the problem.
-- `:vector_type => Vector{Float64}`:
-  Vector type to assemble the problem.
-- `:ptimer => default_ptimer(params[:model])`:
-  Instance of `PTimer` used to monitor times. New time measurements are added to the given timer.
+Return a new `Dict` with the contents of `params` plus
+default values for the optional keys not provided in `params`.
+It also checks the validity of the main parameter dictionary `params`.
 """
-function init_params(_params)
-
+function add_default_params(_params)
   if !isa(_params,Dict{Symbol})
     error("The main paramter dict has to be a Dict{Symbol}")
   end
-
   params = Dict{Symbol,Any}()
   merge!(params,_params)
-
   # Define mandatory and optional parameters at this level
   mandatory = Dict(
     :ptimer=>false,
@@ -118,14 +87,12 @@ function init_params(_params)
     :check_valid=>false,
     :solver_postpro=>false,
   )
-
   # Check that all mandatory key are in params
   for key in keys(mandatory)
     if mandatory[key] && !haskey(params,key)
-      error("Key :$key is a mandatory key in the main parameter dict, but it is not provided. See docs for init_params for a list of mandatory keys and their meaning.")
+      error("Key :$key is a mandatory key in the main parameter dict, but it is not provided. See docs for add_default_params for a list of mandatory keys and their meaning.")
     end
   end
-
   # Compute default values for optional keys
   optional = Dict(
     :solid=>nothing,
@@ -138,36 +105,32 @@ function init_params(_params)
     :k=>2,
     :check_valid=>true,
   )
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(params,key)
       params[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(params)
       if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in the main parameter dict. See docs for init_params for a list of valid keys. Set key :check_valid to false to ignore invalid keys.")
+        error("Key :$key is not a valid key in the main parameter dict. See docs for add_default_params for a list of valid keys. Set key :check_valid to false to ignore invalid keys.")
       end
     end
   end
-
-  params[:fluid] = init_params_fluid(params[:fluid],params)
+  # Process sub-params
+  params[:fluid] = params_fluid(params)
   if params[:solid] !== nothing
-    params[:solid] = init_params_solid(params[:solid],params)
+    params[:solid] = params_solid(params)
   end
-  params[:bcs] = init_params_bcs(params[:bcs],params)
-
+  params[:bcs] = params_bcs(params)
   params
 end
 
@@ -175,28 +138,19 @@ default_ptimer(model) = PTimer(get_part_ids(sequential,1))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_part_ids(model.models))
 
 """
-    init_params_fluid(fluid::Dict{Symbol},params::Dict{Symbol})
+    params_fluid(params::Dict{Symbol,Any})
 
-Check validity of the fluid-related parameter dictionary `fluid`.
-Valid mandatory and optional keys for `fluid` are detailed below.
-Returns a copy of `fluid` with default values for the optional keys
-not provided in `fluid`.
-The main parameter dictionary `params` is passed since the computation of some default
-values might rely on it.
+Check validity and return a copy of `params[:fluid]` augmented with default values.
 
-The dict `fluid` specifies the different parameters in the MHD equation:
-
-     ∇⋅j = 0
-     j + σ*∇(φ) - σ*(u×B) = 0
-     ∇⋅u = 0
-     α*u⋅∇(u) - β*Δ(u) + ∇(p) - γ*(j×B) = f
-
-where `u,p,j,φ` are the unknowns and `α,β,γ,σ,B,f` are parameters.
+Valid keys for `params[:fluid]` are the following.
 
 # Mandatory keys
 - `domain`: Domain where to solve the MHD problem.
-  The domain is represented either with a `Triangulation` or with a `Integer`/`String`
+  The domain is represented with a `Triangulation` or with a `Integer`/`String`
   tag in the underlying discrete model.
+  It can also be a `Gridap.DiscreteModel` or `GridapDistributed.DistributedDiscreteModel`
+  if `params[:solid]` is `nothing`. In this case,
+  one needs to guarantee `params[:model]===params[:fluid][:domain]`.
 -  `:α`: Value of the parameter `α`.
 -  `:β`: Value of the parameter `β`.
 -  `:γ`: Value of the parameter `γ`.
@@ -206,15 +160,13 @@ where `u,p,j,φ` are the unknowns and `α,β,γ,σ,B,f` are parameters.
 -  `:f=>VectorValue(0,0,0)`: Value of the parameter `f`.
 -  `:σ=>1`: Value of the parameter `σ`.
 """
-function init_params_fluid(_fluid,params)
-
+function params_fluid(params::Dict{Symbol,Any})
+  _fluid = params[:fluid]
   if !isa(_fluid,Dict{Symbol})
     error("The value params[:fluid] has to be a Dict{Symbol}, where params is the main paramter dict.")
   end
-
   fluid = Dict{Symbol,Any}()
   merge!(fluid,_fluid)
-
   mandatory = Dict(
    :domain=>true,
    :α=>true,
@@ -224,58 +176,42 @@ function init_params_fluid(_fluid,params)
    :f=>false,
    :σ=>false,
   )
-
   # Check that all mandatory key are in fluid
   for key in keys(mandatory)
     if mandatory[key] && !haskey(fluid,key)
-      error("Key :$key is a mandatory key in params[:fluid], being params the main parameter dict. See docs for init_params_fluid for a list of mandatory keys and their meaning.")
+      error("Key :$key is a mandatory key in params[:fluid], being params the main parameter dict. See docs for params_fluid for a list of mandatory keys and their meaning.")
     end
   end
-
   optional = Dict(:σ=>1,:f=>VectorValue(0,0,0))
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(fluid,key)
       fluid[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(fluid)
       if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:fluid], where params is the main parameter dict. See docs for init_params_fluid for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
+        error("Key :$key is not a valid key in params[:fluid], where params is the main parameter dict. See docs for params_fluid for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
       end
     end
   end
-
   fluid
 end
 
 """
-    init_params_solid(solid::Dict{Symbol},params::Dict{Symbol})
+    params_solid(params::Dict{Symbol,Any})
 
-Check validity of the solid-related parameter dictionary `solid`.
-Valid mandatory and optional keys for `solid` are detailed below.
-Returns a copy of `solid` with default values for the optional keys
-not provided in `solid`.
-The main parameter dictionary `params` is passed since the computation of some default
-values might rely on it.
+Check validity and return a copy of `params[:solid]` augmented with default values.
 
-The dict `solid` specifies the different parameters in the electric problem:
-
-     ∇⋅j = 0
-     j + σ*∇(φ) - σ*(u×B) = 0
-
-where `j,φ` are the unknowns and `σ` is a parameter.
+Valid keys for `params[:solid]` are the following
 
 # Mandatory keys
 - `domain`: Domain occupied by the solid.
@@ -284,42 +220,36 @@ where `j,φ` are the unknowns and `σ` is a parameter.
 # Optional keys
 -  `:σ=>1`: Value of the parameter `σ`.
 """
-function init_params_solid(_solid,params)
+function params_solid(params::Dict{Symbol,Any})
+  _solid = params[:solid]
   if !isa(_solid,Dict{Symbol})
     error("The value params[:solid] has to be a Dict{Symbol}, where params is the main paramter dict.")
   end
-
   solid = Dict{Symbol,Any}()
   merge!(solid,_solid)
-
   mandatory = Dict(
    :domain=>true,
    :σ=>false,
   )
-
   # Check that all mandatory key are in solid
   for key in keys(mandatory)
     if mandatory[key] && !haskey(solid,key)
       error("Key :$key is a mandatory key in params[:solid], being params the main parameter dict. See docs for init_params_solid for a list of mandatory keys and their meaning.")
     end
   end
-
   optional = Dict(:σ=>1)
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(solid,key)
       solid[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(solid)
@@ -328,46 +258,40 @@ function init_params_solid(_solid,params)
       end
     end
   end
-
   solid
 end
 
 """
-    init_params_bcs(bcs::Dict{Symbol},params::Dict{Symbol})
+    params_bcs(params::Dict{Symbol,Any})
 
-Check validity of the boundary condition related parameter dictionary `bcs`.
-Valid mandatory and optional keys for `bcs` are detailed below.
-Returns a copy of `bcs` with default values for the optional keys
-not provided in `bcs`.
-The main parameter dictionary `params` is passed since the computation of some default
-values might rely on it.
+Check validity and return a copy of `params[:bcs]` augmented with default values.
+
+Valid keys for `params[:bcs]` are the following
 
 # Mandatory keys
 - `:u`: A `Dict` defining strong Dirichlet conditions on the fluid velocity.
-   See  [`init_params_bcs_u`](@ref) for further details.
+   See  [`params_bcs_u!`](@ref) for further details.
 - `:j`: A `Dict` defining strong Dirichlet conditions on the charge current.
-   See  [`init_params_bcs_j`](@ref) for further details.
+   See  [`params_bcs_j!`](@ref) for further details.
 
 # Optional keys
 - `:φ=>[]`: A `Dict` or a vector of `Dict`s.
    Each `Dict` defines a weak boundary condition for the potential.
-   See  [`init_params_bcs_φ`](@ref) for further details.
+   See  [`params_bcs_φ!`](@ref) for further details.
 - `:t=>[]`: A `Dict` or a vector of `Dict`s.
   Each `Dict` defines a boundary traction on the fluid.
-   See  [`init_params_bcs_t`](@ref) for further details.
+   See  [`params_bcs_t!`](@ref) for further details.
 - `:thin_wall=>[]`: A `Dict` or a vector of `Dict`s.
   Each Dict defines a thin wall law.
-   See  [`init_params_bcs_thin_wall`](@ref) for further details.
+   See  [`params_bcs_thin_wall!`](@ref) for further details.
 """
-function init_params_bcs(_bcs,params)
-
+function params_bcs(params)
+  _bcs = params[:bcs]
   if !isa(_bcs,Dict{Symbol})
     error("The value params[:bcs] has to be a Dict{Symbol}, where params is the main paramter dict.")
   end
-
   bcs = Dict{Symbol,Any}()
   merge!(bcs,_bcs)
-
   mandatory = Dict(
    :u=>true,
    :j=>true,
@@ -375,34 +299,29 @@ function init_params_bcs(_bcs,params)
    :t=>false,
    :thin_wall=>false,
   )
-
   # Check that all mandatory key are in bcs
   for key in keys(mandatory)
     if mandatory[key] && !haskey(bcs,key)
       error("Key :$key is a mandatory key in params[:bcs], being params the main parameter dict. See docs for init_params_bcs for a list of mandatory keys and their meaning.")
     end
   end
-
   optional = Dict(
    :φ=>[],
    :t=>[],
    :thin_wall=>[],
   )
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(bcs,key)
       bcs[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(bcs)
@@ -411,72 +330,60 @@ function init_params_bcs(_bcs,params)
       end
     end
   end
-
-  bcs[:u] = init_params_bcs_u(bcs[:u],params)
-  bcs[:j] = init_params_bcs_j(bcs[:j],params)
-  bcs[:φ] = init_params_bcs_φ(bcs[:φ],params)
-  bcs[:t] = init_params_bcs_t(bcs[:t],params)
-  bcs[:thin_wall] = init_params_bcs_thin_wall(bcs[:thin_wall],params)
-
+  bcs[:u] = params_bcs_u(params)
+  bcs[:j] = params_bcs_j(params)
+  bcs[:φ] = params_bcs_φ(params)
+  bcs[:t] = params_bcs_t(params)
+  bcs[:thin_wall] = params_bcs_thin_wall(params)
   bcs
 end
 
 """
-    init_params_bcs_u(u::Dict{Symbol},params::Dict{Symbol})
+    params_bcs_u(params::Dict{Symbol,Any})
 
-Check validity of the boundary condition related parameter dictionary `u`.
-Valid mandatory and optional keys for `u` are detailed below.
-Returns a copy of `u` with default values for the optional keys
-not provided in `u`.
-The main parameter dictionary `params` is passed since the computation of some default
-values might rely on it.
+Check validity and return a copy of `params[:bcs][:u]` augmented with default values.
+
+Valid keys for `params[:bcs][:u]` are the following
 
 # Mandatory keys
 - `:tags`: Dirichlet tags where to impose strong boundary conditions for the fluid velocity.
 
 # Optional keys
-- `:values => zero_values(u[:tags])`: The fluid velocity value or function
+- `:values => zero_values(prams[:bcs][:u][:tags])`: The fluid velocity value or function
    to be imposed at each of the given tags.
 """
-function init_params_bcs_u(_u,params)
-
+function params_bcs_u(params::Dict{Symbol,Any})
+  _u = params[:bcs][:u]
   if !isa(_u,Dict{Symbol})
-    error("The value params[:u] has to be a Dict{Symbol}, where params is the main paramter dict.")
+    error("The value params[:bcs][:u] has to be a Dict{Symbol}, where params is the main paramter dict.")
   end
-
   u = Dict{Symbol,Any}()
   merge!(u,_u)
-
   mandatory = Dict(
    :tags=>true,
    :values=>false,
   )
-
   # Check that all mandatory key are in u
   for key in keys(mandatory)
     if mandatory[key] && !haskey(u,key)
       error("Key :$key is a mandatory key in params[:bcs][:u], being params the main parameter dict. See docs for init_params_bcs_u for a list of mandatory keys and their meaning.")
     end
   end
-
   optional = Dict(
     :values=>zero_values(u[:tags]),
   )
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(u,key)
       u[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(u)
@@ -485,7 +392,6 @@ function init_params_bcs_u(_u,params)
       end
     end
   end
-
   u
 end
 
@@ -493,14 +399,11 @@ zero_values(tags) = VectorValue(0,0,0)
 zero_values(tags::Vector) = map(zero_values,tags)
 
 """
-    init_params_bcs_j(j::Dict{Symbol},params::Dict{Symbol})
+    params_bcs_j(params::Dict{Symbol,Any})
 
-Check validity of the boundary condition related parameter dictionary `j`.
-Valid mandatory and optional keys for `j` are detailed below.
-Returns a copy of `j` with default values for the optional keys
-not provided in `j`.
-The main parameter dictionary `params` is passed since the computation of some default
-values might rely on it.
+Check validity and return a copy of `params[:bcs][:j]` augmented with default values.
+
+Valid keys for `params[:bcs][:j]` are the following
 
 # Mandatory keys
 - `:tags`: Dirichlet tags where to impose strong boundary conditions for the charge current in normal direction.
@@ -509,45 +412,38 @@ values might rely on it.
 - `:values => zero_values(j[:tags])`: The charge current value or function
    to be imposed at each of the given tags.
 """
-function init_params_bcs_j(_j,params)
-
+function params_bcs_j!(params::Dict{Symbol,Any})
+  _j = params[:bcs][:j]
   if !isa(_j,Dict{Symbol})
-    error("The value params[:j] has to be a Dict{Symbol}, where params is the main paramter dict.")
+    error("The value params[:bcs][:j] has to be a Dict{Symbol}, where params is the main paramter dict.")
   end
-
   j = Dict{Symbol,Any}()
   merge!(j,_j)
-
   mandatory = Dict(
    :tags=>true,
    :values=>false,
   )
-
   # Check that all mandatory key are in u
   for key in keys(mandatory)
     if mandatory[key] && !haskey(j,key)
       error("Key :$key is a mandatory key in params[:bcs][:j], being params the main parameter dict. See docs for init_params_bcs_j for a list of mandatory keys and their meaning.")
     end
   end
-
   optional = Dict(
     :values=>zero_values(j[:tags]),
   )
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(j,key)
       j[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(j)
@@ -556,20 +452,15 @@ function init_params_bcs_j(_j,params)
       end
     end
   end
-
   j
 end
 
-function init_params_bcs_φ(φ,params)
-  error("The value params[:bcs][:φ] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
-end
-
-function init_params_bcs_φ(φ::AbstractVector,params)
-  map(i->init_params_bcs_φ(φ[i],params,"[$i]"),1:length(φ))
-end
-
 """
-    init_params_bcs_φ(φ::Dict{Symbol},params::Dict{Symbol})
+    params_bcs_φ(params::Dict{Symbol,Any})
+
+Check validity and return a copy of `params[:bcs][:φ]` augmented with default values.
+
+Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 
 # Mandatory keys
 - `:domain`: Domain where to impose the potential weakly.
@@ -577,38 +468,44 @@ end
   tag in the underlying discrete model.
 - `:value`: Value of the electric potential to be imposed weakly.
 """
-function init_params_bcs_φ(_φ::Dict{Symbol},params,i="")
+function params_bcs_φ(params::Dict{Symbol,Any})
+  _params_bcs_φ(params[:bcs][:φ],params)
+end
+
+function _params_bcs_φ(φ,params)
+  error("The value params[:bcs][:φ] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
+end
+
+function _params_bcs_φ(φ::AbstractVector,params)
+  map(i->_params_bcs_φ(φ[i],params,"[$i]"),1:length(φ))
+end
+
+function _params_bcs_φ(_φ::Dict{Symbol},params,i="")
   φ = Dict{Symbol,Any}()
   merge!(φ,_φ)
-
   mandatory = Dict(
    :domain=>true,
    :value=>true,
   )
-
   # Check that all mandatory key are in u
   for key in keys(mandatory)
     if mandatory[key] && !haskey(φ,key)
       error("Key :$key is a mandatory key in params[:bcs][:φ]$i, being params the main parameter dict. See docs for init_params_bcs_φ for a list of mandatory keys and their meaning.")
     end
   end
-
   optional = Dict()
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(φ,key)
       φ[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(φ)
@@ -617,20 +514,15 @@ function init_params_bcs_φ(_φ::Dict{Symbol},params,i="")
       end
     end
   end
-
   φ
 end
 
-function init_params_bcs_t(t,params)
-  error("The value params[:bcs][:t] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
-end
-
-function init_params_bcs_t(t::AbstractVector,params)
-  map(i->init_params_bcs_t(t[i],params,"[$i]"),1:length(t))
-end
-
 """
-    init_params_bcs_t(t::Dict{Symbol},params::Dict{Symbol})
+    params_bcs_t(params::Dict{Symbol,Any})
+
+Check validity and return a copy of `params[:bcs][:t]` augmented with default values.
+
+Valid keys for the dictionaries in `params[:bcs][:t]` are the following.
 
 # Mandatory keys
 - `:domain`: Domain where to impose the fluid boundary traction weakly.
@@ -638,38 +530,44 @@ end
   tag in the underlying discrete model.
 - `:value`: Value of the fluid traction to be imposed weakly.
 """
-function init_params_bcs_t(_t::Dict{Symbol},params,i="")
+function params_bcs_t(params::Dict{Symbol,Any})
+  _params_bcs_t(params[:bcs][:t],params)
+end
+
+function _params_bcs_t(t,params)
+  error("The value params[:bcs][:t] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
+end
+
+function _params_bcs_t(t::AbstractVector,params)
+  map(i->_params_bcs_t(t[i],params,"[$i]"),1:length(t))
+end
+
+function _params_bcs_t(_t::Dict{Symbol},params,i="")
   t = Dict{Symbol,Any}()
   merge!(t,_t)
-
   mandatory = Dict(
    :domain=>true,
    :value=>true,
   )
-
   # Check that all mandatory key are in u
   for key in keys(mandatory)
     if mandatory[key] && !haskey(t,key)
       error("Key :$key is a mandatory key in params[:bcs][:t]$i, being params the main parameter dict. See docs for init_params_bcs_t for a list of mandatory keys and their meaning.")
     end
   end
-
   optional = Dict()
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(t,key)
       t[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(t)
@@ -678,20 +576,15 @@ function init_params_bcs_t(_t::Dict{Symbol},params,i="")
       end
     end
   end
-
   t
 end
 
-function init_params_bcs_thin_wall(thin_wall,params)
-  error("The value params[:bcs][:thin_wall] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
-end
-
-function init_params_bcs_thin_wall(thin_wall::AbstractVector,params)
-  map(i->init_params_bcs_thin_wall(thin_wall[i],params,"[$i]"),1:length(thin_wall))
-end
-
 """
-    init_params_bcs_thin_wall(t::Dict{Symbol},params::Dict{Symbol})
+    params_bcs_thin_wall(params::Dict{Symbol,Any})
+
+Check validity and return a copy of `params[:bcs][:thin_wall]` augmented with default values.
+
+Valid keys for the dictionaries in `params[:bcs][:thin_wall]` are the following.
 
 The thin wall law is
     j⋅n + cw*n⋅∇(j)⋅n = jw
@@ -699,7 +592,7 @@ The thin wall law is
 The thin wall law is imposed weakly via a penalty parameter `τ`.
 
 # Mandatory keys
-- `:domain`: Domain where to impose the fluid boundary traction weakly.
+- `:domain`: Domain where to impose the thin wall law.
   The domain is represented either with a `Triangulation` or with a `Integer`/`String`
   tag in the underlying discrete model.
 - `:cw`: Value of the parameter `cw`.
@@ -708,40 +601,46 @@ The thin wall law is imposed weakly via a penalty parameter `τ`.
 # Optional keys
 - `:jw=>0`: Value of the parameter `jw`.
 """
-function init_params_bcs_thin_wall(_thin_wall::Dict{Symbol},params,i="")
+function params_bcs_thin_wall(params::Dict{Symbol,Any})
+  _params_bcs_thin_wall(params[:bcs][:thin_wall],params)
+end
+
+function _params_bcs_thin_wall(thin_wall,params)
+  error("The value params[:bcs][:thin_wall] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
+end
+
+function _params_bcs_thin_wall(thin_wall::AbstractVector,params)
+  map(i->_params_bcs_thin_wall(thin_wall[i],params,"[$i]"),1:length(thin_wall))
+end
+
+function _params_bcs_thin_wall(_thin_wall::Dict{Symbol},params,i="")
   thin_wall = Dict{Symbol,Any}()
   merge!(thin_wall,_thin_wall)
-
   mandatory = Dict(
    :domain=>true,
    :cw=>true,
    :τ=>true,
    :jw=>false,
   )
-
   # Check that all mandatory key are in u
   for key in keys(mandatory)
     if mandatory[key] && !haskey(thin_wall,key)
       error("Key :$key is a mandatory key in params[:bcs][:thin_wall]$i, being params the main parameter dict. See docs for init_params_bcs_thin_wall for a list of mandatory keys and their meaning.")
     end
   end
-
   optional = Dict(:jw=>0)
-
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
       error("Internal error")
     end
   end
-
   # Set default args
   for key in keys(optional)
     if !haskey(thin_wall,key)
       thin_wall[key] = optional[key]
     end
   end
-
   # Check that we dont have unused params
   if params[:check_valid]
     for key in keys(thin_wall)
@@ -750,10 +649,65 @@ function init_params_bcs_thin_wall(_thin_wall::Dict{Symbol},params,i="")
       end
     end
   end
-
   thin_wall
 end
 
+"""
+    main(params::Dict{Symbol}) -> xh
+
+Solve the MHD equations. Function `main` takes a dictionary `params`
+that contains several parameters defining a MHD problem (see below)
+and returns an object `xh` representing the solution of the MHD problem.
+The returned value is of type `Gridap.MultiField.MultiFieldFEFunction`,
+which can be unpacked to get access to the different fields of the MHD solution
+(fluid velocity, fluid pressure, charge current, and electric potential respectively).
+One can further post process these quantities using the tools provided by Gridap.
+
+In the fluid domain, the equations being solved are
+
+     ∇⋅j = 0
+     j + σ*∇(φ) - σ*(u×B) = 0
+     ∇⋅u = 0
+     α*u⋅∇(u) - β*Δ(u) + ∇(p) - γ*(j×B) = f
+
+where `u,p,j,φ` are the unknowns and `α,β,γ,σ,B,f` are (possibly spatially-dependent) parameters.  In the solid domain, we solve
+
+     ∇⋅j = 0
+     j + σ*∇(φ) = 0
+
+where `j,φ` are the unknowns and `σ` is a (possibly spatially-dependent) parameter.
+These equations are augmented with suitable boundary conditions (see below).
+
+The MHD problem is customized by setting the following keys in `params`.
+
+# Mandatory keys
+- `:model`: The finite element mesh representing the union of the fluid and solid domains. It should be either a `Gridap.DiscreteModel`
+or a `GridapDistributed.DistributedDiscreteModel`
+- `:fluid`: A `Dict` defining the fluid domain and fluid parameters.
+   See [`params_fluid`](@ref) for further details.
+- `:bcs`: A `Dict` defining the boundary conditions and other external loads.
+  See [`params_bcs`](@ref) for further details.
+
+# Optional keys
+- `:solid => nothing`:
+  A `Dict` defining the solid domain and solid parameters.
+  If not provided or set to `nothing` the solid domain is not taken into account.
+  See [`params_solid`](@ref) for further details.
+- `:k => 2`:
+  Maximum interpolation order (i.e., the order used for the fluid velocity).
+- `:solver => default_solver()`:
+  Nonlinear solver to compute the solution.
+    It should be an instance of some type implementing the `NonlinearSolver` interface of Gridap.
+- `:debug => false`:
+  If true, setup the problem, but do not solve it. Otherwise, solve it.
+- `:check_valid => true`: If `true`, check that all given keys are valid. Otherwise, silently ignore invalid keys.
+- `:matrix_type => SparseMatrixCSC{Float64,Int32}`:
+   Matrix type to assemble the problem.
+- `:vector_type => Vector{Float64}`:
+  Vector type to assemble the problem.
+- `:ptimer => default_ptimer(params[:model])`:
+  Instance of `PTimer` used to monitor times. New time measurements are added to the given timer.
+"""
 function main(params::Dict)
 
   defaults = Dict(
