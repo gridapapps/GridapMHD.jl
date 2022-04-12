@@ -90,7 +90,7 @@ function add_default_params(_params)
   # Check that all mandatory key are in params
   for key in keys(mandatory)
     if mandatory[key] && !haskey(params,key)
-      error("Key :$key is a mandatory key in the main parameter dict, but it is not provided. See docs for add_default_params for a list of mandatory keys and their meaning.")
+      error("Key :$key is a mandatory key in the main parameter dict, but it is not provided. See docs for GridapMHD.main for a list of mandatory keys and their meaning.")
     end
   end
   # Compute default values for optional keys
@@ -121,7 +121,7 @@ function add_default_params(_params)
   if params[:check_valid]
     for key in keys(params)
       if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in the main parameter dict. See docs for add_default_params for a list of valid keys. Set key :check_valid to false to ignore invalid keys.")
+        error("Key :$key is not a valid key in the main parameter dict. See docs for GridapMHD.main for a list of valid keys. Set key :check_valid to false to ignore invalid keys.")
       end
     end
   end
@@ -286,6 +286,8 @@ function params_bcs(params)
    :φ=>false,
    :t=>false,
    :thin_wall=>false,
+   :f => false,
+   :B => false,
   )
   # Check that all mandatory key are in bcs
   for key in keys(mandatory)
@@ -297,6 +299,8 @@ function params_bcs(params)
    :φ=>[],
    :t=>[],
    :thin_wall=>[],
+   :f =>[],
+   :B =>[],
   )
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
@@ -320,9 +324,15 @@ function params_bcs(params)
   end
   bcs[:u] = params_bcs_u(params)
   bcs[:j] = params_bcs_j(params)
-  bcs[:φ] = params_bcs_φ(params)
-  bcs[:t] = params_bcs_t(params)
-  bcs[:thin_wall] = params_bcs_thin_wall(params)
+  if bcs[:φ] !== optional[:φ]
+    bcs[:φ] = params_bcs_φ(params)
+  end
+  if bcs[:t] !== optional[:t]
+    bcs[:t] = params_bcs_t(params)
+  end
+  if bcs[:thin_wall] !== optional[:thin_wall]
+    bcs[:thin_wall] = params_bcs_thin_wall(params)
+  end
   bcs
 end
 
@@ -445,7 +455,8 @@ Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 - `:value`: Value of the electric potential to be imposed weakly.
 """
 function params_bcs_φ(params::Dict{Symbol,Any})
-  _params_bcs_φ(params[:bcs][:φ],params)
+  r = _params_bcs_φ(params[:bcs][:φ],params)
+  isa(r,Dict) ? [r] : r
 end
 
 function _params_bcs_φ(φ,params)
@@ -503,7 +514,8 @@ Valid keys for the dictionaries in `params[:bcs][:t]` are the following.
 - `:value`: Value of the fluid traction to be imposed weakly.
 """
 function params_bcs_t(params::Dict{Symbol,Any})
-  _params_bcs_t(params[:bcs][:t],params)
+  r = _params_bcs_t(params[:bcs][:t],params)
+  isa(r,Dict) ? [r] : r
 end
 
 function _params_bcs_t(t,params)
@@ -572,7 +584,8 @@ The thin wall law is imposed weakly via a penalty parameter `τ`.
 - `:jw=>0`: Value of the parameter `jw`.
 """
 function params_bcs_thin_wall(params::Dict{Symbol,Any})
-  _params_bcs_thin_wall(params[:bcs][:thin_wall],params)
+  r = _params_bcs_thin_wall(params[:bcs][:thin_wall],params)
+  isa(r,Dict) ? [r] : r
 end
 
 function _params_bcs_thin_wall(thin_wall,params)
@@ -623,15 +636,17 @@ function _params_bcs_thin_wall(_thin_wall::Dict{Symbol},params,i="")
 end
 
 """
-    main(params::Dict{Symbol}) -> xh
+    main(params::Dict{Symbol}) -> xh, full_params
 
 Solve the MHD equations. Function `main` takes a dictionary `params`
 that contains several parameters defining a MHD problem (see below)
-and returns an object `xh` representing the solution of the MHD problem.
-The returned value is of type `Gridap.MultiField.MultiFieldFEFunction`,
+and returns `xh` and `full_params`.
+Object `xh` represents the solution of the MHD problem and it is of type `Gridap.MultiField.MultiFieldFEFunction`,
 which can be unpacked to get access to the different fields of the MHD solution
 (fluid velocity, fluid pressure, charge current, and electric potential respectively).
 One can further post process these quantities using the tools provided by Gridap.
+On the other hand `full_params` is a copy of `params` augmented with the default values
+used in the computation.
 
 In the fluid domain, the equations being solved are
 
@@ -678,47 +693,37 @@ or a `GridapDistributed.DistributedDiscreteModel`
 - `:ptimer => default_ptimer(params[:model])`:
   Instance of `PTimer` used to monitor times. New time measurements are added to the given timer.
 """
-function main(params::Dict)
+function main(_params::Dict)
 
-  defaults = Dict(
-    :solver=>NLSolver(show_trace=true,method=:newton),
-    :solver_postpro=> (x->nothing),
-    :matrix_type=>SparseMatrixCSC{Float64,Int},
-    :vector_type=>Vector{Float64},
-    :ptimer=>PTimer(get_part_ids(sequential,1)),
-    :fluid=>Dict(
-      :k=>2,
-      :φ=>[],
-      :t=>[],
-      :thin_wall=>[]
-    )
-  )
-  add_defaults!(params,defaults)
+  params = add_default_params(_params)
 
   t = params[:ptimer]
   tic!(t;barrier=true)
-  k = params[:fluid][:k]
-  Ω = params[:fluid][:domain]
+
+  # ReferenceFEs
+  k::Int = params[:k]
   T = Float64
-  D = num_cell_dims(Ω)
+  model = params[:model]
+  D = num_cell_dims(model)
   reffe_u = ReferenceFE(lagrangian,VectorValue{D,T},k)
   reffe_p = ReferenceFE(lagrangian,T,k-1;space=:P)
   reffe_j = ReferenceFE(raviart_thomas,T,k-1)
   reffe_φ = ReferenceFE(lagrangian,T,k-1)
 
   # Test spaces
-  V_u = TestFESpace(Ω,reffe_u;dirichlet_tags=params[:fluid][:u][:tags])
-  V_p = TestFESpace(Ω,reffe_p;conformity=p_conformity(Ω))
-  V_j = TestFESpace(Ω,reffe_j;dirichlet_tags=params[:fluid][:j][:tags])
-  V_φ = TestFESpace(Ω,reffe_φ;conformity=:L2)
+  Ωf = _fluid_mesh(model,params[:fluid][:domain])
+  V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
+  V_p = TestFESpace(Ωf,reffe_p;conformity=p_conformity(Ωf))
+  V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
+  V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ])
 
   # Trial spaces
   # TODO improve for parallel computations
   tic!(t;barrier=true)
   z = zero(VectorValue{D,Float64})
-  u_bc = params[:fluid][:u][:values]
-  j_bc = params[:fluid][:j][:values]
+  u_bc = params[:bcs][:u][:values]
+  j_bc = params[:bcs][:j][:values]
   U_u = u_bc == z ? V_u : TrialFESpace(V_u,u_bc)
   U_j = j_bc == z ? V_j : TrialFESpace(V_j,j_bc)
   U_p = TrialFESpace(V_p)
@@ -747,7 +752,49 @@ function main(params::Dict)
   end
   toc!(t,"solve")
 
-  xh
+  xh, params
+end
+
+function _fluid_mesh(
+  model,domain::Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel})
+  msg = "params[:fluid][:domain] is a discrete model, but params[:fluid][:domain]===params[:model] is not true."
+  @assert model === domain msg
+  domain
+end
+
+function _fluid_mesh(
+  model,
+  domain::Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation})
+  domain
+end
+
+function _fluid_mesh( model, domain)
+  Interior(model,tags=domain)
+end
+
+function _interior(
+  model,domain::Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel})
+  Interior(domain)
+end
+
+function _interior(
+  model,
+  domain::Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation})
+  domain
+end
+
+function _interior( model, domain)
+  Interior(model,tags=domain)
+end
+
+function _boundary(
+  model,
+  domain::Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation})
+  domain
+end
+
+function _boundary( model, domain)
+  Boundary(model,tags=domain)
 end
 
 function _rand(vt::Type{<:Vector{T}},r::AbstractUnitRange) where T
@@ -818,59 +865,59 @@ function weak_form(params,k)
 
   fluid = params[:fluid]
 
-  Ω = Triangulation(fluid[:domain])
-  dΩ = Measure(Ω,2*k)
-  D = num_cell_dims(Ω)
-  z = zero(VectorValue{D,Float64})
+  Ωf = _interior(params[:model],fluid[:domain])
+  dΩf = Measure(Ωf,2*k)
 
   α = fluid[:α]
   β = fluid[:β]
   γ = fluid[:γ]
-  f = isa(fluid[:f],VectorValue) ? fluid[:f] : z
-  B = isa(fluid[:B],VectorValue) ? fluid[:B] : z
+  f = fluid[:f]
+  B = fluid[:B]
+
+  bcs = params[:bcs]
 
   params_φ = []
-  for i in 1:length(fluid[:φ])
-    φ_i = fluid[:φ][i][:value]
-    Γ = fluid[:φ][i][:domain]
+  for i in 1:length(bcs[:φ])
+    φ_i = bcs[:φ][i][:value]
+    Γ = _boundary(params[:model],bcs[:φ][i][:domain])
     dΓ = Measure(Γ,2*k)
     n_Γ = get_normal_vector(Γ)
     push!(params_φ,(φ_i,n_Γ,dΓ))
   end
 
   params_thin_wall = []
-  for i in 1:length(fluid[:thin_wall])
-    τ_i = fluid[:thin_wall][i][:τ]
-    cw_i = fluid[:thin_wall][i][:cw]
-    jw_i = fluid[:thin_wall][i][:jw]
-    Γ = fluid[:thin_wall][i][:domain]
+  for i in 1:length(bcs[:thin_wall])
+    τ_i = bcs[:thin_wall][i][:τ]
+    cw_i = bcs[:thin_wall][i][:cw]
+    jw_i = bcs[:thin_wall][i][:jw]
+    Γ = _boundary(params[:model],bcs[:thin_wall][i][:domain])
     dΓ = Measure(Γ,2*k)
     n_Γ = get_normal_vector(Γ)
     push!(params_thin_wall,(τ_i,cw_i,jw_i,n_Γ,dΓ))
   end
 
+  if length(bcs[:t]) != 0
+    error("Boundary tranction not yet implemented")
+  end
+
   params_f = []
-  if !isa(fluid[:f],VectorValue)
-    for i in 1:length(fluid[:f])
-      f_i = fluid[:f][i][:value]
-      Ω_i = fluid[:f][i][:domain]
-      dΩ_i = Measure(Ω_i,2*k)
-      push!(params_f,(f_i,dΩ_i))
-    end
+  for i in 1:length(bcs[:f])
+    f_i = bcs[:f][i][:value]
+    Ω_i = _interior(params[:model],bcs[:f][i][:domain])
+    dΩ_i = Measure(Ω_i,2*k)
+    push!(params_f,(f_i,dΩ_i))
   end
 
   params_B = []
-  if !isa(fluid[:B],VectorValue)
-    for i in 1:length(fluid[:B])
-      B_i = fluid[:B][i][:value]
-      Ω_i = fluid[:B][i][:domain]
-      dΩ_i = Measure(Ω_i,2*k)
-      push!(params_f,(γ,B_i,dΩ_i))
-    end
+  for i in 1:length(bcs[:B])
+    B_i = bcs[:B][i][:value]
+    Ω_i = _interior(params[:model],bcs[:B][i][:domain])
+    dΩ_i = Measure(Ω_i,2*k)
+    push!(params_f,(γ,B_i,dΩ_i))
   end
 
   function a(x,dy)
-    r = a_mhd(x,dy,β,γ,B,dΩ)
+    r = a_mhd(x,dy,β,γ,B,dΩf)
     for p in params_thin_wall
       r = r + a_thin_wall(x,dy,p...)
     end
@@ -881,7 +928,7 @@ function weak_form(params,k)
   end
 
   function ℓ(dy)
-    r = ℓ_mhd(dy,f,dΩ)
+    r = ℓ_mhd(dy,f,dΩf)
     for p in params_φ
       r = r + ℓ_φ(dy,p...)
     end
@@ -895,12 +942,12 @@ function weak_form(params,k)
   end
 
   function c(x,dy)
-    r = c_mhd(x,dy,α,dΩ)
+    r = c_mhd(x,dy,α,dΩf)
     r
   end
 
   function dc(x,dx,dy)
-    r = dc_mhd(x,dx,dy,α,dΩ)
+    r = dc_mhd(x,dx,dy,α,dΩf)
     r
   end
 
