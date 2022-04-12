@@ -138,10 +138,6 @@ default_ptimer(model) = PTimer(get_part_ids(sequential,1))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_part_ids(model.models))
 
 """
-    params_fluid(params::Dict{Symbol,Any})
-
-Check validity and return a copy of `params[:fluid]` augmented with default values.
-
 Valid keys for `params[:fluid]` are the following.
 
 # Mandatory keys
@@ -207,10 +203,6 @@ function params_fluid(params::Dict{Symbol,Any})
 end
 
 """
-    params_solid(params::Dict{Symbol,Any})
-
-Check validity and return a copy of `params[:solid]` augmented with default values.
-
 Valid keys for `params[:solid]` are the following
 
 # Mandatory keys
@@ -262,28 +254,24 @@ function params_solid(params::Dict{Symbol,Any})
 end
 
 """
-    params_bcs(params::Dict{Symbol,Any})
-
-Check validity and return a copy of `params[:bcs]` augmented with default values.
-
 Valid keys for `params[:bcs]` are the following
 
 # Mandatory keys
 - `:u`: A `Dict` defining strong Dirichlet conditions on the fluid velocity.
-   See  [`params_bcs_u!`](@ref) for further details.
+   See  [`params_bcs_u`](@ref) for further details.
 - `:j`: A `Dict` defining strong Dirichlet conditions on the charge current.
-   See  [`params_bcs_j!`](@ref) for further details.
+   See  [`params_bcs_j`](@ref) for further details.
 
 # Optional keys
 - `:φ=>[]`: A `Dict` or a vector of `Dict`s.
    Each `Dict` defines a weak boundary condition for the potential.
-   See  [`params_bcs_φ!`](@ref) for further details.
+   See  [`params_bcs_φ`](@ref) for further details.
 - `:t=>[]`: A `Dict` or a vector of `Dict`s.
   Each `Dict` defines a boundary traction on the fluid.
-   See  [`params_bcs_t!`](@ref) for further details.
+   See  [`params_bcs_t`](@ref) for further details.
 - `:thin_wall=>[]`: A `Dict` or a vector of `Dict`s.
   Each Dict defines a thin wall law.
-   See  [`params_bcs_thin_wall!`](@ref) for further details.
+   See  [`params_bcs_thin_wall`](@ref) for further details.
 """
 function params_bcs(params)
   _bcs = params[:bcs]
@@ -339,10 +327,6 @@ function params_bcs(params)
 end
 
 """
-    params_bcs_u(params::Dict{Symbol,Any})
-
-Check validity and return a copy of `params[:bcs][:u]` augmented with default values.
-
 Valid keys for `params[:bcs][:u]` are the following
 
 # Mandatory keys
@@ -399,20 +383,16 @@ zero_values(tags) = VectorValue(0,0,0)
 zero_values(tags::Vector) = map(zero_values,tags)
 
 """
-    params_bcs_j(params::Dict{Symbol,Any})
-
-Check validity and return a copy of `params[:bcs][:j]` augmented with default values.
-
 Valid keys for `params[:bcs][:j]` are the following
 
 # Mandatory keys
 - `:tags`: Dirichlet tags where to impose strong boundary conditions for the charge current in normal direction.
 
 # Optional keys
-- `:values => zero_values(j[:tags])`: The charge current value or function
+- `:values => zero_values(params[:bcs][:j][:tags])`: The charge current value or function
    to be imposed at each of the given tags.
 """
-function params_bcs_j!(params::Dict{Symbol,Any})
+function params_bcs_j(params::Dict{Symbol,Any})
   _j = params[:bcs][:j]
   if !isa(_j,Dict{Symbol})
     error("The value params[:bcs][:j] has to be a Dict{Symbol}, where params is the main paramter dict.")
@@ -456,10 +436,6 @@ function params_bcs_j!(params::Dict{Symbol,Any})
 end
 
 """
-    params_bcs_φ(params::Dict{Symbol,Any})
-
-Check validity and return a copy of `params[:bcs][:φ]` augmented with default values.
-
 Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 
 # Mandatory keys
@@ -518,10 +494,6 @@ function _params_bcs_φ(_φ::Dict{Symbol},params,i="")
 end
 
 """
-    params_bcs_t(params::Dict{Symbol,Any})
-
-Check validity and return a copy of `params[:bcs][:t]` augmented with default values.
-
 Valid keys for the dictionaries in `params[:bcs][:t]` are the following.
 
 # Mandatory keys
@@ -580,15 +552,13 @@ function _params_bcs_t(_t::Dict{Symbol},params,i="")
 end
 
 """
-    params_bcs_thin_wall(params::Dict{Symbol,Any})
-
-Check validity and return a copy of `params[:bcs][:thin_wall]` augmented with default values.
-
 Valid keys for the dictionaries in `params[:bcs][:thin_wall]` are the following.
 
 The thin wall law is
+
     j⋅n + cw*n⋅∇(j)⋅n = jw
-`j` is unknown, `n  is the boundary outward normal, and `cw,jw` are parameters.
+
+where `j` is unknown, `n`  is the boundary outward normal, and `cw,jw` are parameters.
 The thin wall law is imposed weakly via a penalty parameter `τ`.
 
 # Mandatory keys
