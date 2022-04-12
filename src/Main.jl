@@ -67,12 +67,6 @@ default values for the optional keys not provided in `params`.
 It also checks the validity of the main parameter dictionary `params`.
 """
 function add_default_params(_params)
-  if !isa(_params,Dict{Symbol})
-    error("The main paramter dict has to be a Dict{Symbol}")
-  end
-  params = Dict{Symbol,Any}()
-  merge!(params,_params)
-  # Define mandatory and optional parameters at this level
   mandatory = Dict(
     :ptimer=>false,
     :debug=>false,
@@ -87,16 +81,10 @@ function add_default_params(_params)
     :check_valid=>false,
     :solver_postpro=>false,
   )
-  # Check that all mandatory key are in params
-  for key in keys(mandatory)
-    if mandatory[key] && !haskey(params,key)
-      error("Key :$key is a mandatory key in the main parameter dict, but it is not provided. See docs for GridapMHD.main for a list of mandatory keys and their meaning.")
-    end
-  end
-  # Compute default values for optional keys
+  _check_mandatory(_params,mandatory,"")
   optional = Dict(
     :solid=>nothing,
-    :ptimer=>default_ptimer(params[:model]),
+    :ptimer=>default_ptimer(_params[:model]),
     :debug=>false,
     :solver=>NLSolver(show_trace=true,method=:newton),
     :solver_postpro => (x->nothing),
@@ -105,26 +93,8 @@ function add_default_params(_params)
     :k=>2,
     :check_valid=>true,
   )
-  # Check that we have computed defaults for all optionals
-  for key in keys(mandatory)
-    if !mandatory[key] && !haskey(optional,key)
-      error("Internal error")
-    end
-  end
-  # Set default args
-  for key in keys(optional)
-    if !haskey(params,key)
-      params[key] = optional[key]
-    end
-  end
-  # Check that we dont have unused params
-  if params[:check_valid]
-    for key in keys(params)
-      if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in the main parameter dict. See docs for GridapMHD.main for a list of valid keys. Set key :check_valid to false to ignore invalid keys.")
-      end
-    end
-  end
+  params = _add_optional(_params,mandatory,optional,_params,"")
+  _check_unused(params,mandatory,params,"")
   # Process sub-params
   params[:fluid] = params_fluid(params)
   if params[:solid] !== nothing
@@ -157,12 +127,6 @@ Valid keys for `params[:fluid]` are the following.
 -  `:σ=>1`: Value of the parameter `σ`.
 """
 function params_fluid(params::Dict{Symbol,Any})
-  _fluid = params[:fluid]
-  if !isa(_fluid,Dict{Symbol})
-    error("The value params[:fluid] has to be a Dict{Symbol}, where params is the main paramter dict.")
-  end
-  fluid = Dict{Symbol,Any}()
-  merge!(fluid,_fluid)
   mandatory = Dict(
    :domain=>true,
    :α=>true,
@@ -172,33 +136,8 @@ function params_fluid(params::Dict{Symbol,Any})
    :f=>false,
    :σ=>false,
   )
-  # Check that all mandatory key are in fluid
-  for key in keys(mandatory)
-    if mandatory[key] && !haskey(fluid,key)
-      error("Key :$key is a mandatory key in params[:fluid], being params the main parameter dict. See docs for params_fluid for a list of mandatory keys and their meaning.")
-    end
-  end
   optional = Dict(:σ=>1,:f=>VectorValue(0,0,0))
-  # Check that we have computed defaults for all optionals
-  for key in keys(mandatory)
-    if !mandatory[key] && !haskey(optional,key)
-      error("Internal error")
-    end
-  end
-  # Set default args
-  for key in keys(optional)
-    if !haskey(fluid,key)
-      fluid[key] = optional[key]
-    end
-  end
-  # Check that we dont have unused params
-  if params[:check_valid]
-    for key in keys(fluid)
-      if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:fluid], where params is the main parameter dict. See docs for params_fluid for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
-      end
-    end
-  end
+  fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
   fluid
 end
 
@@ -213,43 +152,12 @@ Valid keys for `params[:solid]` are the following
 -  `:σ=>1`: Value of the parameter `σ`.
 """
 function params_solid(params::Dict{Symbol,Any})
-  _solid = params[:solid]
-  if !isa(_solid,Dict{Symbol})
-    error("The value params[:solid] has to be a Dict{Symbol}, where params is the main paramter dict.")
-  end
-  solid = Dict{Symbol,Any}()
-  merge!(solid,_solid)
   mandatory = Dict(
    :domain=>true,
    :σ=>false,
   )
-  # Check that all mandatory key are in solid
-  for key in keys(mandatory)
-    if mandatory[key] && !haskey(solid,key)
-      error("Key :$key is a mandatory key in params[:solid], being params the main parameter dict. See docs for init_params_solid for a list of mandatory keys and their meaning.")
-    end
-  end
   optional = Dict(:σ=>1)
-  # Check that we have computed defaults for all optionals
-  for key in keys(mandatory)
-    if !mandatory[key] && !haskey(optional,key)
-      error("Internal error")
-    end
-  end
-  # Set default args
-  for key in keys(optional)
-    if !haskey(solid,key)
-      solid[key] = optional[key]
-    end
-  end
-  # Check that we dont have unused params
-  if params[:check_valid]
-    for key in keys(solid)
-      if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:solid], where params is the main parameter dict. See docs for init_params_solid for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
-      end
-    end
-  end
+  solid = _check_mandatory_and_add_optional(params[:solid],mandatory,optional,params,"[:solid]")
   solid
 end
 
@@ -274,12 +182,6 @@ Valid keys for `params[:bcs]` are the following
    See  [`params_bcs_thin_wall`](@ref) for further details.
 """
 function params_bcs(params)
-  _bcs = params[:bcs]
-  if !isa(_bcs,Dict{Symbol})
-    error("The value params[:bcs] has to be a Dict{Symbol}, where params is the main paramter dict.")
-  end
-  bcs = Dict{Symbol,Any}()
-  merge!(bcs,_bcs)
   mandatory = Dict(
    :u=>true,
    :j=>true,
@@ -289,12 +191,6 @@ function params_bcs(params)
    :f => false,
    :B => false,
   )
-  # Check that all mandatory key are in bcs
-  for key in keys(mandatory)
-    if mandatory[key] && !haskey(bcs,key)
-      error("Key :$key is a mandatory key in params[:bcs], being params the main parameter dict. See docs for init_params_bcs for a list of mandatory keys and their meaning.")
-    end
-  end
   optional = Dict(
    :φ=>[],
    :t=>[],
@@ -302,26 +198,8 @@ function params_bcs(params)
    :f =>[],
    :B =>[],
   )
-  # Check that we have computed defaults for all optionals
-  for key in keys(mandatory)
-    if !mandatory[key] && !haskey(optional,key)
-      error("Internal error")
-    end
-  end
-  # Set default args
-  for key in keys(optional)
-    if !haskey(bcs,key)
-      bcs[key] = optional[key]
-    end
-  end
-  # Check that we dont have unused params
-  if params[:check_valid]
-    for key in keys(bcs)
-      if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:bcs], where params is the main parameter dict. See docs for init_params_bcs for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
-      end
-    end
-  end
+  bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")
+  # Sub params
   bcs[:u] = params_bcs_u(params)
   bcs[:j] = params_bcs_j(params)
   if bcs[:φ] !== optional[:φ]
@@ -347,45 +225,16 @@ Valid keys for `params[:bcs][:u]` are the following
    to be imposed at each of the given tags.
 """
 function params_bcs_u(params::Dict{Symbol,Any})
-  _u = params[:bcs][:u]
-  if !isa(_u,Dict{Symbol})
-    error("The value params[:bcs][:u] has to be a Dict{Symbol}, where params is the main paramter dict.")
-  end
-  u = Dict{Symbol,Any}()
-  merge!(u,_u)
   mandatory = Dict(
    :tags=>true,
    :values=>false,
   )
-  # Check that all mandatory key are in u
-  for key in keys(mandatory)
-    if mandatory[key] && !haskey(u,key)
-      error("Key :$key is a mandatory key in params[:bcs][:u], being params the main parameter dict. See docs for init_params_bcs_u for a list of mandatory keys and their meaning.")
-    end
-  end
+  _check_mandatory(params[:bcs][:u],mandatory,"[:bcs][:u]")
   optional = Dict(
-    :values=>zero_values(u[:tags]),
+    :values=>zero_values(params[:bcs][:u][:tags]),
   )
-  # Check that we have computed defaults for all optionals
-  for key in keys(mandatory)
-    if !mandatory[key] && !haskey(optional,key)
-      error("Internal error")
-    end
-  end
-  # Set default args
-  for key in keys(optional)
-    if !haskey(u,key)
-      u[key] = optional[key]
-    end
-  end
-  # Check that we dont have unused params
-  if params[:check_valid]
-    for key in keys(u)
-      if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:bcs][:u], where params is the main parameter dict. See docs for init_params_bcs_u for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
-      end
-    end
-  end
+  u = _add_optional(params[:bcs][:u],mandatory,optional,params,"[:bcs][:u]")
+  _check_unused(u,mandatory,params,"[:bcs][:u]")
   u
 end
 
@@ -403,45 +252,16 @@ Valid keys for `params[:bcs][:j]` are the following
    to be imposed at each of the given tags.
 """
 function params_bcs_j(params::Dict{Symbol,Any})
-  _j = params[:bcs][:j]
-  if !isa(_j,Dict{Symbol})
-    error("The value params[:bcs][:j] has to be a Dict{Symbol}, where params is the main paramter dict.")
-  end
-  j = Dict{Symbol,Any}()
-  merge!(j,_j)
   mandatory = Dict(
    :tags=>true,
    :values=>false,
   )
-  # Check that all mandatory key are in u
-  for key in keys(mandatory)
-    if mandatory[key] && !haskey(j,key)
-      error("Key :$key is a mandatory key in params[:bcs][:j], being params the main parameter dict. See docs for init_params_bcs_j for a list of mandatory keys and their meaning.")
-    end
-  end
+  _check_mandatory(params[:bcs][:j],mandatory,"[:bcs][:j]")
   optional = Dict(
-    :values=>zero_values(j[:tags]),
+    :values=>zero_values(params[:bcs][:j][:tags]),
   )
-  # Check that we have computed defaults for all optionals
-  for key in keys(mandatory)
-    if !mandatory[key] && !haskey(optional,key)
-      error("Internal error")
-    end
-  end
-  # Set default args
-  for key in keys(optional)
-    if !haskey(j,key)
-      j[key] = optional[key]
-    end
-  end
-  # Check that we dont have unused params
-  if params[:check_valid]
-    for key in keys(j)
-      if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:bcs][:j], where params is the main parameter dict. See docs for init_params_bcs_j for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
-      end
-    end
-  end
+  j = _add_optional(params[:bcs][:j],mandatory,optional,params,"[:bcs][:j]")
+  _check_unused(j,mandatory,params,"[:bcs][:j]")
   j
 end
 
@@ -455,53 +275,12 @@ Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 - `:value`: Value of the electric potential to be imposed weakly.
 """
 function params_bcs_φ(params::Dict{Symbol,Any})
-  r = _params_bcs_φ(params[:bcs][:φ],params)
-  isa(r,Dict) ? [r] : r
-end
-
-function _params_bcs_φ(φ,params)
-  error("The value params[:bcs][:φ] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
-end
-
-function _params_bcs_φ(φ::AbstractVector,params)
-  map(i->_params_bcs_φ(φ[i],params,"[$i]"),1:length(φ))
-end
-
-function _params_bcs_φ(_φ::Dict{Symbol},params,i="")
-  φ = Dict{Symbol,Any}()
-  merge!(φ,_φ)
   mandatory = Dict(
    :domain=>true,
    :value=>true,
   )
-  # Check that all mandatory key are in u
-  for key in keys(mandatory)
-    if mandatory[key] && !haskey(φ,key)
-      error("Key :$key is a mandatory key in params[:bcs][:φ]$i, being params the main parameter dict. See docs for init_params_bcs_φ for a list of mandatory keys and their meaning.")
-    end
-  end
   optional = Dict()
-  # Check that we have computed defaults for all optionals
-  for key in keys(mandatory)
-    if !mandatory[key] && !haskey(optional,key)
-      error("Internal error")
-    end
-  end
-  # Set default args
-  for key in keys(optional)
-    if !haskey(φ,key)
-      φ[key] = optional[key]
-    end
-  end
-  # Check that we dont have unused params
-  if params[:check_valid]
-    for key in keys(φ)
-      if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:bcs][:φ]$i, where params is the main parameter dict. See docs for init_params_bcs_φ for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
-      end
-    end
-  end
-  φ
+  _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
 end
 
 """
@@ -514,53 +293,12 @@ Valid keys for the dictionaries in `params[:bcs][:t]` are the following.
 - `:value`: Value of the fluid traction to be imposed weakly.
 """
 function params_bcs_t(params::Dict{Symbol,Any})
-  r = _params_bcs_t(params[:bcs][:t],params)
-  isa(r,Dict) ? [r] : r
-end
-
-function _params_bcs_t(t,params)
-  error("The value params[:bcs][:t] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
-end
-
-function _params_bcs_t(t::AbstractVector,params)
-  map(i->_params_bcs_t(t[i],params,"[$i]"),1:length(t))
-end
-
-function _params_bcs_t(_t::Dict{Symbol},params,i="")
-  t = Dict{Symbol,Any}()
-  merge!(t,_t)
   mandatory = Dict(
    :domain=>true,
    :value=>true,
   )
-  # Check that all mandatory key are in u
-  for key in keys(mandatory)
-    if mandatory[key] && !haskey(t,key)
-      error("Key :$key is a mandatory key in params[:bcs][:t]$i, being params the main parameter dict. See docs for init_params_bcs_t for a list of mandatory keys and their meaning.")
-    end
-  end
   optional = Dict()
-  # Check that we have computed defaults for all optionals
-  for key in keys(mandatory)
-    if !mandatory[key] && !haskey(optional,key)
-      error("Internal error")
-    end
-  end
-  # Set default args
-  for key in keys(optional)
-    if !haskey(t,key)
-      t[key] = optional[key]
-    end
-  end
-  # Check that we dont have unused params
-  if params[:check_valid]
-    for key in keys(t)
-      if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:bcs][:t]$i, where params is the main parameter dict. See docs for init_params_bcs_t for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
-      end
-    end
-  end
-  t
+  _check_mandatory_and_add_optional_weak(params[:bcs][:t],mandatory,optional,params,"[:bcs][:t]")
 end
 
 """
@@ -584,34 +322,31 @@ The thin wall law is imposed weakly via a penalty parameter `τ`.
 - `:jw=>0`: Value of the parameter `jw`.
 """
 function params_bcs_thin_wall(params::Dict{Symbol,Any})
-  r = _params_bcs_thin_wall(params[:bcs][:thin_wall],params)
-  isa(r,Dict) ? [r] : r
-end
-
-function _params_bcs_thin_wall(thin_wall,params)
-  error("The value params[:bcs][:thin_wall] has to be a Dict{Symbol} or a vector of Dict{Symbol}, where params is the main paramter dict.")
-end
-
-function _params_bcs_thin_wall(thin_wall::AbstractVector,params)
-  map(i->_params_bcs_thin_wall(thin_wall[i],params,"[$i]"),1:length(thin_wall))
-end
-
-function _params_bcs_thin_wall(_thin_wall::Dict{Symbol},params,i="")
-  thin_wall = Dict{Symbol,Any}()
-  merge!(thin_wall,_thin_wall)
   mandatory = Dict(
    :domain=>true,
    :cw=>true,
    :τ=>true,
    :jw=>false,
   )
-  # Check that all mandatory key are in u
+  optional = Dict(:jw=>0)
+  _check_mandatory_and_add_optional_weak([:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
+end
+
+function _check_mandatory(params,mandatory,p)
+  if !isa(params,Dict{Symbol})
+    error("The params$p has to be a Dict{Symbol}")
+  end
   for key in keys(mandatory)
-    if mandatory[key] && !haskey(thin_wall,key)
-      error("Key :$key is a mandatory key in params[:bcs][:thin_wall]$i, being params the main parameter dict. See docs for init_params_bcs_thin_wall for a list of mandatory keys and their meaning.")
+    if mandatory[key] && !haskey(params,key)
+      error("Key :$key is a mandatory key in params$p, but it is not provided.")
     end
   end
-  optional = Dict(:jw=>0)
+end
+
+function _add_optional(_subparams,mandatory,optional,params,p)
+  # New dict
+  subparams = Dict{Symbol,Any}()
+  merge!(subparams,_subparams)
   # Check that we have computed defaults for all optionals
   for key in keys(mandatory)
     if !mandatory[key] && !haskey(optional,key)
@@ -620,19 +355,42 @@ function _params_bcs_thin_wall(_thin_wall::Dict{Symbol},params,i="")
   end
   # Set default args
   for key in keys(optional)
-    if !haskey(thin_wall,key)
-      thin_wall[key] = optional[key]
+    if !haskey(subparams,key)
+      subparams[key] = optional[key]
     end
   end
-  # Check that we dont have unused params
+  subparams
+end
+
+function _check_unused(subparams,mandatory,params,p)
   if params[:check_valid]
-    for key in keys(thin_wall)
+    for key in keys(subparams)
       if !haskey(mandatory,key)
-        error("Key :$key is not a valid key in params[:bcs][:thin_wall]$i, where params is the main parameter dict. See docs for init_params_bcs_thin_wall for a list of valid keys. Set params[:check_valid]=false to ignore invalid keys.")
+        error("Key :$key is not a valid key in params$p. Set params[:check_valid] = false to ignore invalid keys.")
       end
     end
   end
-  thin_wall
+end
+
+function _check_mandatory_and_add_optional(_subparams,mandatory,optional,params,p)
+  _check_mandatory(_subparams,mandatory,p)
+  subparams = _add_optional(_subparams,mandatory,optional,params,p)
+  _check_unused(subparams,mandatory,params,p)
+  subparams
+end
+
+function _check_mandatory_and_add_optional_weak(t,mandatory,optional,params,p)
+  function _params_bcs(_t)
+    error("The value params$p has to be a Dict{Symbol} or a vector of Dict{Symbol}.")
+  end
+  function _params_bcs(_t::AbstractVector)
+    map(i->_params_bcs(_t[i],"[$i]"),1:length(_t))
+  end
+  function _params_bcs(_t::Dict{Symbol},i="")
+    _check_mandatory_and_add_optional(_t,mandatory,optional,params,"$p$i")
+  end
+  r = _params_bcs(t)
+  isa(r,Dict) ? [r] : r
 end
 
 """
