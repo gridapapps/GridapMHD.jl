@@ -88,7 +88,7 @@ function add_default_params(_params)
     :debug=>false,
     :solver=>NLSolver(show_trace=true,method=:newton),
     :solver_postpro => (x->nothing),
-    :matrix_type=>SparseMatrixCSC{Float64,Int32},
+    :matrix_type=>SparseMatrixCSC{Float64,Int},
     :vector_type=>Vector{Float64},
     :k=>2,
     :check_valid=>true,
@@ -444,7 +444,7 @@ or a `GridapDistributed.DistributedDiscreteModel`
 - `:debug => false`:
   If true, setup the problem, but do not solve it. Otherwise, solve it.
 - `:check_valid => true`: If `true`, check that all given keys are valid. Otherwise, silently ignore invalid keys.
-- `:matrix_type => SparseMatrixCSC{Float64,Int32}`:
+- `:matrix_type => SparseMatrixCSC{Float64,Int}`:
    Matrix type to assemble the problem.
 - `:vector_type => Vector{Float64}`:
   Vector type to assemble the problem.
