@@ -626,11 +626,19 @@ function weak_form(params,k)
   Ωf = _interior(params[:model],fluid[:domain])
   dΩf = Measure(Ωf,2*k)
 
+  solid = params[:solid]
+  if solid !== nothing
+    Ωs = _interior(params[:model],solid[:domain])
+    dΩs = Measure(Ωs,2*k)
+    σs = solid[:σ]
+  end
+
   α = fluid[:α]
   β = fluid[:β]
   γ = fluid[:γ]
   f = fluid[:f]
   B = fluid[:B]
+  σf = fluid[:σ]
 
   bcs = params[:bcs]
 
@@ -675,12 +683,15 @@ function weak_form(params,k)
   end
 
   function a(x,dy)
-    r = a_mhd(x,dy,β,γ,B,dΩf)
+    r = a_mhd(x,dy,β,γ,B,σf,dΩf)
     for p in params_thin_wall
       r = r + a_thin_wall(x,dy,p...)
     end
     for p in params_B
       r = r + a_B(x,dy,p...)
+    end
+    if solid !== nothing
+      r = r + a_solid(x,dy,σs,dΩs)
     end
     r
   end
@@ -717,13 +728,19 @@ end
 
 conv(u,∇u) = (∇u')⋅u
 
-function a_mhd(x,dy,β,γ,B,dΩ)
+function a_solid(x,dy,σ,dΩ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫( j⋅v_j - σ*φ*(∇⋅v_j) + (∇⋅j)*v_φ)dΩ
+end
+
+function a_mhd(x,dy,β,γ,B,σ,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
   ∫(
     β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u) -(γ*(j×B)⋅v_u) +
     (∇⋅u)*v_p +
-    j⋅v_j - φ*(∇⋅v_j) - (u×B)⋅v_j +
+    j⋅v_j - σ*φ*(∇⋅v_j) - σ*(u×B)⋅v_j +
     (∇⋅j)*v_φ ) * dΩ
 end
 
