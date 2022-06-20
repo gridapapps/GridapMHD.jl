@@ -26,4 +26,6 @@ include("Hunt.jl")
 
 include("expansion.jl")
 
+include("FCI_entrance.jl")
+
 end # module

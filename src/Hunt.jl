@@ -62,7 +62,8 @@ function _hunt(;
   debug=false,
   solver=:julia,
   verbose=true,
-  kmap=1,
+  kmap_x=1,
+  kmap_y=1,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
@@ -91,7 +92,7 @@ function _hunt(;
 
   # Prepare problem in terms of reduced quantities
   layer(x,a) = sign(x)*abs(x)^(1/a)
-  map((x,y,z)) = VectorValue(layer(x,kmap),y,z)
+  map((x,y,z)) = VectorValue(layer(x,kmap_x),layer(y,kmap_y),z)
   partition=(nc[1],nc[2],3)
   model = CartesianDiscreteModel(
     parts,domain,partition;isperiodic=(false,false,true),map=map)
@@ -211,7 +212,8 @@ function _hunt(;
   info[:uh_h1] = uh_h1
   info[:uh_l2] = uh_l2
   info[:jh_l2] = jh_l2
-  info[:kmap] = kmap
+  info[:kmap_x] = kmap_x
+  info[:kmap_y] = kmap_y
 
   info, t
 end

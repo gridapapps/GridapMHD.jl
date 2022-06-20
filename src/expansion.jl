@@ -39,8 +39,11 @@ function _expansion(;
   debug = false,
   verbose=true,
   solver=:julia,
-  N=1.0,
-  Ha=1.0,
+  N =1.0,
+  Ha =1.0,
+  B_dir = (0.0,1.0,0.0),
+  c_w = 0.028,
+  τ_w = 100,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
@@ -80,6 +83,9 @@ function _expansion(;
   # This gives mean(u_inlet)=1
   u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
 
+  #Direction of the magnetic field normalized
+  B_dir = (1/norm(VectorValue(B_dir)))*VectorValue(B_dir) 
+
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
@@ -100,9 +106,9 @@ function _expansion(;
         :tags=>Int[],
         :values=>Int[],
       ),
-      :thin_wall=>[Dict(:τ=>100.0,:cw=>0.028,:jw=>0,:τ=>0.2,:domain=>Boundary(model,tags="wall"))],
+      :thin_wall=>[Dict(:τ=>τ_w,:cw=>c_w,:jw=>0,:domain=>Boundary(model,tags="wall"))],
       :f=>VectorValue(0.0,0.0,0.0),
-      :B=>VectorValue(0.0,1.0,0.0),
+      :B=>B_dir,
     ),
   )
 
@@ -128,11 +134,13 @@ function _expansion(;
 
   uh,ph,jh,φh = xh
 
+  divj = ∇⋅jh
+
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"divj"=>divj])
     toc!(t,"vtk")
   end
   if verbose

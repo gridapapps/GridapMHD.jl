@@ -10,7 +10,7 @@ using GridapMHD:main
 #----------Problem setting-------
 
 
-function expansion(;
+function ____expansion(;
    Ha = 1.0,                            #Hartmann number
    Re = 1.0,                            #Reynolds number
    c_w = 0.0727,                        #Wall conductance ratio
