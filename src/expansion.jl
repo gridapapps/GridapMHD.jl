@@ -41,7 +41,7 @@ function _expansion(;
   solver=:julia,
   N=1.0,
   Ha=1.0,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
   )
 
   info = Dict{Symbol,Any}()
