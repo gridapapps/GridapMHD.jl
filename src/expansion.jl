@@ -42,7 +42,7 @@ function _expansion(;
   N=1.0,
   Ha=1.0,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
-  )
+)
 
   info = Dict{Symbol,Any}()
 
@@ -83,27 +83,24 @@ function _expansion(;
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
+    :model => model,
     :fluid=>Dict(
       :domain=>model,
       :α=>α,
       :β=>β,
       :γ=>γ,
-      :u=>Dict(
-        :tags=>["inlet", "wall"],
-        :values=>[u_inlet, VectorValue(0.0,0.0,0.0)]
-      ),
-      # :j=>Dict(
-      #   :tags=>["wall"],
-      #   :values=>[VectorValue(0.0,0.0,0.0)]
-      # ),
-      :j=>Dict(
-        :tags=>Int[],
-        :values=>Int[],
-      ),
-      :thin_wall=>[Dict(:τ=>100.0,:cw=>0.028,:jw=>0,:τ=>0.2,:domain=>Boundary(model,tags="wall"))],
       :f=>VectorValue(0.0,0.0,0.0),
       :B=>VectorValue(0.0,1.0,0.0),
     ),
+    :bcs => Dict(
+      :u => Dict(
+        :tags => ["inlet", "wall"],
+        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+      ),
+      :j => Dict(:tags => Int[]),
+      #:j => Dict(:tags => ["wall"], :values=>[VectorValue(0.0,0.0,0.0)] ),
+      :thin_wall => [Dict(:τ => 100.0, :cw => 0.028, :jw => 0, :τ => 0.2, :domain => Boundary(model, tags="wall"))],
+    )
   )
 
   toc!(t,"pre_process")
@@ -111,9 +108,9 @@ function _expansion(;
   # Solve it
   if solver == :julia
     params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh = main(params)
+    xh,fullparams = main(params)
   elseif solver == :petsc
-    xh = GridapPETSc.with(args=split(petsc_options)) do
+    xh,fullparams = GridapPETSc.with(args=split(petsc_options)) do
     params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
     params[:vector_type] = Vector{PetscScalar}
     params[:solver] = PETScNonlinearSolver()
@@ -123,7 +120,7 @@ function _expansion(;
   else
     error()
   end
-  t = params[:ptimer]
+  t = fullparams[:ptimer]
   tic!(t,barrier=true)
 
   uh,ph,jh,φh = xh
