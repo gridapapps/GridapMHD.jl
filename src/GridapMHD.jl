@@ -10,7 +10,6 @@ using Gridap.Algebra
 using Gridap.CellData
 using Gridap.ReferenceFEs
 using Gridap.Geometry
-using GridapGmsh
 using Gridap.FESpaces
 using GridapDistributed
 using GridapGmsh
