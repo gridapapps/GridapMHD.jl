@@ -2,7 +2,7 @@ function expansion(;
   backend=nothing,
   np=nothing,
   title = "Expansion",
-  mesh = "coarse",
+  mesh = "710",
   path=".",
   kwargs...)
 
