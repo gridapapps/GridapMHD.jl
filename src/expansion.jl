@@ -2,7 +2,7 @@ function expansion(;
   backend=nothing,
   np=nothing,
   title = "Expansion",
-  mesh = "coarse",
+  mesh = "710",
   path=".",
   kwargs...)
 
@@ -33,20 +33,19 @@ end
 function _expansion(;
   parts=nothing,
   title = "Expansion",
-  mesh = "coarse",
+  mesh = "720",
   vtk=true,
   path=".",
   debug = false,
   verbose=true,
   solver=:julia,
-  N =1.0,
-  Ha =1.0,
-  B_dir = (0.0,1.0,0.0),
-  c_w = 0.028,
-  τ_w = 100,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
-  )
-
+  N = 1.0,
+  Ha = 1.0,
+  cw = 0.028,
+  τ = 100,
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
+)
+  
   info = Dict{Symbol,Any}()
 
   if parts === nothing
@@ -80,46 +79,73 @@ function _expansion(;
   β = (1.0/Ha^2)
   γ = 1.0
 
-  # This gives mean(u_inlet)=1
-  u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+  # This gives mean(u_inlet)=1/4
+  u_inlet((x,y,z)) = VectorValue(9.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
 
-  #Direction of the magnetic field normalized
-  B_dir = (1/norm(VectorValue(B_dir)))*VectorValue(B_dir) 
-
+  if cw == 0.0
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
+    :model => model,
     :fluid=>Dict(
       :domain=>model,
       :α=>α,
       :β=>β,
       :γ=>γ,
-      :u=>Dict(
-        :tags=>["inlet", "wall"],
-        :values=>[u_inlet, VectorValue(0.0,0.0,0.0)]
-      ),
-      # :j=>Dict(
-      #   :tags=>["wall"],
-      #   :values=>[VectorValue(0.0,0.0,0.0)]
-      # ),
-      :j=>Dict(
-        :tags=>Int[],
-        :values=>Int[],
-      ),
-      :thin_wall=>[Dict(:τ=>τ_w,:cw=>c_w,:jw=>0,:domain=>Boundary(model,tags="wall"))],
       :f=>VectorValue(0.0,0.0,0.0),
-      :B=>B_dir,
+      :B=>VectorValue(0.0,1.0,0.0),
     ),
+    :bcs => Dict(
+      :u => Dict(
+        :tags => ["inlet", "wall"],
+        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+      ),
+      :j => Dict(
+		:tags => ["wall", "inlet", "outlet"], 
+        :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
+#        :potentialGauge=>true
+      ),
+    )
   )
+  else 
+  params = Dict(
+    :ptimer=>t,
+    :debug=>debug,
+    :model => model,
+    :fluid=>Dict(
+      :domain=>model,
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :f=>VectorValue(0.0,0.0,0.0),
+      :B=>VectorValue(0.0,1.0,0.0),
+    ),
+    :bcs => Dict(
+      :u => Dict(
+        :tags => ["inlet", "wall"],
+        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+      ),
+      :j => Dict(
+	:tags => ["inlet", "outlet"], 
+	:values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
+      ),
+      :thin_wall => [Dict(
+	:τ=>τ,
+	:cw=>cw,
+	:domain => Boundary(model, tags="wall")
+      )]
+    )
+  )
+  end
 
   toc!(t,"pre_process")
 
   # Solve it
   if solver == :julia
     params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh = main(params)
+    xh,fullparams = main(params)
   elseif solver == :petsc
-    xh = GridapPETSc.with(args=split(petsc_options)) do
+    xh,fullparams = GridapPETSc.with(args=split(petsc_options)) do
     params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
     params[:vector_type] = Vector{PetscScalar}
     params[:solver] = PETScNonlinearSolver()
@@ -129,18 +155,16 @@ function _expansion(;
   else
     error()
   end
-  t = params[:ptimer]
+  t = fullparams[:ptimer]
   tic!(t,barrier=true)
 
   uh,ph,jh,φh = xh
-
-  divj = ∇⋅jh
 
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"divj"=>divj])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,])
     toc!(t,"vtk")
   end
   if verbose

@@ -10,7 +10,6 @@ using Gridap.Algebra
 using Gridap.CellData
 using Gridap.ReferenceFEs
 using Gridap.Geometry
-using GridapGmsh
 using Gridap.FESpaces
 using GridapDistributed
 using GridapPETSc
@@ -19,13 +18,12 @@ using FileIO
 using BSON
 using GridapGmsh
 
-
 include("Main.jl")
+
+include("ExtraFunctions.jl")
 
 include("Hunt.jl")
 
 include("expansion.jl")
-
-include("FCI_entrance.jl")
 
 end # module

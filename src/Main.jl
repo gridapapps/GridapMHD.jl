@@ -280,7 +280,7 @@ function params_bcs_φ(params::Dict{Symbol,Any})
    :value=>true,
   )
   optional = Dict()
-  _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
+  _check_mandatory_and_add_optional_weak([:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
 end
 
 """
@@ -788,4 +788,6 @@ function a_B(x,dy,γ,B,dΩ)
   v_u, v_p, v_j, v_φ = dy
   ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
 end
+
+
 
