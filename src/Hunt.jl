@@ -15,7 +15,7 @@ function hunt(;
       info, t = _hunt(;title=_title,path=path,kwargs...)
     else
       @assert backend !== nothing
-      info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      info, t = with_backend(_find_backend(backend),(np...,1)) do _parts
         _hunt(;parts=_parts,title=_title,path=path,kwargs...)
       end
     end
@@ -35,9 +35,9 @@ end
 
 function _find_backend(s)
   if s === :sequential
-    backend = sequential
+    backend = SequentialBackend()
   elseif s === :mpi
-    backend = mpi
+    backend = MPIBackend()
   else
     error()
   end
@@ -69,7 +69,7 @@ function _hunt(;
   info = Dict{Symbol,Any}()
 
   if parts === nothing
-    t_parts = get_part_ids(sequential,1)
+    t_parts = get_part_ids(SequentialBackend(),1)
   else
     t_parts = parts
   end

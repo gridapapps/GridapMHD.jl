@@ -104,7 +104,7 @@ function add_default_params(_params)
   params
 end
 
-default_ptimer(model) = PTimer(get_part_ids(sequential,1))
+default_ptimer(model) = PTimer(get_part_ids(SequentialBackend(),1))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_part_ids(model.models))
 
 """
