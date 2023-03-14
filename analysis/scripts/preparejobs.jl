@@ -27,17 +27,31 @@ function petsc_options(i)
   end
 end
 
+function preparjobs_conv()
+
 # Small convergence test
 
-allparams = Dict(
- :ha=>[500],
- :cx=>[15,30,45,64,90,129,179],
- :px=>[2],
- :nr=>[1],
- :ns=>[100],
- :ps=>[1],
- :km=>[1])
+# allparams = Dict(
+#  :ha=>[500],
+#  :cx=>[15,30,45,64,90,129,179],
+#  :px=>[2],
+#  :nr=>[1],
+#  :ns=>[100],
+#  :ps=>[1],
+#  :km=>[1])
+# Take points equally spaced in a log plot 
+#log_cx=[1,1.25,1.5,1.75,2,2.25]
+#cx=map(x->Int(round(x)),10 .^ log_cx)
 
+allparams = Dict(
+  :ha=>[50],
+  :cx=>[400,800],
+  :px=>[2],
+  :nr=>[1],
+  :ns=>[500],
+  :ps=>[1],
+  :km=>[1])
+ 
 params = dict_list(allparams)
 dicts = map(params) do params
   cx = params[:cx]
@@ -49,8 +63,8 @@ dicts = map(params) do params
   km = params[:km]
   title=jobtitle(params)
   Dict(
-   :q=>"normal",
-   :walltime=>"00:30:00",
+   :q=>"hugemem",
+   :walltime=>"04:00:00",
    :ncpus=>px^2,
    :mem=>"180gb",
    :jobfs=>"1gb",
@@ -79,16 +93,8 @@ for dict in dicts
   end
 end
 
-# Scaling
-
-allparams = Dict(
- :ha=>[500],
- :cx=>[179],
- :px=>[2,3,4,6,8,12,16],
- :nr=>[2],
- :ns=>[100],
- :ps=>[1],
- :km=>[1])
+return nothing
+end
 
 function get_walltime(tmax,tmin,n)
   msmax = Millisecond(tmax)
@@ -98,6 +104,17 @@ function get_walltime(tmax,tmin,n)
   smin = convert(Time,convert(DateTime,msmin))
   s < smin ? smin : s
 end
+
+# Strong Scaling
+function preparejobs_ssca()
+allparams = Dict(
+ :ha=>[50],
+ :cx=>[400],
+ :px=>[3,4,6,8,12,16],
+ :nr=>[2],
+ :ns=>[1],
+ :ps=>[1],
+ :km=>[1])
 
 params = dict_list(allparams)
 dicts = map(params) do params
@@ -114,10 +131,10 @@ dicts = map(params) do params
   nnodes = ceil(n/48) |> Int
   title=jobtitle(params)
   Dict(
-   :q=>"normal",
-   :walltime=>get_walltime(Hour(1),Minute(30),n),
+   :q=>"hugemem",
+   :walltime=>get_walltime(Hour(18),Minute(80),n),
    :ncpus=>48*nnodes,
-   :mem=>"$(185*nnodes)gb",
+   :mem=>"$(190*nnodes)gb",
    :jobfs=>"1gb",
    :name=>title,
    :n=>n,
@@ -143,4 +160,9 @@ for dict in dicts
     render(io,template,dict|>tostringdict)
   end
 end
+
+return nothing
+end
+
+
 
