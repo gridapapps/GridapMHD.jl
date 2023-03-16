@@ -60,6 +60,7 @@ function _hunt(;
   title="test",
   path=".",
   debug=false,
+  time=true,
   solver=:julia,
   verbose=true,
   kmap=1,
@@ -105,6 +106,7 @@ function _hunt(;
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
+    :time=>time,
     :fluid=>Dict(
       :domain=>model,
       :α=>α,

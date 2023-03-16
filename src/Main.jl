@@ -105,6 +105,7 @@ function main(params::Dict)
     free_ids = get_free_dof_ids(U)
     free_vals = _rand(vt,free_ids)
     xh = FEFunction(U,free_vals)
+    toc!(t,"solve")
   else
     res, jac = weak_form(params,k)
     Tm = params[:matrix_type]
@@ -116,9 +117,16 @@ function main(params::Dict)
     xh,cache = solve!(xh,solver,op)
     solver_postpro = params[:solver_postpro]
     solver_postpro(cache)
+    toc!(t,"solve")
+    if params[:time]
+      tic!(t;barrier=true)
+      r = residual(op,xh)
+      toc!(t,"residual")
+      tic!(t;barrier=true)
+      j = jacobian(op,xh)
+      toc!(t,"jacobian")
+    end
   end
-  toc!(t,"solve")
-
   xh
 end
 
