@@ -7,7 +7,7 @@
 #PBS -N {{{name}}}
 #PBS -l wd
 
-source /scratch/bt62/fv3851/GridapMHD.jl/analysis/scripts/env.sh
+source /home/552/jp3650/GridapMHD.jl/analysis/scripts/env.sh
 
 mpiexec -n {{n}} julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD.so -O3 --check-bounds=no -e\
 '
@@ -26,6 +26,7 @@ hunt(
   nsums={{nsums}},
   kmap={{kmap}},
   solver=:petsc,
-  petsc_options="{{{petsc_options}}}"
+  petsc_options="{{{petsc_options}}}",
+  time=true
  )'
 

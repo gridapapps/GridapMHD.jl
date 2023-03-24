@@ -1,4 +1,5 @@
 using PackageCompiler
+using Pkg
 
 pkgs = Symbol[]
 if VERSION >= v"1.4"

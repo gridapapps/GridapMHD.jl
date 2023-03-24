@@ -109,10 +109,10 @@ end
 function preparejobs_ssca()
   allparams = Dict(
     :ha => [50],
-    :cx => [400],
+    :cx => [200],
     :px => [2, 3, 4, 6, 8, 12, 16],
-    :nr => [2],
-    :ns => [1],
+    :nr => [5],
+    :ns => [200],
     :ps => [1],
     :km => [1])
 
@@ -129,18 +129,38 @@ function preparejobs_ssca()
     n = px^2
     nnodes = ceil(n / 48) |> Int
     title = jobtitle(params)
-    if nnodes>5
-      mem=190*nnodes
-      q="normal"
-    else
-      mem=1000
-      q="hugemem"
-    end
+    ncpus = nnodes > 1 ? nnodes*48 : n
+
+    mem=Dict(
+      2=>300,
+      3=>350,
+      4=>380,
+      6=>500,
+      8=>570,
+      12=>570,
+      16=>1140)
+    que=Dict(
+      2=>"hugemem",
+      3=>"hugemem",
+      4=>"hugemem",
+      6=>"hugemem",
+      8=>"hugemem",
+      12=>"normal",
+      16=>"normal")
+    tw =Dict(
+      2=> "05:00:00",
+      3=> "04:00:00",
+      4=> "04:00:00",
+      6=> "03:00:00",
+      8=> "02:00:00",
+      12=> "01:00:00",
+      16=> "01:00:00",
+    )
     Dict(
-      :q => q,
-      :walltime => get_walltime(Hour(20), Minute(120), n),
-      :ncpus => px^2,
-      :mem => "$(mem)gb",
+      :q => que[px],
+      :walltime => tw[px],
+      :ncpus => ncpus,
+      :mem => "$(mem[px])gb",
       :jobfs => "1gb",
       :name => title,
       :n => n,

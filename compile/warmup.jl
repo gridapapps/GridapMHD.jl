@@ -13,7 +13,8 @@ hunt(
   title="warmup_hunt",
   solver=:petsc,
   kmap=1,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
+  time=true
 )
 
 hunt(
@@ -31,5 +32,6 @@ hunt(
   title="warmup_hunt_mpi",
   solver=:petsc,
   kmap=1,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
+  time=true
 )

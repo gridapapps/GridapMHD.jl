@@ -15,9 +15,17 @@ function hunt(;
       info, t = _hunt(;title=_title,path=path,kwargs...)
     else
       @assert backend !== nothing
-      info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      # info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      # end
+      @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
         _hunt(;parts=_parts,title=_title,path=path,kwargs...)
       end
+      Profile.clear()
+      @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
+        _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      end
+      save("test_$(MPI.Comm_rank(MPI.COMM_WORLD)).jlprof", Profile.retrieve()...)
     end
     info[:np] = np
     info[:backend] = backend
@@ -35,9 +43,9 @@ end
 
 function _find_backend(s)
   if s === :sequential
-    backend = sequential
+    backend = SequentialBackend()
   elseif s === :mpi
-    backend = mpi
+    backend = MPIBackend()
   else
     error()
   end
