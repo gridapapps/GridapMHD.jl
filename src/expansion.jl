@@ -49,7 +49,7 @@ function _expansion(;
   info = Dict{Symbol,Any}()
 
   if parts === nothing
-    t_parts = get_part_ids(sequential,1)
+    t_parts = get_part_ids(SequentialBackend(),1)
   else
     t_parts = parts
   end
@@ -82,7 +82,6 @@ function _expansion(;
   # This gives mean(u_inlet)=1/4
   u_inlet((x,y,z)) = VectorValue(9.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
 
-  if cw == 0.0
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
@@ -94,8 +93,11 @@ function _expansion(;
       :γ=>γ,
       :f=>VectorValue(0.0,0.0,0.0),
       :B=>VectorValue(0.0,1.0,0.0),
-    ),
-    :bcs => Dict(
+    )
+   )
+
+  if cw == 0.0
+   params[:bcs] = Dict( 
       :u => Dict(
         :tags => ["inlet", "wall"],
         :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
@@ -103,24 +105,11 @@ function _expansion(;
       :j => Dict(
 		:tags => ["wall", "inlet", "outlet"], 
         :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
-#        :potentialGauge=>true
-      ),
+      )
     )
-  )
+
   else 
-  params = Dict(
-    :ptimer=>t,
-    :debug=>debug,
-    :model => model,
-    :fluid=>Dict(
-      :domain=>model,
-      :α=>α,
-      :β=>β,
-      :γ=>γ,
-      :f=>VectorValue(0.0,0.0,0.0),
-      :B=>VectorValue(0.0,1.0,0.0),
-    ),
-    :bcs => Dict(
+   params[:bcs] = Dict(
       :u => Dict(
         :tags => ["inlet", "wall"],
         :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
@@ -135,7 +124,6 @@ function _expansion(;
 	:domain => Boundary(model, tags="wall")
       )]
     )
-  )
   end
 
   toc!(t,"pre_process")

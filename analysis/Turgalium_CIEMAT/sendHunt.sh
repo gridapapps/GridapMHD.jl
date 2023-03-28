@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH -N 2
-#SBATCH --ntasks-per-node=20
+#SBATCH -N 1
+#SBATCH --ntasks-per-node=1
 #SBATCH -t 20:00:00
 #SBATCH --partition=cpu36c
 
-#SBATCH -o outputHunt_Ha1000_N2n20
-#SBATCH -e errorHunt_Ha1000_N2n20
+#SBATCH -o outputHunt_Ha500_mumps_n1
+#SBATCH -e errorHunt_Ha500_mumps_n1
 ###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=Hunt_mpi_1000
+#SBATCH --job-name=Hunt_mumps_500
 #SBATCH --mem=0
 
 
@@ -33,26 +33,24 @@ source env.sh
 #export OMPI_MCA_btl_openib_allow_ib=1
 #export OMPI_MCA_btl_openib_if_include="mlx5_0:1"
 
-mpiexec --np ${SLURM_NPROCS} julia --project=$GRIDAPMHD -e\
+#mpiexec -n ${SLURM_NPROCS} --mca btl_openib_allow_ib 1 --mca btl_openib_if_include mlx5_0 julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD.so -O3 --check-bounds=no -e\
+julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD36c.so -O3 --check-bounds=no -e\
 '
 using GridapMHD: hunt
 hunt(
-  nc=(60,60),
-  np=(5,8),
-  backend=:mpi,
+  nc=(50,50),
+#  np=(2,2),
+#  backend=:mpi,
   L=1.0,
-  B=(0.,1000.,0.),
+  B=(0.,500.,0.),
   nsums = 1000,
   debug=false,
   vtk=true,
-  title="hunt_1000_mumps",
+  title="hunt_500_petsc_n1",
   mesh = false,
   BL_adapted = true,
-#  kmap_x = 2,
-#  kmap_y = 3,
   solver=:petsc,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
-#  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type gmres -pc_type hypre -pc_hypre_type pilut"
  )'
 
 

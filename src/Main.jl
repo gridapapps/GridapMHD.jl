@@ -104,7 +104,7 @@ function add_default_params(_params)
   params
 end
 
-default_ptimer(model) = PTimer(get_part_ids(sequential,1))
+default_ptimer(model) = PTimer(get_part_ids(SequentialBackend(),1))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_part_ids(model.models))
 
 """
@@ -280,7 +280,7 @@ function params_bcs_φ(params::Dict{Symbol,Any})
    :value=>true,
   )
   optional = Dict()
-  _check_mandatory_and_add_optional_weak([:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
+  _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
 end
 
 """
@@ -329,7 +329,7 @@ function params_bcs_thin_wall(params::Dict{Symbol,Any})
    :jw=>false,
   )
   optional = Dict(:jw=>0)
-  _check_mandatory_and_add_optional_weak([:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
+  _check_mandatory_and_add_optional_weak(params[:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
 end
 
 function _check_mandatory(params,mandatory,p)
