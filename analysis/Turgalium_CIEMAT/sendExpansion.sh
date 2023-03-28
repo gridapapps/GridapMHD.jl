@@ -27,7 +27,7 @@ source env.sh
 #export OMPI_MCA_btl_openib_if_include="mlx5_0:1"
 
 #mpiexec -n ${SLURM_NPROCS} julia --project=.. -J ../GridapMHD.so -O3 --check-bounds=no -e\
-mpiexec -n ${SLURM_NPROCS} julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD36c.so -O3 --check-bounds=no -e\
+mpiexec -n ${SLURM_NPROCS} julia --project=$GRIDAPMHD -J $GRIDAPMHD/compile/Turgalium_CIEMAT/GridapMHD36c.so -O3 --check-bounds=no -e\
 '
 using GridapMHD: expansion
 expansion(;
