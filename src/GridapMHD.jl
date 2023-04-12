@@ -1,8 +1,8 @@
 module GridapMHD
 
-using Profile
-using FileIO
-using MPI
+# using Profile
+# using FileIO
+# using MPI
 
 using Random
 using SparseArrays

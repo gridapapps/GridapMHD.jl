@@ -112,13 +112,15 @@ function main(params::Dict)
     Tv = params[:vector_type]
     assem = SparseMatrixAssembler(Tm,Tv,U,V)
     op = FEOperator(res,jac,U,V,assem)
-    solver = params[:solver]
     xh = zero(U)
-    xh,cache = solve!(xh,solver,op)
-    solver_postpro = params[:solver_postpro]
-    solver_postpro(cache)
-    toc!(t,"solve")
-    if params[:time]
+    if params[:solve]
+       solver = params[:solver]
+       xh,cache = solve!(xh,solver,op)
+       solver_postpro = params[:solver_postpro]
+       solver_postpro(cache)
+       toc!(t,"solve")
+    end
+    if params[:only_assemble]
       tic!(t;barrier=true)
       r = residual(op,xh)
       toc!(t,"residual")

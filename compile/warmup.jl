@@ -14,7 +14,8 @@ hunt(
   solver=:petsc,
   kmap=1,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
-  time=true
+  only_assemble=true,
+  solve=false
 )
 
 hunt(
@@ -33,5 +34,6 @@ hunt(
   solver=:petsc,
   kmap=1,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
-  time=true
+  only_assemble=true,
+  solve=false
 )
