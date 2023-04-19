@@ -68,7 +68,8 @@ function _hunt(;
   title="test",
   path=".",
   debug=false,
-  only_assemble=false,
+  res_assemble=false,
+  jac_assemble=false,
   solve=true,
   solver=:julia,
   verbose=true,
@@ -115,7 +116,8 @@ function _hunt(;
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
-    :only_assemble=>only_assemble,
+    :res_assemble=>res_assemble,
+    :jac_assemble=>jac_assemble,
     :solve=>solve,
     :fluid=>Dict(
       :domain=>model,

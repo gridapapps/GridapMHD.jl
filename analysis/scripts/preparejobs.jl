@@ -109,10 +109,10 @@ end
 function preparejobs_ssca()
   allparams = Dict(
     :ha => [50],
-    :cx => [200],
+    :cx => [400],
     :px => [2, 3, 4, 6, 8, 12, 16],
     :nr => [5],
-    :ns => [200],
+    :ns => [100],
     :ps => [1],
     :km => [1])
 
@@ -132,32 +132,34 @@ function preparejobs_ssca()
     ncpus = nnodes > 1 ? nnodes*48 : n
 
     mem=Dict(
-      2=>300,
-      3=>350,
-      4=>380,
-      6=>500,
-      8=>570,
+      2=>190,
+      3=>190,
+      4=>190,
+      6=>190,
+      8=>380,
       12=>570,
-      16=>1140)
+      16=>950)
     que=Dict(
-      2=>"hugemem",
-      3=>"hugemem",
-      4=>"hugemem",
-      6=>"hugemem",
-      8=>"hugemem",
+      2=>"normal",
+      3=>"normal",
+      4=>"normal",
+      6=>"normal",
+      8=>"normal",
       12=>"normal",
       16=>"normal")
     tw =Dict(
-      2=> "05:00:00",
-      3=> "04:00:00",
-      4=> "04:00:00",
-      6=> "03:00:00",
-      8=> "02:00:00",
-      12=> "01:00:00",
-      16=> "01:00:00",
+      2=> "08:00:00",
+      3=> "07:00:00",
+      4=> "06:00:00",
+      6=> "05:00:00",
+      8=> "04:00:00",
+      12=> "03:00:00",
+      16=> "02:00:00",
     )
     Dict(
       :q => que[px],
+      :o => title*"o.txt",
+      :e => title*"e.txt",
       :walltime => tw[px],
       :ncpus => ncpus,
       :mem => "$(mem[px])gb",
@@ -171,6 +173,7 @@ function preparejobs_ssca()
       :vtk => "false",
       :title => title,
       :path => datadir(),
+      #:path => "/scratch/bt62/jp3650/data",
       :nruns => nr,
       :nsums => ns,
       :kmap => km,
@@ -197,8 +200,8 @@ function preparejobs_wsca()
     :ha => [50],
     :cx => [16],
     :px => [2, 3, 4, 6, 8, 12, 16],
-    :nr => [2],
-    :ns => [1],
+    :nr => [6],
+    :ns => [200],
     :ps => [1],
     :km => [1])
 
@@ -219,8 +222,10 @@ function preparejobs_wsca()
     title = jobtitle(params)
     Dict(
       :q => "normal",
-      :walltime => "04:00:00",
-      :ncpus => px^2,
+      :o => title*"o.txt",
+      :e => title*"e.txt",      
+      :walltime => "01:00:00",
+      :ncpus => nnodes > 1 ? nnodes*48 : n,
       :mem => "$(190*nnodes)gb",
       :jobfs => "1gb",
       :name => title,

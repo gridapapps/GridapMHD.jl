@@ -120,10 +120,12 @@ function main(params::Dict)
        solver_postpro(cache)
        toc!(t,"solve")
     end
-    if params[:only_assemble]
+    if params[:res_assemble]
       tic!(t;barrier=true)
       r = residual(op,xh)
       toc!(t,"residual")
+    end
+    if params[:jac_assemble]
       tic!(t;barrier=true)
       j = jacobian(op,xh)
       toc!(t,"jacobian")
