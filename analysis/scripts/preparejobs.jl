@@ -198,8 +198,10 @@ end
 function preparejobs_wsca()
   allparams = Dict(
     :ha => [50],
-    :cx => [16],
+    :cx => [24],
+    # :px => [2, 3, 4, 6, 8, 12, 16, 24, 32],
     :px => [2, 3, 4, 6, 8, 12, 16],
+    #:px => [20],
     :nr => [6],
     :ns => [200],
     :ps => [1],
@@ -224,7 +226,7 @@ function preparejobs_wsca()
       :q => "normal",
       :o => title*"o.txt",
       :e => title*"e.txt",      
-      :walltime => "01:00:00",
+      :walltime => "04:00:00",
       :ncpus => nnodes > 1 ? nnodes*48 : n,
       :mem => "$(190*nnodes)gb",
       :jobfs => "1gb",
