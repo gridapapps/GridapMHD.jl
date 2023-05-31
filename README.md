@@ -21,7 +21,7 @@ params = Dict(...)
 u,p,j,φ = GridapMHD.main(params)
 ```
 
-The returned value is of type `Gridap.MultiField.MultiFieldFEFunction`, which can be unpacked to get access to the different fields of the MHD solution (fluid velocity, fluid pressure, charge density, and electric potential respectively). One can further post process these quantities using the tools provided by Gridap.
+The returned value is of type `Gridap.MultiField.MultiFieldFEFunction`, which can be unpacked to get access to the different fields of the MHD solution (fluid velocity, fluid pressure, charge current, and electric potential respectively). One can further post process these quantities using the tools provided by Gridap.
 
 ## Minimal Example
 

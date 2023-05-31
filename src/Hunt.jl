@@ -15,7 +15,7 @@ function hunt(;
       info, t = _hunt(;title=_title,path=path,kwargs...)
     else
       @assert backend !== nothing
-      info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      info, t = with_backend(_find_backend(backend),(np...,1)) do _parts
         _hunt(;parts=_parts,title=_title,path=path,kwargs...)
       end
       # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
@@ -80,7 +80,7 @@ function _hunt(;
   info = Dict{Symbol,Any}()
 
   if parts === nothing
-    t_parts = get_part_ids(sequential,1)
+    t_parts = get_part_ids(SequentialBackend(),1)
   else
     t_parts = parts
   end
@@ -116,6 +116,7 @@ function _hunt(;
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
+    :model=>model,
     :res_assemble=>res_assemble,
     :jac_assemble=>jac_assemble,
     :solve=>solve,
@@ -124,15 +125,13 @@ function _hunt(;
       :α=>α,
       :β=>β,
       :γ=>γ,
-      :u=>Dict(
-        :tags=>"noslip",
-        :values=>VectorValue(0,0,0)),
-      :j=>Dict(
-        :tags=>"insulating",
-        :values=>VectorValue(0,0,0)),
       :f=>f̄,
       :B=>B̄,
     ),
+    :bcs => Dict(
+      :u=>Dict(:tags=>"noslip"),
+      :j=>Dict(:tags=>"insulating"),
+    )
   )
 
   toc!(t,"pre_process")
@@ -140,19 +139,19 @@ function _hunt(;
   # Solve it
   if solver == :julia
     params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh = main(params)
+    xh,fullparams = main(params)
   elseif solver == :petsc
-    xh = GridapPETSc.with(args=split(petsc_options)) do
-    params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-    params[:vector_type] = Vector{PetscScalar}
-    params[:solver] = PETScNonlinearSolver()
-    params[:solver_postpro] = cache -> snes_postpro(cache,info)
-    xh = main(params)
+    xh,fullparams = GridapPETSc.with(args=split(petsc_options)) do
+      params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
+      params[:vector_type] = Vector{PetscScalar}
+      params[:solver] = PETScNonlinearSolver()
+      params[:solver_postpro] = cache -> snes_postpro(cache,info)
+      main(params)
     end
   else
     error()
   end
-  t = params[:ptimer]
+  t = fullparams[:ptimer]
 
   # Rescale quantities
 
