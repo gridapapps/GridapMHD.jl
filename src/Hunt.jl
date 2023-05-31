@@ -15,9 +15,17 @@ function hunt(;
       info, t = _hunt(;title=_title,path=path,kwargs...)
     else
       @assert backend !== nothing
-      info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      info, t = with_backend(_find_backend(backend),(np...,1)) do _parts
         _hunt(;parts=_parts,title=_title,path=path,kwargs...)
       end
+      # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      # end
+      # Profile.clear()
+      # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      # end
+      # save("test_$(MPI.Comm_rank(MPI.COMM_WORLD)).jlprof", Profile.retrieve()...)
     end
     info[:np] = np
     info[:backend] = backend
@@ -35,9 +43,9 @@ end
 
 function _find_backend(s)
   if s === :sequential
-    backend = sequential
+    backend = SequentialBackend()
   elseif s === :mpi
-    backend = mpi
+    backend = MPIBackend()
   else
     error()
   end
@@ -60,6 +68,9 @@ function _hunt(;
   title="test",
   path=".",
   debug=false,
+  res_assemble=false,
+  jac_assemble=false,
+  solve=true,
   solver=:julia,
   verbose=true,
   kmap=1,
@@ -69,7 +80,7 @@ function _hunt(;
   info = Dict{Symbol,Any}()
 
   if parts === nothing
-    t_parts = get_part_ids(sequential,1)
+    t_parts = get_part_ids(SequentialBackend(),1)
   else
     t_parts = parts
   end
@@ -106,6 +117,9 @@ function _hunt(;
     :ptimer=>t,
     :debug=>debug,
     :model=>model,
+    :res_assemble=>res_assemble,
+    :jac_assemble=>jac_assemble,
+    :solve=>solve,
     :fluid=>Dict(
       :domain=>model,
       :α=>α,
