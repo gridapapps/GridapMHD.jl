@@ -37,6 +37,7 @@ function _expansion(;
   vtk=true,
   path=".",
   debug = false,
+  solve = true,
   verbose=true,
   solver=:julia,
   N=1.0,
@@ -83,6 +84,7 @@ function _expansion(;
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
+    :solve=>solve,
     :model => model,
     :fluid=>Dict(
       :domain=>model,
