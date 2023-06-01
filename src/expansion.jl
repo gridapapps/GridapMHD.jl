@@ -12,7 +12,7 @@ function expansion(;
     else
       @assert backend !== nothing
       @assert np !== nothing
-      info, t = prun(_find_backend(backend),np) do _parts
+      info, t = with_backend(_find_backend(backend),np) do _parts
         _expansion(;parts=_parts,title=title,path=path,mesh=mesh,kwargs...)
       end
     end
@@ -48,7 +48,7 @@ function _expansion(;
   info = Dict{Symbol,Any}()
 
   if parts === nothing
-    t_parts = get_part_ids(sequential,1)
+    t_parts = get_part_ids(SequentialBackend(),1)
   else
     t_parts = parts
   end
