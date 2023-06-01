@@ -16,6 +16,7 @@ using Gridap.ReferenceFEs
 using Gridap.Geometry
 using Gridap.FESpaces
 using GridapDistributed
+using GridapGmsh
 using GridapPETSc
 using GridapPETSc.PETSC
 using FileIO
@@ -24,5 +25,7 @@ using BSON
 include("Main.jl")
 
 include("Hunt.jl")
+
+include("expansion.jl")
 
 end # module

@@ -335,7 +335,7 @@ function params_bcs_thin_wall(params::Dict{Symbol,Any})
    :jw=>false,
   )
   optional = Dict(:jw=>0)
-  _check_mandatory_and_add_optional_weak([:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
+  _check_mandatory_and_add_optional_weak(params[:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
 end
 
 function _check_mandatory(params,mandatory,p)
