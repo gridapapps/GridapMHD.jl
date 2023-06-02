@@ -12,7 +12,7 @@ function expansion(;
     else
       @assert backend !== nothing
       @assert np !== nothing
-      info, t = prun(_find_backend(backend),np) do _parts
+      info, t = with_backend(_find_backend(backend),np) do _parts
         _expansion(;parts=_parts,title=title,path=path,mesh=mesh,kwargs...)
       end
     end
@@ -79,12 +79,15 @@ function _expansion(;
   β = (1.0/Ha^2)
   γ = 1.0
 
-  # This gives mean(u_inlet)=1/4
-  u_inlet((x,y,z)) = VectorValue(9.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+  # This gives mean(u_inlet)=1
+  u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
 
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
+    :solve=>true,
+    :res_assemble=>false,
+    :jac_assemble=>false,
     :model => model,
     :fluid=>Dict(
       :domain=>model,
@@ -152,7 +155,7 @@ function _expansion(;
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
     toc!(t,"vtk")
   end
   if verbose

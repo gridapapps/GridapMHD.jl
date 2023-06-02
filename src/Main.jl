@@ -70,7 +70,11 @@ function add_default_params(_params)
   mandatory = Dict(
     :ptimer=>false,
     :debug=>false,
+    :solve=>true,
+    :res_assemble=>false,
+    :jac_assemble=>false,
     :solver=>false,
+    :solver_postpro=>false,
     :matrix_type=>false,
     :vector_type=>false,
     :model=>true,
@@ -79,18 +83,20 @@ function add_default_params(_params)
     :solid=>false,
     :bcs=>true,
     :check_valid=>false,
-    :solver_postpro=>false,
   )
   _check_mandatory(_params,mandatory,"")
   optional = Dict(
-    :solid=>nothing,
     :ptimer=>default_ptimer(_params[:model]),
     :debug=>false,
+    :solve=>true,
+    :res_assemble=>false,
+    :jac_assemble=>false,
     :solver=>NLSolver(show_trace=true,method=:newton),
     :solver_postpro => (x->nothing),
     :matrix_type=>SparseMatrixCSC{Float64,Int},
     :vector_type=>Vector{Float64},
     :k=>2,
+    :solid=>nothing,
     :check_valid=>true,
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
@@ -496,17 +502,31 @@ function main(_params::Dict)
     free_ids = get_free_dof_ids(U)
     free_vals = _rand(vt,free_ids)
     xh = FEFunction(U,free_vals)
+    toc!(t,"solve")
   else
     res, jac = weak_form(params,k)
     Tm = params[:matrix_type]
     Tv = params[:vector_type]
     assem = SparseMatrixAssembler(Tm,Tv,U,V)
     op = FEOperator(res,jac,U,V,assem)
-    solver = params[:solver]
     xh = zero(U)
-    xh,cache = solve!(xh,solver,op)
-    solver_postpro = params[:solver_postpro]
-    solver_postpro(cache)
+    if params[:solve]
+       solver = params[:solver]
+       xh,cache = solve!(xh,solver,op)
+       solver_postpro = params[:solver_postpro]
+       solver_postpro(cache)
+       toc!(t,"solve")
+    end
+    if params[:res_assemble]
+      tic!(t;barrier=true)
+      r = residual(op,xh)
+      toc!(t,"residual")
+    end
+    if params[:jac_assemble]
+      tic!(t;barrier=true)
+      j = jacobian(op,xh)
+      toc!(t,"jacobian")
+    end
   end
   toc!(t,"solve")
 

@@ -18,6 +18,14 @@ function hunt(;
       info, t = with_backend(_find_backend(backend),(np...,1)) do _parts
         _hunt(;parts=_parts,title=_title,path=path,kwargs...)
       end
+      # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      # end
+      # Profile.clear()
+      # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
+      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      # end
+      # save("test_$(MPI.Comm_rank(MPI.COMM_WORLD)).jlprof", Profile.retrieve()...)
     end
     info[:np] = np
     info[:backend] = backend
@@ -60,6 +68,9 @@ function _hunt(;
   title="test",
   path=".",
   debug=false,
+  res_assemble=false,
+  jac_assemble=false,
+  solve=true,
   solver=:julia,
   verbose=true,
   mesh = false,
@@ -130,6 +141,9 @@ function _hunt(;
     :ptimer=>t,
     :debug=>debug,
     :model=>model,
+    :res_assemble=>res_assemble,
+    :jac_assemble=>jac_assemble,
+    :solve=>solve,
     :fluid=>Dict(
       :domain=>model,
       :α=>α,

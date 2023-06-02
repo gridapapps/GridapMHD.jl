@@ -1,5 +1,9 @@
 module GridapMHD
 
+# using Profile
+# using FileIO
+# using MPI
+
 using Random
 using SparseArrays
 using SparseMatricesCSR
@@ -12,6 +16,7 @@ using Gridap.ReferenceFEs
 using Gridap.Geometry
 using Gridap.FESpaces
 using GridapDistributed
+using GridapGmsh
 using GridapPETSc
 using GridapPETSc.PETSC
 using FileIO
