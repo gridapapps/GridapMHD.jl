@@ -45,7 +45,7 @@ function _find_backend(s)
   if s === :sequential
     backend = SequentialBackend()
   elseif s === :mpi
-    backend = MPIBackend()
+    backend = MPIBackend() 
   else
     error()
   end
@@ -73,7 +73,10 @@ function _hunt(;
   solve=true,
   solver=:julia,
   verbose=true,
-  kmap=1,
+  mesh = false,
+  BL_adapted = true,
+  kmap_x = 1.0,
+  kmap_y = 1.0,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
@@ -101,17 +104,38 @@ function _hunt(;
   domain = domain_phys ./ L
 
   # Prepare problem in terms of reduced quantities
-  layer(x,a) = sign(x)*abs(x)^(1/a)
-  map((x,y,z)) = VectorValue(layer(x,kmap),y,z)
-  partition=(nc[1],nc[2],3)
+
+   strech_Ha = sqrt(Ha/(Ha-1))
+   strech_side = sqrt(sqrt(Ha)/(sqrt(Ha)-1))
+
+  function map1(coord)
+     ncoord = GridapMHD.strechMHD(coord,domain=(0,-L,0,-L),factor=(strech_side,strech_Ha),dirs=(1,2))
+     ncoord = GridapMHD.strechMHD(ncoord,domain=(0,L,0,L),factor=(strech_side,strech_Ha),dirs=(1,2))
+     ncoord  
+   end
+
+   layer(x,a) = sign(x)*abs(x)^(1/a)
+   map2((x,y,z)) = VectorValue(layer(x,kmap_x),layer(y,kmap_y),z)
+
+
+ partition=(nc[1],nc[2],3)
+ if BL_adapted
   model = CartesianDiscreteModel(
-    parts,domain,partition;isperiodic=(false,false,true),map=map)
+     parts,domain,partition;isperiodic=(false,false,true),map=map1)
+ else
+  model = CartesianDiscreteModel(
+     parts,domain,partition;isperiodic=(false,false,true),map=map2)
+ end
   Ω = Interior(model)
   labels = get_face_labeling(model)
   tags_u = append!(collect(1:20),[23,24,25,26])
   tags_j = append!(collect(1:20),[25,26])
   add_tag_from_tags!(labels,"noslip",tags_u)
   add_tag_from_tags!(labels,"insulating",tags_j)
+  
+  if mesh
+    writevtk(model,"Mesh")
+  end
 
   params = Dict(
     :ptimer=>t,
@@ -198,7 +222,7 @@ function _hunt(;
     writevtk(Ω_phys,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
         "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
     toc!(t,"vtk")
   end
@@ -225,7 +249,7 @@ function _hunt(;
   info[:uh_h1] = uh_h1
   info[:uh_l2] = uh_l2
   info[:jh_l2] = jh_l2
-  info[:kmap] = kmap
+  info[:kmap] = [kmap_x,kmap_y]
 
   info, t
 end

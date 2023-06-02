@@ -1,5 +1,5 @@
-*.geo
-*.msh
+#*.geo
+#*.msh
 *.vtu
 *.pvd
 *.jl.*.cov

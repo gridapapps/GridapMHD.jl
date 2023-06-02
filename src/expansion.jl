@@ -33,18 +33,19 @@ end
 function _expansion(;
   parts=nothing,
   title = "Expansion",
-  mesh = "coarse",
+  mesh = "720",
   vtk=true,
   path=".",
   debug = false,
-  solve = true,
   verbose=true,
   solver=:julia,
-  N=1.0,
-  Ha=1.0,
+  N = 1.0,
+  Ha = 1.0,
+  cw = 0.028,
+  τ = 100,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
 )
-
+  
   info = Dict{Symbol,Any}()
 
   if parts === nothing
@@ -84,7 +85,9 @@ function _expansion(;
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
-    :solve=>solve,
+    :solve=>true,
+    :res_assemble=>false,
+    :jac_assemble=>false,
     :model => model,
     :fluid=>Dict(
       :domain=>model,
@@ -93,17 +96,38 @@ function _expansion(;
       :γ=>γ,
       :f=>VectorValue(0.0,0.0,0.0),
       :B=>VectorValue(0.0,1.0,0.0),
-    ),
-    :bcs => Dict(
+    )
+   )
+
+  if cw == 0.0
+   params[:bcs] = Dict( 
       :u => Dict(
         :tags => ["inlet", "wall"],
         :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
       ),
-      :j => Dict(:tags => Int[]),
-      #:j => Dict(:tags => ["wall"], :values=>[VectorValue(0.0,0.0,0.0)] ),
-      :thin_wall => [Dict(:τ => 100.0, :cw => 0.028, :jw => 0, :τ => 0.2, :domain => Boundary(model, tags="wall"))],
+      :j => Dict(
+		:tags => ["wall", "inlet", "outlet"], 
+        :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
+      )
     )
-  )
+
+  else 
+   params[:bcs] = Dict(
+      :u => Dict(
+        :tags => ["inlet", "wall"],
+        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+      ),
+      :j => Dict(
+	:tags => ["inlet", "outlet"], 
+	:values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
+      ),
+      :thin_wall => [Dict(
+	:τ=>τ,
+	:cw=>cw,
+	:domain => Boundary(model, tags="wall")
+      )]
+    )
+  end
 
   toc!(t,"pre_process")
 

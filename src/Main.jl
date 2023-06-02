@@ -809,3 +809,5 @@ function a_B(x,dy,γ,B,dΩ)
   ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
 end
 
+
+
