@@ -75,8 +75,8 @@ function _hunt(;
   verbose=true,
   mesh = false,
   BL_adapted = true,
-  kmap_x = 1.0,
-  kmap_y = 1.0,
+  kmap_x = 1,
+  kmap_y = 1,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 

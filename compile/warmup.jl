@@ -30,7 +30,8 @@ hunt(
   solver=:petsc,
   BL_adapted = true,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
-  kmap=1,
+  kmap_x=1,
+  kmap_y=1,
   res_assemble=true,
   jac_assemble=true,
   solve=true
@@ -52,7 +53,8 @@ hunt(
   solver=:petsc,
   BL_adapted = true,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
-  kmap=1,
+  kmap_x=1,
+  kmap_y=1,
   res_assemble=true,
   jac_assemble=true,
   solve=true
@@ -63,8 +65,7 @@ expansion(
   Ha = 10.0,
   N = 3000.0,
   cw = 0.01,
-  debug=false,
-  vtk=true,
-  title="warmup_gmsh",
-  solver=:julia
+  title="warmup_gmsh"
 )
+expansion(np=2,backend=:sequential,title="warmup_gmsh_np2")
+expansion(np=1,backend=:mpi,title="warmup_gmsh_mpi")

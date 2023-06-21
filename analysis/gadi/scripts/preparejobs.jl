@@ -73,7 +73,6 @@ function preparejobs_conv()
       :nc => (cx, cx),
       :np => (px, px),
       :B => (0.0, Float64(ha), 0.0),
-      :debug => "false",
       :vtk => "false",
       :title => title,
       :path => datadir(),
@@ -169,7 +168,6 @@ function preparejobs_ssca()
       :nc => (cx, cx),
       :np => (px, px),
       :B => (0.0, Float64(ha), 0.0),
-      :debug => "false",
       :vtk => "false",
       :title => title,
       :path => datadir(),
@@ -235,13 +233,71 @@ function preparejobs_wsca()
       :nc => (cx, cx),
       :np => (px, px),
       :B => (0.0, Float64(ha), 0.0),
-      :debug => "false",
       :vtk => "false",
       :title => title,
       :path => datadir(),
       :nruns => nr,
       :nsums => ns,
       :kmap => km,
+      :petsc_options => petsc_options(ps),
+    )
+  end
+
+  template = read(scriptsdir("jobtemplate"), String)
+
+  for dict in dicts
+    jobfile = datadir(dict[:name] * ".sh")
+    open(jobfile, "w") do io
+      render(io, template, dict |> tostringdict)
+    end
+  end
+
+  return nothing
+end
+
+function preparejobs_ha_sca()
+  allparams = Dict(
+    :ha => [50,100,500,1000,5000,10000],
+    :cx => [50,100],
+    :px => [2],
+    :nr => [1],
+    :ns => [1000],
+    :ps => [1],
+    :km => [1])
+
+  params = dict_list(allparams)
+  dicts = map(params) do params
+    cx = params[:cx]
+    px = params[:px]
+    ha = params[:ha]
+    nr = params[:nr]
+    ns = params[:ns]
+    ps = params[:ps]
+    km = params[:km]
+
+    n = px^2
+    nnodes = ceil(n / 48) |> Int
+    title = jobtitle(params)
+    Dict(
+      :q => "normal",
+      :o => title*"o.txt",
+      :e => title*"e.txt",      
+      :walltime => "01:00:00",
+      :ncpus => nnodes > 1 ? nnodes*48 : n,
+      :mem => "$(190*nnodes)gb",
+      :jobfs => "1gb",
+      :name => title,
+      :n => n,
+      :nc => (cx, cx),
+      :np => (px, px),
+      :B => (0.0, Float64(ha), 0.0),
+      :vtk => "true",
+      :title => title,
+      :path => datadir(),
+      :nruns => nr,
+      :nsums => ns,
+      :kamp_x => 1,
+      :kamp_y => 1,
       :petsc_options => petsc_options(ps),
     )
   end
