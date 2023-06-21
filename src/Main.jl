@@ -528,7 +528,6 @@ function main(_params::Dict)
       toc!(t,"jacobian")
     end
   end
-  toc!(t,"solve")
 
   xh, params
 end
