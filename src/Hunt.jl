@@ -172,6 +172,8 @@ function _hunt(;
       params[:solver_postpro] = cache -> snes_postpro(cache,info)
       main(params)
     end
+  elseif solver == :block_cg
+    return params
   else
     error()
   end

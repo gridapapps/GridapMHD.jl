@@ -1,6 +1,8 @@
 #*.geo
 #*.msh
 *.vtu
+*.pvtu
+*.bson
 *.pvd
 *.jl.*.cov
 *.jl.cov
