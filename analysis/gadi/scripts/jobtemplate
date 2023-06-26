@@ -9,7 +9,7 @@
 #PBS -o {{{o}}}
 #PBS -e {{{e}}} 
 
-source ${HOME}/GridapMHD.jl/analysis/scripts/env.sh
+source ${HOME}/GridapMHD.jl/analysis/gadi/scripts/env.sh
 
 mpiexec -n {{n}} julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD.so -O3 --check-bounds=no -e\
 '
@@ -28,8 +28,8 @@ hunt(
   path="{{{path}}}",
   nruns={{nruns}},
   nsums={{nsums}},
-  kmap_x={{kmap_x}},
-  kmap_y={{kmap_y}},
+  kmap_x=1,
+  kmap_y=1,
   BL_adapted = true,
   solver=:petsc,
   petsc_options="{{{petsc_options}}}",

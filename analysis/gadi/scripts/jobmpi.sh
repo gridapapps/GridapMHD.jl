@@ -23,6 +23,6 @@ hunt(
   title="hunt_48_petsc",
   solver=:petsc,
   BL_adapted = true,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_4 3  -mat_mumps_icntl_28 2  -mat_mumps_icntl_29 2"
  )'
 
