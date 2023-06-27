@@ -182,7 +182,8 @@ U_φ  = TrialFESpace(V_φ)
 U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=BlockMultiFieldStyle())
 
 # Weak form
-
+#! ζ adds an Augmented-Lagragian term to both the preconditioner and teh weak form. 
+#! Set to zero if not needed.
 params[:ζ] = 100.0
 res, jac = weak_form(params,k)
 Tm = params[:matrix_type]
@@ -204,7 +205,7 @@ Iφ = assemble_matrix((φ,v_φ) -> ∫(φ*v_φ)*dΩ ,U_φ,V_φ)
 
 Dj_solver = LUSolver()
 Fk_solver = LUSolver()
-Δp_solver = LUSolver() # Not used for now since Δp is singular
+Δp_solver = LUSolver() #! Not used for now since Δp is singular
 Ip_solver = LUSolver()
 Iφ_solver = LUSolver()
 
@@ -214,7 +215,6 @@ P = MHDBlockPreconditioner(block_solvers...,block_mats...,params)
 
 sysmat_solver = GMRESSolver(300,P,1e-8)
 sysmat_ns = numerical_setup(symbolic_setup(sysmat_solver,sysmat),sysmat)
-
 
 # Gridap's Newton-Raphson solver
 xh = zero(U)
