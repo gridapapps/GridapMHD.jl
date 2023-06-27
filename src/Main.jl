@@ -659,6 +659,7 @@ function weak_form(params,k)
   f = fluid[:f]
   B = fluid[:B]
   σf = fluid[:σ]
+  ζ = params[:ζ]
 
   bcs = params[:bcs]
 
@@ -713,6 +714,9 @@ function weak_form(params,k)
     if solid !== nothing
       r = r + a_solid(x,dy,σs,dΩs)
     end
+    if ζ !== nothing
+      r = r + a_augmented_lagragian(x,dy,ζ,dΩf)
+    end
     r
   end
 
@@ -752,6 +756,12 @@ function a_solid(x,dy,σ,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
   ∫( j⋅v_j - σ*φ*(∇⋅v_j) + (∇⋅j)*v_φ)dΩ
+end
+
+function a_augmented_lagragian(x,dy,ζ,dΩf)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  return ∫( ζ*(∇⋅u)*(∇⋅v_u) ) * dΩf
 end
 
 function a_mhd(x,dy,β,γ,B,σ,dΩ)

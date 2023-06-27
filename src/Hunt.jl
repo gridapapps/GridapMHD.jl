@@ -172,7 +172,7 @@ function _hunt(;
       params[:solver_postpro] = cache -> snes_postpro(cache,info)
       main(params)
     end
-  elseif solver == :block_cg
+  elseif solver == :block_gmres
     return params
   else
     error()
