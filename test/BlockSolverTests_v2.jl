@@ -1,4 +1,3 @@
-
 using Gridap, GridapDistributed, GridapSolvers
 using Gridap.MultiField
 using Gridap.Algebra
@@ -19,16 +18,15 @@ end
   This preconditioner is based on [(Li,2019)](https://doi.org/10.1137/19M1260372)
 """
 struct MHDBlockPreconditioner <: Gridap.Algebra.LinearSolver
-  Dj_solver
-  Fk_solver
-  Δp_solver
+  Ij_solver
+  Fu_solver
   Ip_solver
-  Iφ_solver
-  Dj
-  Δp
-  Ip
+  Δp_solver
+  Δφ_solver
   Ij
-  Iφ
+  Ip
+  Δp
+  Δφ
   params
 end
 
@@ -42,16 +40,16 @@ end
 
 mutable struct MHDBlockPreconditionerNS <: Gridap.Algebra.NumericalSetup
   solver
-  Dj_ns
-  Fk_ns
-  Δp_ns
+  Ij_ns
+  Fu_ns
   Ip_ns
-  Iφ_ns
+  Δp_ns
+  Δφ_ns
   sysmat
   caches
 end
 
-function allocate_preconditioner_caches(solver,A::BlockMatrix)
+function allocate_preconditioner_caches(solver::MHDBlockPreconditioner,A::BlockMatrix)
   du = allocate_col_vector(A[Block(1,1)])
   dp = allocate_col_vector(A[Block(2,2)])
   dj = allocate_col_vector(A[Block(3,3)])
@@ -61,62 +59,48 @@ end
 
 function Gridap.Algebra.numerical_setup(ss::MHDBlockPreconditionerSS, A::BlockMatrix)
   solver = ss.solver
+  Fu = A[Block(1,1)]; # K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]
 
-  Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
-  Fk = Fu - (1.0/κ^2) * Kᵗ * K
-
-  Dj_ns = numerical_setup(symbolic_setup(solver.Dj_solver,solver.Dj),solver.Dj)
-  Fk_ns = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
-  Δp_ns = nothing#numerical_setup(symbolic_setup(solver.Δp_solver,solver.Δp),solver.Δp)
-  Ip_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Ip),solver.Ip)
-  Iφ_ns = numerical_setup(symbolic_setup(solver.Δφ_solver,solver.Iφ),solver.Iφ)
+  Ij_ns = numerical_setup(symbolic_setup(solver.Ij_solver,solver.Ij),solver.Ij)
+  Fu_ns = numerical_setup(symbolic_setup(solver.Fu_solver,Fu),Fu)
+  Ip_ns = numerical_setup(symbolic_setup(solver.Ip_solver,solver.Ip),solver.Ip)
+  Δp_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Δp),solver.Δp)
+  Δφ_ns = numerical_setup(symbolic_setup(solver.Δφ_solver,solver.Δφ),solver.Δφ)
   caches = allocate_preconditioner_caches(solver,A)
-  return MHDBlockPreconditionerNS(ss.solver,Dj_ns,Fk_ns,Δp_ns,Ip_ns,Iφ_ns,A,caches)
+  return MHDBlockPreconditionerNS(ss.solver,Ij_ns,Fu_ns,Ip_ns,Δp_ns,Δφ_ns,A,caches)
 end
 
 function Gridap.Algebra.numerical_setup!(ns::MHDBlockPreconditionerNS, A::BlockMatrix)
-  solver = ns.solver
-
-  #! Pattern of matrix changes, so we need to recompute everything.
-  # This will get fixed when we are using iterative solvers for Fk
-  Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
-  Fk = Fu - (1.0/κ^2) * Kᵗ * K
-  # numerical_setup!(ns.Fk_ns,Fk)
-
-  ns.Fk_ns  = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
+  Fu = A[Block(1,1)]
+  numerical_setup!(ns.Fu_ns,Fu)
   ns.sysmat = A
-
   return ns
 end
 
 # Follows Algorithm 4.1 in (Li,2019)
 function Gridap.Algebra.solve!(x::BlockVector,ns::MHDBlockPreconditionerNS,b::BlockVector)
-  sysmat, caches, params = ns.sysmat, ns.caches, ns.solver.params
-  fluid = params[:fluid]; ζ = params[:ζ]; iRe = fluid[:β]
-  κ = fluid[:γ]; α1 = ζ + iRe;
-
+  caches = ns.caches
   bu, bp, bj, bφ = blocks(b)
   u, p, j, φ = blocks(x)
   du, dp, dj, dφ = caches
 
   # Solve for p
-  #solve!(p,ns.Δp_ns,bp)
+  fill!(p,0.0)
   solve!(dp,ns.Ip_ns,bp)
-  p .= -α1 .* dp #.- p #! Time-dependent case:  .+ (2.0/τ) .* p; See Lemma A.4 in paper.
+  solve!(p,ns.Δp_ns,bp)
+  p .+= dp
 
-  #  Solve for φ
-  dφ .= -bφ
-  solve!(φ,ns.Iφ_ns,dφ)
+  # Solve for φ
+  fill!(φ,0.0)
+  solve!(φ,ns.Δφ_ns,bφ)
 
   # Solve for u
-  copy!(du,bu); mul!(du,sysmat[Block(1,2)],p,-1.0,1.0) # du = bu - Aup * p
-  solve!(u,ns.Fk_ns,du) # u = Fu \ (bu - Aup * p)
+  fill!(u,0.0)
+  solve!(u,ns.Fu_ns,bu)
 
   # Solve for j
-  copy!(dj,bj)
-  mul!(dj,sysmat[Block(3,1)],u,-2.0,1.0) # dj = bj - 2.0 * Aju * u
-  mul!(dj,sysmat[Block(3,4)],φ,-2.0,1.0) # dj = bj - 2.0 * Aju * u - 2.0 * Ajφ * φ
-  solve!(j,ns.Dj_ns,dj) # j = Dj \ (bj - 2.0 * Aju * u - 2.0 * Ajφ * φ)
+  fill!(j,0.0)
+  solve!(j,ns.Ij_ns,bj)
 
   return x
 end
@@ -182,9 +166,7 @@ U_φ  = TrialFESpace(V_φ)
 U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=BlockMultiFieldStyle())
 
 # Weak form
-#! ζ adds an Augmented-Lagragian term to both the preconditioner and teh weak form. 
-#! Set to zero if not needed.
-params[:ζ] = 1000.0
+params[:ζ] = nothing
 res, jac = weak_form(params,k)
 Tm = params[:matrix_type]
 Tv = params[:vector_type]
@@ -194,24 +176,42 @@ al_op = Gridap.FESpaces.get_algebraic_operator(op)
 
 # Preconditioner
 
-Ω = Triangulation(params[:model])
+Ω = Triangulation(model)
+Γ = Boundary(model)
+Λ = Skeleton(model)
+
 dΩ = Measure(Ω,2*k)
+dΓ = Measure(Γ,2*k-1)
+dΛ = Measure(Λ,2*k-1)
 
-γ = params[:fluid][:γ]
-Dj = assemble_matrix((j,v_j) -> ∫(γ*j⋅v_j + γ*(∇⋅j)⋅(∇⋅v_j))*dΩ ,U_j,V_j)
-Ij = assemble_matrix((j,v_j) -> ∫(j⋅v_j)*dΩ ,U_j,V_j)
-Δp = assemble_matrix((p,v_p) -> ∫(∇(p)⋅∇(v_p))*dΩ ,U_p,V_p)
-Ip = assemble_matrix((p,v_p) -> ∫(p*v_p)*dΩ,V_p,V_p)
-Iφ = assemble_matrix((φ,v_φ) -> ∫(γ*φ*v_φ)*dΩ ,U_φ,V_φ)
+n_Γ = get_normal_vector(Γ)
+n_Λ = get_normal_vector(Λ)
 
-Dj_solver = LUSolver()
-Fk_solver = LUSolver()
-Δp_solver = LUSolver() #! Not used for now since Δp is singular
+h_e_Λ = CellField(get_array(∫(1)dΛ),Λ)
+h_e_Γ = CellField(get_array(∫(1)dΓ),Γ)
+
+iRe = params[:fluid][:β]
+γ = 1.0#params[:fluid][:γ]
+ζ = 1000.0
+aΛ(u,v) = ∫(-jump(u⋅n_Λ)⋅mean(∇(v)) - mean(∇(u))⋅jump(v⋅n_Λ))*dΛ + ∫(ζ/h_e_Λ*jump(u⋅n_Λ)⋅jump(v⋅n_Λ))*dΛ
+aΓ(u,v) = ∫(-(∇(u)⋅n_Λ)⋅v - u⋅(∇(v)⋅n_Λ))*dΓ + ∫(ζ/h_e_Γ*jump(u⋅n_Γ)⋅jump(v⋅n_Γ))*dΓ
+
+ap(p,v_p) = ∫(-γ*∇(p)⋅∇(v_p))*dΩ + -γ*aΛ(p,v_p)
+aφ(φ,v_φ) = ∫(-γ*∇(φ)⋅∇(v_φ))*dΩ + -γ*aΛ(φ,v_φ)
+
+Ij = assemble_matrix((j,v_j) -> ∫(γ*j⋅v_j)*dΩ ,U_j,V_j)
+Ip = assemble_matrix((p,v_p) -> ∫(iRe*p⋅v_p)*dΩ ,U_p,V_p)
+Δp = assemble_matrix(ap,U_p,V_p)
+Δφ = assemble_matrix(aφ,U_φ,V_φ)
+
+Ij_solver = LUSolver()
+Fu_solver = LUSolver()
 Ip_solver = LUSolver()
-Iφ_solver = LUSolver()
+Δp_solver = LUSolver()
+Δφ_solver = LUSolver()
 
-block_solvers = [Dj_solver,Fk_solver,Δp_solver,Ip_solver,Iφ_solver]
-block_mats = [Dj,Δp,Ip,Ij,Iφ]
+block_solvers = [Ij_solver,Fu_solver,Ip_solver,Δp_solver,Δφ_solver]
+block_mats = [Ij,Ip,Δp,Δφ]
 P = MHDBlockPreconditioner(block_solvers...,block_mats...,params)
 
 sysmat_solver = GMRESSolver(300,P,1e-10)
@@ -224,6 +224,8 @@ sysmat_ns = numerical_setup(symbolic_setup(sysmat_solver,sysmat),sysmat)
 
 x  = allocate_col_vector(sysmat)
 dx = allocate_col_vector(sysmat)
+
+solve!(x,sysmat_ns,sysvec)
 
 nlsolver = NewtonRaphsonSolver(sysmat_solver,1e-6,100)
 nlsolver_cache = Gridap.Algebra.NewtonRaphsonCache(sysmat,sysvec,dx,sysmat_ns)

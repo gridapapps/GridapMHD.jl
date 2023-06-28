@@ -770,8 +770,8 @@ function a_mhd(x,dy,β,γ,B,σ,dΩ)
   ∫(
     β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u) -(γ*(j×B)⋅v_u) +
     (∇⋅u)*v_p +
-    j⋅v_j - σ*φ*(∇⋅v_j) - σ*(u×B)⋅v_j +
-    (∇⋅j)*v_φ ) * dΩ
+    γ*j⋅v_j - γ*σ*φ*(∇⋅v_j) - γ*σ*(u×B)⋅v_j +
+    γ*(∇⋅j)*v_φ ) * dΩ
 end
 
 function ℓ_mhd(dy,f,dΩ)
