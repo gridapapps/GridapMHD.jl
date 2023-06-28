@@ -86,9 +86,9 @@ function Gridap.Algebra.solve!(x::BlockVector,ns::MHDBlockPreconditionerNS,b::Bl
 
   # Solve for p
   fill!(p,0.0)
-  solve!(dp,ns.Ip_ns,bp)
+  #solve!(dp,ns.Ip_ns,bp)
   solve!(p,ns.Δp_ns,bp)
-  p .+= dp
+  #p .+= dp
 
   # Solve for φ
   fill!(φ,0.0)
@@ -181,8 +181,8 @@ al_op = Gridap.FESpaces.get_algebraic_operator(op)
 Λ = Skeleton(model)
 
 dΩ = Measure(Ω,2*k)
-dΓ = Measure(Γ,2*k-1)
-dΛ = Measure(Λ,2*k-1)
+dΓ = Measure(Γ,2*k)
+dΛ = Measure(Λ,2*k)
 
 n_Γ = get_normal_vector(Γ)
 n_Λ = get_normal_vector(Λ)
@@ -191,13 +191,13 @@ h_e_Λ = CellField(get_array(∫(1)dΛ),Λ)
 h_e_Γ = CellField(get_array(∫(1)dΓ),Γ)
 
 iRe = params[:fluid][:β]
-γ = 1.0#params[:fluid][:γ]
-ζ = 1000.0
+γ = params[:fluid][:γ]
+ζ = 100.0
 aΛ(u,v) = ∫(-jump(u⋅n_Λ)⋅mean(∇(v)) - mean(∇(u))⋅jump(v⋅n_Λ))*dΛ + ∫(ζ/h_e_Λ*jump(u⋅n_Λ)⋅jump(v⋅n_Λ))*dΛ
-aΓ(u,v) = ∫(-(∇(u)⋅n_Λ)⋅v - u⋅(∇(v)⋅n_Λ))*dΓ + ∫(ζ/h_e_Γ*jump(u⋅n_Γ)⋅jump(v⋅n_Γ))*dΓ
+aΓ(u,v) = ∫(-(∇(u)⋅n_Γ)⋅v - u⋅(∇(v)⋅n_Γ))*dΓ + ∫(ζ/h_e_Γ*(u⋅n_Γ)⋅(v⋅n_Γ))*dΓ
 
-ap(p,v_p) = ∫(-γ*∇(p)⋅∇(v_p))*dΩ + -γ*aΛ(p,v_p)
-aφ(φ,v_φ) = ∫(-γ*∇(φ)⋅∇(v_φ))*dΩ + -γ*aΛ(φ,v_φ)
+ap(p,v_p) = (-γ)*(∫(∇(p)⋅∇(v_p))*dΩ + aΛ(p,v_p) + aΓ(p,v_p))
+aφ(φ,v_φ) = (-γ)*(∫(∇(φ)⋅∇(v_φ))*dΩ + aΛ(φ,v_φ) + aΓ(φ,v_φ))
 
 Ij = assemble_matrix((j,v_j) -> ∫(γ*j⋅v_j)*dΩ ,U_j,V_j)
 Ip = assemble_matrix((p,v_p) -> ∫(iRe*p⋅v_p)*dΩ ,U_p,V_p)
