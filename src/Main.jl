@@ -768,10 +768,10 @@ function a_mhd(x,dy,β,γ,B,σ,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
   ∫(
-    β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u) -(γ*(j×B)⋅v_u) +
+    β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u) -(γ*(j×B)⋅v_u) -
     (∇⋅u)*v_p +
     γ*j⋅v_j - γ*σ*φ*(∇⋅v_j) - γ*σ*(u×B)⋅v_j +
-    γ*(∇⋅j)*v_φ ) * dΩ
+    - γ*(∇⋅j)*v_φ ) * dΩ
 end
 
 function ℓ_mhd(dy,f,dΩ)

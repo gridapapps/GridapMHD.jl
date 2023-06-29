@@ -8,6 +8,74 @@ using GridapSolvers.LinearSolvers: allocate_col_vector, allocate_row_vector
 
 using GridapMHD: _hunt, add_default_params, _fluid_mesh, weak_form, _find_backend, p_conformity, _interior
 
+function Gridap.Algebra.solve!(x::BlockVector,ns::GridapSolvers.LinearSolvers.GMRESNumericalSetup,b::BlockVector)
+  solver, A, Pl, caches = ns.solver, ns.A, ns.Pl_ns, ns.caches
+  m, tol = solver.m, solver.tol
+  w, V, Z, H, g, c, s = caches
+  println(" > Starting GMRES solver: ")
+
+  # Initial residual
+  mul!(w,A,x); w .= b .- w
+
+  β    = norm(w)
+  iter = 0
+  while (β > tol)
+    println("   > Iteration ", iter," - Residual: ", β)
+    fill!(H,0.0)
+    
+    # Arnoldi process
+    fill!(g,0.0); g[1] = β
+    V[1] .= w ./ β
+    j = 1
+    while ( j < m+1 && β > tol )
+      println("      > Inner iteration ", j," - Residual: ", β)
+      # Arnoldi orthogonalization by Modified Gram-Schmidt
+      solve!(Z[j],Pl,V[j])
+      mul!(w,A,Z[j])
+      for i in 1:j
+        H[i,j] = dot(w,V[i])
+        w .= w .- H[i,j] .* V[i]
+      end
+      H[j+1,j] = norm(w)
+      V[j+1] = w ./ H[j+1,j]
+
+      # Update QR
+      for i in 1:j-1
+        γ = c[i]*H[i,j] + s[i]*H[i+1,j]
+        H[i+1,j] = -s[i]*H[i,j] + c[i]*H[i+1,j]
+        H[i,j] = γ
+      end
+
+      # New Givens rotation, update QR and residual
+      c[j], s[j], _ = LinearAlgebra.givensAlgorithm(H[j,j],H[j+1,j])
+      H[j,j] = c[j]*H[j,j] + s[j]*H[j+1,j]; H[j+1,j] = 0.0
+      g[j+1] = -s[j]*g[j]; g[j] = c[j]*g[j]
+
+      β  = abs(g[j+1])
+      j += 1
+    end
+    j = j-1
+
+    # Solve least squares problem Hy = g by backward substitution
+    for i in j:-1:1
+      g[i] = (g[i] - dot(H[i,i+1:j],g[i+1:j])) / H[i,i]
+    end
+
+    # Update solution & residual
+    for i in 1:j
+      x .+= g[i] .* Z[i]
+    end
+    mul!(w,A,x); w .= b .- w
+    println("        > Block residuals: ", map(norm,blocks(w)))
+
+    iter += 1
+  end
+  println("   Exiting GMRES solver.")
+  println("   > Num Iter: ", iter-1," - Final residual: ", β)
+
+  return x
+end
+
 function Gridap.Algebra._check_convergence(nls,b,m0)
   m = Gridap.Algebra._inf_norm(b)
   println(">>>>>>>>>>>>>>>>>>>> Nonlinear Abs Error = $m")
@@ -59,10 +127,11 @@ end
 
 function Gridap.Algebra.numerical_setup(ss::MHDBlockPreconditionerSS, A::BlockMatrix)
   solver = ss.solver
-  Fu = A[Block(1,1)]; # K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]
+  Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
+  Fk = Fu - (1.0/κ^2) * Kᵗ * K
 
   Ij_ns = numerical_setup(symbolic_setup(solver.Ij_solver,solver.Ij),solver.Ij)
-  Fu_ns = numerical_setup(symbolic_setup(solver.Fu_solver,Fu),Fu)
+  Fu_ns = numerical_setup(symbolic_setup(solver.Fu_solver,Fk),Fk)
   Ip_ns = numerical_setup(symbolic_setup(solver.Ip_solver,solver.Ip),solver.Ip)
   Δp_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Δp),solver.Δp)
   Δφ_ns = numerical_setup(symbolic_setup(solver.Δφ_solver,solver.Δφ),solver.Δφ)
@@ -85,22 +154,20 @@ function Gridap.Algebra.solve!(x::BlockVector,ns::MHDBlockPreconditionerNS,b::Bl
   du, dp, dj, dφ = caches
 
   # Solve for p
-  fill!(p,0.0)
   #solve!(dp,ns.Ip_ns,bp)
   solve!(p,ns.Δp_ns,bp)
   #p .+= dp
 
   # Solve for φ
-  fill!(φ,0.0)
   solve!(φ,ns.Δφ_ns,bφ)
 
   # Solve for u
-  fill!(u,0.0)
   solve!(u,ns.Fu_ns,bu)
 
   # Solve for j
-  fill!(j,0.0)
-  solve!(j,ns.Ij_ns,bj)
+  copy!(dj,bj)
+  mul!(dj,sysmat[Block(3,1)],u,-1.0,1.0)
+  solve!(j,ns.Ij_ns,dj)
 
   return x
 end
@@ -214,7 +281,7 @@ block_solvers = [Ij_solver,Fu_solver,Ip_solver,Δp_solver,Δφ_solver]
 block_mats = [Ij,Ip,Δp,Δφ]
 P = MHDBlockPreconditioner(block_solvers...,block_mats...,params)
 
-sysmat_solver = GMRESSolver(300,P,1e-10)
+sysmat_solver = GMRESSolver(500,P,1e-10)
 
 # Gridap's Newton-Raphson solver
 xh = zero(U)
