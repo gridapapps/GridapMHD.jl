@@ -2,12 +2,12 @@
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=1
 #SBATCH -t 20:00:00
-#SBATCH --partition=cpu12c
+#SBATCH --partition=cpu36c
 
-#SBATCH -o outputCompile12c
-#SBATCH -e errorCompile12c
+#SBATCH -o outputCompile36c
+#SBATCH -e errorCompile36c
 ###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=compile12c
+#SBATCH --job-name=compileGridapMHD36c
 #SBATCH --mem=0
 
 
@@ -24,10 +24,10 @@ echo ""
 SECONDS=0
 
 
-source ../analysis/env.sh
+source /home/froca/blankets/GridapMHD.jl/analysis/Turgalium_CIEMAT/env.sh
 
 
-julia --project=$GRIDAPMHD -O3 --check-bounds=no --color=yes $GRIDAPMHD/compile/compile12c.jl
+julia --project=$GRIDAPMHD -O3 --check-bounds=no --color=yes $GRIDAPMHD/compile/Turgalium_CIEMAT/compile36c.jl
 
 duration=$SECONDS
 rm -f hosts.$SLURM_JOB_ID

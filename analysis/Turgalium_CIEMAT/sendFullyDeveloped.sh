@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH -N 2
-#SBATCH --ntasks-per-node=2
-#SBATCH -t 24:00:00
+#SBATCH -N 1
+#SBATCH --ntasks-per-node=1
+#SBATCH -t 20:00:00
 #SBATCH --partition=cpu36c
 
-#SBATCH -o outputExp_Ha50_N2n2
-#SBATCH -e errorExp_Ha50_N2n2
-###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=Exp_Ha50_ser
+#SBATCH -o outputFD_test
+#SBATCH -e errorFD_test
+#SBATCH --job-name=FD_test
 #SBATCH --mem=0
+
 
 SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
 
@@ -26,28 +26,30 @@ source env.sh
 #export OMPI_MCA_btl_openib_allow_ib=1
 #export OMPI_MCA_btl_openib_if_include="mlx5_0:1"
 
-#mpiexec -n ${SLURM_NPROCS} julia --project=.. -J ../GridapMHD.so -O3 --check-bounds=no -e\
-mpiexec -n ${SLURM_NPROCS} julia --project=$GRIDAPMHD -J $GRIDAPMHD/compile/Turgalium_CIEMAT/GridapMHD36c.so -O3 --check-bounds=no -e\
+#mpiexec -n ${SLURM_NPROCS} julia --project=$GRIDAPMHD -J $GRIDAPMHD/compile/Turgalium_CIEMAT/GridapMHD36c.so -O3 --check-bounds=no -e\
+julia --project=$GRIDAPMHD -e\
 '
-using GridapMHD: expansion
-expansion(;
-  mesh="68k", 
-  np=4,
-  backend=:mpi,
-  Ha = 50.0,
-  N = 3740.0,
-  cw = 0.01,
-  debug=false,
+using GridapMHD:FullyDeveloped 
+FullyDeveloped(
+  nc=(6,6),
+#  np=(4,5),
+#  backend=:mpi,
+  Ha = 10.0,
+  b = 1.5,
+  dir_B=(0.0,1.0,0.0),
+  cw_s = 1.0,
+  cw_Ha = 0.0,
+  debug=true,
   vtk=true,
-  title="Expansion_Ha50_N2n2",
-  solver=:petsc,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0 -mat_mumps_icntl_14 10000"
+  title="FD_test",
+  mesh = true,
+  solver=:julia,
+#  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_14 1000",
  )'
-
-
 
 duration=$SECONDS
 rm -f hosts.$SLURM_JOB_ID
+#rm -f $MACHINE_FILE
 
 STATUS=$?
 echo "================================================================"
