@@ -43,6 +43,9 @@ function _FullyDeveloped(;
   title="test",
   path=".",
   debug=false,
+  res_assemble=false,
+  jac_assemble=false,
+  solve=true,
   solver=:julia,
   verbose=true,
   mesh = false,
@@ -86,7 +89,7 @@ function _FullyDeveloped(;
 
  partition=(nc[1],nc[2],3)
  model = CartesianDiscreteModel(
-     parts,domain,partition;isperiodic=(false,false,true))
+     parts,domain,partition;isperiodic=(false,false,true),map=map1)
   Ω = Interior(model)
   
   labels = get_face_labeling(model)
@@ -106,6 +109,9 @@ function _FullyDeveloped(;
     :ptimer=>t,
     :debug=>debug,
     :model=>model,
+    :res_assemble=>res_assemble,
+    :jac_assemble=>jac_assemble,
+    :solve=>solve,
     :fluid=>Dict(
       :domain=>model,
       :α=>α,
@@ -116,13 +122,13 @@ function _FullyDeveloped(;
     ),
     :bcs => Dict(
       :u=>Dict(:tags=>["noslip"]),
-      :j=>Dict(),
-      :thin_wall=>[] 
+      :j=>Dict{Symbol,Vector{String}}(),
+      :thin_wall=>Vector{Dict{Symbol,Any}}() 
     )
   )
 
-  insulated_tags = []
-  thinWall_options = [] 
+  insulated_tags = Vector{String}()
+  thinWall_options = Vector{Dict{Symbol,Any}}() 
 
   if cw_Ha == 0.0 
     push!(insulated_tags,"Ha_walls")
@@ -146,9 +152,9 @@ function _FullyDeveloped(;
       )
   end
   
-  if insulated_tags != [] 
+#  if insulated_tags != [] 
     params[:bcs][:j] = Dict(:tags=>insulated_tags)  
-  end
+#  end
 
   if thinWall_options != []
     params[:bcs][:thin_wall] = thinWall_options
