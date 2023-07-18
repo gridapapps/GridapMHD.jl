@@ -79,8 +79,8 @@ function _expansion(;
   β = (1.0/Ha^2)
   γ = 1.0
 
-  # This gives mean(u_inlet)=1
-  u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+  # This gives mean(u_inlet)=Re
+  u_inlet((x,y,z)) = VectorValue(36.0*(Ha^2/N)*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
 
   params = Dict(
     :ptimer=>t,
@@ -150,12 +150,14 @@ function _expansion(;
   tic!(t,barrier=true)
 
   uh,ph,jh,φh = xh
+  div_jh = ∇·jh
+  div_uh = ∇·uh
 
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh])
     toc!(t,"vtk")
   end
   if verbose
