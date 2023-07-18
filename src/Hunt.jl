@@ -186,6 +186,9 @@ function _hunt(;
   jh = (σ*u0*B0)*j̄h
   φh = (u0*B0*L)*φ̄h
 
+  div_jh = ∇·jh
+  div_uh = ∇·uh
+
   if L == 1.0
     Ω_phys = Ω
   else
@@ -222,7 +225,7 @@ function _hunt(;
     writevtk(Ω_phys,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_jh"=>div_jh,"div_uh"=>div_uh,
         "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
     toc!(t,"vtk")
   end

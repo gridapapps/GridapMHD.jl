@@ -185,6 +185,7 @@ function _FullyDeveloped(;
   uh,ph,jh,φh = xh
   
   div_jh = ∇·jh 
+  div_uh = ∇·uh  
 
   #Post process
 
@@ -192,7 +193,7 @@ function _FullyDeveloped(;
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_jh"=>div_jh])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_jh"=>div_jh,"div_uh"=>div_uh])
     toc!(t,"vtk")
   end
   if verbose
