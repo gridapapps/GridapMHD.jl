@@ -24,7 +24,7 @@ echo ""
 SECONDS=0
 
 
-source /home/froca/blankets/GridapMHD.jl/analysis/Turgalium_CIEMAT/env.sh
+source /ws/blankets/GridapMHD.jl/analysis/Turgalium_CIEMAT/env.sh
 
 
 julia --project=$GRIDAPMHD -O3 --check-bounds=no --color=yes $GRIDAPMHD/compile/Turgalium_CIEMAT/compile36c.jl

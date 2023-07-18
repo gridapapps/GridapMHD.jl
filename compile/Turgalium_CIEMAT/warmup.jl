@@ -29,11 +29,7 @@ hunt(
   title="warmup_hunt_petsc",
   solver=:petsc,
   BL_adapted = true,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_4 2  -mat_mumps_icntl_28 2  -mat_mumps_icntl_29 2",
-  kmap=1,
-  res_assemble=true,
-  jac_assemble=true,
-  solve=true
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_4 2  -mat_mumps_icntl_28 2  -mat_mumps_icntl_29 2"
 )
 
 hunt(
@@ -51,11 +47,7 @@ hunt(
   title="warmup_hunt_mpi",
   solver=:petsc,
   BL_adapted = true,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_4 2  -mat_mumps_icntl_28 2  -mat_mumps_icntl_29 2",
-  kmap=1,
-  res_assemble=true,
-  jac_assemble=true,
-  solve=true
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_4 2  -mat_mumps_icntl_28 2  -mat_mumps_icntl_29 2"
 )
 
 expansion(
