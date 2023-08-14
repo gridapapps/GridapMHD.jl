@@ -173,6 +173,8 @@ function _expansion(;
   info[:Ha] = Ha
   info[:N]  = N
   info[:Re] = Ha^2/N
+  info[:cw] = cw
+  info[:τ] = τ
   info, t
 
 end
