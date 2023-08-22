@@ -1,7 +1,20 @@
+authors = ["Jesús Bonilla", "Francesc Verdugo", "Large Scale Scientific Computing"]
 name = "GridapMHD"
 uuid = "afadc09e-922c-4d62-8330-7a6898d360cc"
-authors = ["Jesús Bonilla", "Francesc Verdugo", "Large Scale Scientific Computing"]
 version = "0.4.0"
+
+[compat]
+BSON = "0.3"
+FileIO = "1"
+Gridap = "0.17.18"
+GridapDistributed = "0.3"
+GridapGmsh = "0.7"
+GridapPETSc = "0.5"
+MPI = "0.20"
+PackageCompiler = "2"
+PartitionedArrays = "0.3"
+SparseMatricesCSR = "0.6.6"
+julia = "1.7"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
@@ -19,20 +32,8 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 
-[compat]
-BSON = "0.3"
-FileIO = "1"
-Gridap = "0.17.8"
-GridapDistributed = "0.2.5"
-GridapPETSc = "0.4.3"
-GridapGmsh = "0.6"
-MPI = "0.19.2"
-PackageCompiler = "2"
-PartitionedArrays = "0.2.15"
-SparseMatricesCSR = "0.6.6"
-julia = "1.7"
-
 [extras]
+MPIPreferences = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
