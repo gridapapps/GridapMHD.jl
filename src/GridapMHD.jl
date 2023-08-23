@@ -23,6 +23,8 @@ using FileIO
 using BSON
 using GridapGmsh
 
+using PartitionedArrays: getany
+
 include("Main.jl")
 
 include("ExtraFunctions.jl")

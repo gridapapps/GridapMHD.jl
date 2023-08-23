@@ -1,37 +1,45 @@
 function expansion(;
-  backend=nothing,
-  np=nothing,
-  title = "Expansion",
-  mesh = "710",
-  path=".",
+  backend = nothing,
+  np      = nothing,
+  title   = "Expansion",
+  mesh    = "710",
+  path    = ".",
   kwargs...)
 
-    if backend === nothing
-      @assert np === nothing
-      info, t = _expansion(;title=title,path=path,mesh=mesh,kwargs...)
+  if isa(backend,Nothing)
+    @assert isa(np,Nothing)
+    info, t = _expansion(;title=title,path=path,mesh=mesh,kwargs...)
+  else
+    @assert backend ∈ [:sequential,:mpi]
+    @assert !isa(np,Nothing)
+    np = isa(np,Int) ? (np,) : np
+    if backend == :sequential
+      info,t = with_debug() do distribute
+        _expansion(;distribute=distribute,rank_partition=np,title=_title,path=path,mesh=mesh,kwargs...)
+      end
     else
-      @assert backend !== nothing
-      @assert np !== nothing
-      info, t = with_backend(_find_backend(backend),np) do _parts
-        _expansion(;parts=_parts,title=title,path=path,mesh=mesh,kwargs...)
+      info,t = with_mpi() do distribute
+        _expansion(;distribute=distribute,rank_partition=np,title=_title,path=path,mesh=mesh,kwargs...)
       end
     end
-    info[:np] = np
-    info[:backend] = backend
-    info[:title] = title
-    info[:mesh] = mesh
-    map_main(t.data) do data
-      for (k,v) in data
-        info[Symbol("time_$k")] = v.max
-      end
-      save(joinpath(path,"$title.bson"),info)
+  end
+  info[:np] = np
+  info[:backend] = backend
+  info[:title] = title
+  info[:mesh] = mesh
+  map_main(t.data) do data
+    for (k,v) in data
+      info[Symbol("time_$k")] = v.max
     end
+    save(joinpath(path,"$title.bson"),info)
+  end
 
   nothing
 end
 
 function _expansion(;
-  parts=nothing,
+  distribute=nothing,
+  rank_partition=nothing,
   title = "Expansion",
   mesh = "720",
   vtk=true,
@@ -44,16 +52,18 @@ function _expansion(;
   cw = 0.028,
   τ = 100,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
-)
+  )
   
   info = Dict{Symbol,Any}()
 
-  if parts === nothing
-    t_parts = get_part_ids(SequentialBackend(),1)
-  else
-    t_parts = parts
+  if isa(distribute,Nothing)
+    @assert isa(rank_partition,Nothing)
+    rank_partition = (1,)
+    distribute = DebugArray
   end
-  t = PTimer(t_parts,verbose=verbose)
+  parts = distribute(LinearIndices((prod(rank_partition),)))
+
+  t = PTimer(parts,verbose=verbose)
   tic!(t,barrier=true)
 
   # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
