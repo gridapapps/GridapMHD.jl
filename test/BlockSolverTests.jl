@@ -122,23 +122,31 @@ function Gridap.Algebra.solve!(x::BlockVector,ns::MHDBlockPreconditionerNS,b::Bl
 end
 
 function hunt(;
-  backend=nothing,
-  np=nothing,
-  parts=nothing,
-  title = "hunt",
-  path=".",
+  backend = nothing,
+  np      = nothing,
+  title   = "hunt",
+  nruns   = 1,
+  path    = ".",
   kwargs...)
 
-  @assert parts === nothing
-  if backend === nothing
-    @assert np === nothing
-    return _hunt(;title=title,path=path,kwargs...)
-  else
-    @assert backend !== nothing
-    return with_backend(_find_backend(backend),(np...,1)) do _parts
-      _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+  for ir in 1:nruns
+    _title = title*"_r$ir"
+    if isa(backend,Nothing)
+      @assert isa(np,Nothing)
+      return _hunt(;title=_title,path=path,kwargs...)
+    else
+      @assert backend ∈ [:sequential,:mpi]
+      @assert !isa(np,Nothing)
+      if backend == :sequential
+        return with_debug() do distribute
+          _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
+        end
+      else
+        return with_mpi() do distribute
+          _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
+        end
+      end
     end
-  end
 end
 
 _params = hunt(
@@ -150,6 +158,7 @@ _params = hunt(
   solver=:block_gmres,
 )
 
+mfs = BlockMultiFieldStyle()
 params = add_default_params(_params)
 
 # ReferenceFEs
@@ -168,10 +177,9 @@ V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
 V_p = TestFESpace(Ωf,reffe_p;conformity=p_conformity(Ωf))
 V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
 V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
-V   = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=BlockMultiFieldStyle())
+V   = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
 
 # Trial spaces
-
 z = zero(VectorValue{D,Float64})
 u_bc = params[:bcs][:u][:values]
 j_bc = params[:bcs][:j][:values]
@@ -179,7 +187,7 @@ U_u  = u_bc == z ? V_u : TrialFESpace(V_u,u_bc)
 U_j  = j_bc == z ? V_j : TrialFESpace(V_j,j_bc)
 U_p  = TrialFESpace(V_p)
 U_φ  = TrialFESpace(V_φ)
-U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=BlockMultiFieldStyle())
+U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
 
 # Weak form
 #! ζ adds an Augmented-Lagragian term to both the preconditioner and teh weak form. 
