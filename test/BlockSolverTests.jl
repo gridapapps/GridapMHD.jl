@@ -14,6 +14,12 @@ function Gridap.Algebra._check_convergence(nls,b,m0)
   println(">>>>>>>>>>>>>>>>>>>> Nonlinear Abs Error = $m")
   m < nls.tol * m0
 end
+function Gridap.Algebra._check_convergence(nls,b)
+  m0 = Gridap.Algebra._inf_norm(b)
+  println(">>>>>>>>>>>>>>>>>>>> Starting nonlinear solver")
+  println(">>>>>>>>>>>>>>>>>>>> Nonlinear Abs Error = $m0")
+  (false, m0)  
+end
 
 """
   This preconditioner is based on [(Li,2019)](https://doi.org/10.1137/19M1260372)
@@ -150,7 +156,7 @@ function hunt(;
 end
 
 _params = hunt(
-  nc=(32,32),
+  nc=(4,4),
   L=1.0,
   B=(0.,50.,0.),
   debug=false,
@@ -239,7 +245,7 @@ block_solvers = [Dj_solver,Fk_solver,Δp_solver,Ip_solver,Iφ_solver]
 block_mats = [Dj,Δp,Ip,Ij,Iφ]
 P = MHDBlockPreconditioner(block_solvers...,block_mats...,params)
 
-sysmat_solver = GMRESSolver(300,P,1e-6)
+sysmat_solver = GMRESSolver(300,P,1e-8)
 
 # Gridap's Newton-Raphson solver
 xh = zero(U)
@@ -251,17 +257,17 @@ x  = allocate_col_vector(sysmat)
 dx = allocate_col_vector(sysmat)
 b  = allocate_col_vector(sysmat)
 
-copy!(b,sysvec)
-b0 = norm(b)
+# copy!(b,sysvec)
+# b0 = norm(b)
 
-rmul!(b,-1.0)
-solve!(dx,sysmat_ns,b)
-x .+= dx
+# rmul!(b,-1.0)
+# solve!(dx,sysmat_ns,b)
+# x .+= dx
 
-residual!(b,al_op,x)
-norm(b)
+# residual!(b,al_op,x)
+# norm(b)
 
 A = allocate_jacobian(al_op,x)
-nlsolver = NewtonRaphsonSolver(sysmat_solver,1e-6,100)
+nlsolver = NewtonRaphsonSolver(sysmat_solver,1e-5,10)
 nlsolver_cache = Gridap.Algebra.NewtonRaphsonCache(A,b,dx,sysmat_ns)
 solve!(x,nlsolver,al_op,nlsolver_cache)
