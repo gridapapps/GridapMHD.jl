@@ -22,6 +22,7 @@ using GridapPETSc.PETSC
 using FileIO
 using BSON
 using GridapGmsh
+using GridapSolvers
 
 using PartitionedArrays: getany
 
@@ -32,5 +33,9 @@ include("ExtraFunctions.jl")
 include("Hunt.jl")
 
 include("expansion.jl")
+
+include("cavity.jl")
+
+include("block_solvers.jl")
 
 end # module
