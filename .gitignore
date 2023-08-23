@@ -2,6 +2,8 @@
 #*.msh
 *.vtu
 *.pvd
+*.pvtu
+*.bson
 *.jl.*.cov
 *.jl.cov
 *.jl.mem

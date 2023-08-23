@@ -110,8 +110,8 @@ function add_default_params(_params)
   params
 end
 
-default_ptimer(model) = PTimer(get_part_ids(SequentialBackend(),1))
-default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_part_ids(model.models))
+default_ptimer(model) = PTimer(DebugArray(collect(LinearIndices(1))))
+default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_parts(model))
 
 """
 Valid keys for `params[:fluid]` are the following.
@@ -579,11 +579,11 @@ function _rand(vt::Type{<:Vector{T}},r::AbstractUnitRange) where T
 end
 
 function _rand(vt::Type{<:PVector{T,A}},ids::PRange) where {T,A}
-  values = map_parts(ids.partition) do partition
+  values = map(partition(ids)) do indices
     Tv = eltype(A)
-    _rand(Tv,1:num_lids(partition))
+    _rand(Tv,1:local_length(indices))
   end
-  PVector(values,ids)
+  return PVector(values,partition(ids))
 end
 
 function p_conformity(poly::Polytope)
@@ -594,7 +594,7 @@ function p_conformity(poly::Polytope)
   else
     @unreachable "unsupported cell topology"
   end
-  conf
+  return conf
 end
 
 function p_conformity(Ω::Triangulation)
@@ -602,29 +602,29 @@ function p_conformity(Ω::Triangulation)
   @assert length(reffes) == 1
   reffe = first(reffes)
   poly = get_polytope(reffe)
-  p_conformity(poly)
+  return p_conformity(poly)
 end
 
 function p_conformity(Ω::GridapDistributed.DistributedTriangulation)
-  p = map_parts(Ω.trians) do Ω
+  p = map(local_views(Ω)) do Ω
     reffes = get_reffes(Ω)
     @assert length(reffes) == 1
     reffe = first(reffes)
     poly = get_polytope(reffe)
     poly
   end
-  poly = get_part(p) # We assume same polytope in all parts
+  poly = getany(p) # We assume same polytope in all parts
   p_conformity(poly)
 end
 
 function p_conformity(model::DiscreteModel)
   Ω = Interior(model)
-  p_conformity(Ω)
+  return p_conformity(Ω)
 end
 
 function p_conformity(model::GridapDistributed.DistributedDiscreteModel)
   Ω = Interior(model)
-  p_conformity(Ω)
+  return p_conformity(Ω)
 end
 
 function add_defaults!(params,defaults)
@@ -641,22 +641,21 @@ end
 function weak_form(params,k)
 
   fluid = params[:fluid]
-
-  Ωf = _interior(params[:model],fluid[:domain])
+  Ωf  = _interior(params[:model],fluid[:domain])
   dΩf = Measure(Ωf,2*k)
 
   solid = params[:solid]
   if solid !== nothing
-    Ωs = _interior(params[:model],solid[:domain])
+    Ωs  = _interior(params[:model],solid[:domain])
     dΩs = Measure(Ωs,2*k)
-    σs = solid[:σ]
+    σs  = solid[:σ]
   end
 
-  α = fluid[:α]
-  β = fluid[:β]
-  γ = fluid[:γ]
-  f = fluid[:f]
-  B = fluid[:B]
+  α  = fluid[:α]
+  β  = fluid[:β]
+  γ  = fluid[:γ]
+  f  = fluid[:f]
+  B  = fluid[:B]
   σf = fluid[:σ]
 
   bcs = params[:bcs]
@@ -672,12 +671,12 @@ function weak_form(params,k)
 
   params_thin_wall = []
   for i in 1:length(bcs[:thin_wall])
-    τ_i = bcs[:thin_wall][i][:τ]
+    τ_i  = bcs[:thin_wall][i][:τ]
     cw_i = bcs[:thin_wall][i][:cw]
     jw_i = bcs[:thin_wall][i][:jw]
-    Γ = _boundary(params[:model],bcs[:thin_wall][i][:domain])
-    dΓ = Measure(Γ,2*k)
-    n_Γ = get_normal_vector(Γ)
+    Γ    = _boundary(params[:model],bcs[:thin_wall][i][:domain])
+    dΓ   = Measure(Γ,2*k)
+    n_Γ  = get_normal_vector(Γ)
     push!(params_thin_wall,(τ_i,cw_i,jw_i,n_Γ,dΓ))
   end
 
@@ -687,16 +686,16 @@ function weak_form(params,k)
 
   params_f = []
   for i in 1:length(bcs[:f])
-    f_i = bcs[:f][i][:value]
-    Ω_i = _interior(params[:model],bcs[:f][i][:domain])
+    f_i  = bcs[:f][i][:value]
+    Ω_i  = _interior(params[:model],bcs[:f][i][:domain])
     dΩ_i = Measure(Ω_i,2*k)
     push!(params_f,(f_i,dΩ_i))
   end
 
   params_B = []
   for i in 1:length(bcs[:B])
-    B_i = bcs[:B][i][:value]
-    Ω_i = _interior(params[:model],bcs[:B][i][:domain])
+    B_i  = bcs[:B][i][:value]
+    Ω_i  = _interior(params[:model],bcs[:B][i][:domain])
     dΩ_i = Measure(Ω_i,2*k)
     push!(params_f,(γ,B_i,dΩ_i))
   end
@@ -742,7 +741,7 @@ function weak_form(params,k)
   res(x,dy) = c(x,dy) + a(x,dy) - ℓ(dy)
   jac(x,dx,dy) = dc(x,dx,dy) + a(dx,dy)
 
-  res, jac
+  return res, jac
 end
 
 conv(u,∇u) = (∇u')⋅u

@@ -1,22 +1,27 @@
 function hunt(;
-  backend=nothing,
-  np=nothing,
-  parts=nothing,
-  title = "hunt",
-  nruns=1,
-  path=".",
+  backend = nothing,
+  np      = nothing,
+  title   = "hunt",
+  nruns   = 1,
+  path    = ".",
   kwargs...)
 
   for ir in 1:nruns
     _title = title*"_r$ir"
-    @assert parts === nothing
-    if backend === nothing
-      @assert np === nothing
+    if isa(backend,Nothing)
+      @assert isa(np,Nothing)
       info, t = _hunt(;title=_title,path=path,kwargs...)
     else
-      @assert backend !== nothing
-      info, t = with_backend(_find_backend(backend),(np...,1)) do _parts
-        _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      @assert backend ∈ [:sequential,:mpi]
+      @assert !isa(np,Nothing)
+      if backend == :sequential
+        info,t = with_debug() do distribute
+          _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
+        end
+      else
+        info,t = with_mpi() do distribute
+          _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
+        end
       end
       # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
       #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
@@ -41,19 +46,9 @@ function hunt(;
   nothing
 end
 
-function _find_backend(s)
-  if s === :sequential
-    backend = SequentialBackend()
-  elseif s === :mpi
-    backend = MPIBackend() 
-  else
-    error()
-  end
-  backend
-end
-
 function _hunt(;
-  parts=nothing,
+  distribute=nothing,
+  rank_partition=nothing,
   nc=(4,4),
   ν=1.0,
   ρ=1.0,
@@ -82,12 +77,15 @@ function _hunt(;
 
   info = Dict{Symbol,Any}()
 
-  if parts === nothing
-    t_parts = get_part_ids(SequentialBackend(),1)
-  else
-    t_parts = parts
+  if isa(distribute,Nothing)
+    @assert isa(rank_partition,Nothing)
+    rank_partition = Tuple(fill(1,length(nc)))
+    distribute = DebugArray
   end
-  t = PTimer(t_parts,verbose=verbose)
+  @assert length(rank_partition) == length(nc)
+  parts = distribute(LinearIndices((prod(rank_partition),)))
+  
+  t = PTimer(parts,verbose=verbose)
   tic!(t,barrier=true)
 
   domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
@@ -105,27 +103,26 @@ function _hunt(;
 
   # Prepare problem in terms of reduced quantities
 
-   strech_Ha = sqrt(Ha/(Ha-1))
-   strech_side = sqrt(sqrt(Ha)/(sqrt(Ha)-1))
+  strech_Ha = sqrt(Ha/(Ha-1))
+  strech_side = sqrt(sqrt(Ha)/(sqrt(Ha)-1))
 
   function map1(coord)
-     ncoord = GridapMHD.strechMHD(coord,domain=(0,-L,0,-L),factor=(strech_side,strech_Ha),dirs=(1,2))
-     ncoord = GridapMHD.strechMHD(ncoord,domain=(0,L,0,L),factor=(strech_side,strech_Ha),dirs=(1,2))
-     ncoord  
-   end
+    ncoord = GridapMHD.strechMHD(coord,domain=(0,-L,0,-L),factor=(strech_side,strech_Ha),dirs=(1,2))
+    ncoord = GridapMHD.strechMHD(ncoord,domain=(0,L,0,L),factor=(strech_side,strech_Ha),dirs=(1,2))
+    ncoord  
+  end
+  layer(x,a) = sign(x)*abs(x)^(1/a)
+  map2((x,y,z)) = VectorValue(layer(x,kmap_x),layer(y,kmap_y),z)
 
-   layer(x,a) = sign(x)*abs(x)^(1/a)
-   map2((x,y,z)) = VectorValue(layer(x,kmap_x),layer(y,kmap_y),z)
-
-
- partition=(nc[1],nc[2],3)
- if BL_adapted
-  model = CartesianDiscreteModel(
-     parts,domain,partition;isperiodic=(false,false,true),map=map1)
- else
-  model = CartesianDiscreteModel(
-     parts,domain,partition;isperiodic=(false,false,true),map=map2)
- end
+  mesh_partition = (nc[1],nc[2],3)
+  mesh_rank_partition = (rank_partition[1],rank_partition[2],1)
+  if BL_adapted
+    model = CartesianDiscreteModel(
+      parts,mesh_rank_partition,domain,mesh_partition;isperiodic=(false,false,true),map=map1)
+  else
+    model = CartesianDiscreteModel(
+      parts,mesh_rank_partition,domain,mesh_partition;isperiodic=(false,false,true),map=map2)
+  end
   Ω = Interior(model)
   labels = get_face_labeling(model)
   tags_u = append!(collect(1:20),[23,24,25,26])

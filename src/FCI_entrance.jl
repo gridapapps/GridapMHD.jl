@@ -12,25 +12,25 @@ function FCI_Entrance(;
   )
 
   if backend === nothing
-      @assert np === nothing
-      info, t = _FCI_Entrance(;title=title,path=path,mesh=mesh,kwargs...)
-    else
-      @assert backend !== nothing
-      @assert np !== nothing
-      info, t = prun(_find_backend(backend),np) do _parts
-        _FCI_Entrance(;parts=_parts,title=title,path=path,mesh=mesh,kwargs...)
-      end
+    @assert np === nothing
+    info, t = _FCI_Entrance(;title=title,path=path,mesh=mesh,kwargs...)
+  else
+    @assert backend !== nothing
+    @assert np !== nothing
+    info, t = prun(_find_backend(backend),np) do _parts
+      _FCI_Entrance(;parts=_parts,title=title,path=path,mesh=mesh,kwargs...)
     end
-    info[:np] = np
-    info[:backend] = backend
-    info[:title] = title
-    info[:mesh] = mesh
-    map_main(t.data) do data
-      for (k,v) in data
-        info[Symbol("time_$k")] = v.max
-      end
-      save(joinpath(path,"$title.bson"),info)
+  end
+  info[:np] = np
+  info[:backend] = backend
+  info[:title] = title
+  info[:mesh] = mesh
+  map_main(t.data) do data
+    for (k,v) in data
+      info[Symbol("time_$k")] = v.max
     end
+    save(joinpath(path,"$title.bson"),info)
+  end
 
   nothing
 end
@@ -38,47 +38,49 @@ end
 
 
 function _FCI_Entrance(;	
-   Ha = 1.0,	  						#Hartmann number
-   Re = 1.0, 	  						#Reynolds number
-   c_w = 0.0727,  						#Wall conductance ratio 
-   c_FCI = 0.00476,		 				#FCI conductance ratio
-   B_dir = (1.0,1.0,0.0),				 	#Direction of the B-field (norm =1)  
-   τ_w = 100,	  						#Penalty for the wall boundary condition
-   τ_FCI =100, 	  						#Penalty for the FCI boundary condition
-   R = 1,							#Radious of the pipe
-   ρ = 1,		      					#Density (Kg/m3)
-   ν = 1,      							#Kinematic viscosity (Pa·s)
-   σ = 1,   							#Electrical conductivity (S/m)
-   dimensionless = true,					#Results with dimensionless variables
-   parts = nothing,						#For the parallel call
-   debug = false,    						#debugging mode
-   vtk = true,							#vtk file as an output
-   mesh = "Mesh",						#Mesh file .msh
-   title = "FCI_entrance",					#Title of the job
-   path ="../analysis",						#path for writting the results
-   solver = :petsc,						#solver used for the analyses (julia or petsc)
-   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  Ha = 1.0,               # Hartmann number
+  Re = 1.0,               # Reynolds number
+  c_w = 0.0727,           # Wall conductance ratio 
+  c_FCI = 0.00476,        # FCI conductance ratio
+  B_dir = (1.0,1.0,0.0),  # Direction of the B-field (norm =1)  
+  τ_w = 100,              # Penalty for the wall boundary condition
+  τ_FCI =100,             # Penalty for the FCI boundary condition
+  R = 1,                  # Radious of the pipe
+  ρ = 1,                  # Density (Kg/m3)
+  ν = 1,                  # Kinematic viscosity (Pa·s)
+  σ = 1,                  # Electrical conductivity (S/m)
+  dimensionless = true,   # Results with dimensionless variables
+  distribute = nothing,   # For the parallel call
+  rank_partition = nothing,   # Processor layout
+  debug = false,          # debugging mode
+  vtk = true,             # vtk file as an output
+  mesh = "Mesh",          # Mesh file .msh
+  title = "FCI_entrance", # Title of the job
+  path ="../analysis",    # path for writting the results
+  solver = :petsc,        # solver used for the analyses (julia or petsc)
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 #------------- Derived variables------------------ 
   
-  N = Ha^2/Re			   #Interaction parameter or Stuart number
+  N = Ha^2/Re # Interaction parameter or Stuart number
   
   B_dir = (1/norm(VectorValue(B_dir)))*VectorValue(B_dir) #Direction of the magnetic field normalized
 
-  U0 = Re*ν/R			   #Velocity scale	
-  B0 = Ha*sqrt((ρ*ν)/σ)/R 	   #Module of the external B-field	
+  U0 = Re*ν/R  # Velocity scale	
+  B0 = Ha*sqrt((ρ*ν)/σ)/R 	   # Module of the external B-field	
 
 #------------Mesh and geometry------------------------
 
   info = Dict{Symbol,Any}()
   
-  if parts === nothing
-    t_parts = get_part_ids(sequential,1)
+  if isa(distribute,Nothing)
+    @assert isa(rank_partition,Nothing)
+    parts = DebugArray(collect(LinearIndices((1,))))
   else
-    t_parts = parts
+    parts = distribute(LinearIndices((prod(rank_partition),)))
   end
 
-  t = PTimer(t_parts,verbose=true)
+  t = PTimer(parts,verbose=true)
   tic!(t,barrier=true)
 
   msh_file = joinpath(@__FILE__,"..","..","meshes","FCI_"*mesh*".msh") |> normpath 	#find the FCI_*mesh".msh file in the "meshes" folder
@@ -111,7 +113,7 @@ function _FCI_Entrance(;
 
 #-------Dictionary of parameters for the solver-----------
 
- params = Dict(
+  params = Dict(
     :ptimer=>t,
     :debug=>debug,
     :fluid=>Dict(
@@ -127,57 +129,46 @@ function _FCI_Entrance(;
     ),
   )
 
-if c_w == 0 && c_FCI == 0
-
-params[:fluid][:j] = Dict(
-        :tags=>["inlet","outlet","FCI"],
-        :values=>[z,z,z])
-
-elseif c_w != 0 && c_FCI == 0
-  
-  params[:fluid][:j] = Dict(
-        :tags=>["inlet","outlet","FCI"],
-        :values=>[z,z,z])
-        
-  params[:fluid][:thin_wall] = Dict(
-	:domain=>Γ_w,
-	:cw=>c_w,
-	:τ=>τ_w,
-	:jw=>0)
-
-
-elseif c_w == 0 && c_FCI != 0
-
-  params[:fluid][:j]= Dict(
-        :tags=>["inlet","outlet","wall"],
-        :values=>[z,z,z])
-
-  params[:fluid][:thin_wall] = Dict(
+  if c_w == 0 && c_FCI == 0
+    params[:fluid][:j] = Dict(
+      :tags=>["inlet","outlet","FCI"],
+      :values=>[z,z,z])
+  elseif c_w != 0 && c_FCI == 0
+    params[:fluid][:j] = Dict(
+      :tags=>["inlet","outlet","FCI"],
+      :values=>[z,z,z])
+    params[:fluid][:thin_wall] = Dict(
+      :domain=>Γ_w,
+      :cw=>c_w,
+      :τ=>τ_w,
+      :jw=>0)
+  elseif c_w == 0 && c_FCI != 0
+    params[:fluid][:j]= Dict(
+      :tags=>["inlet","outlet","wall"],
+      :values=>[z,z,z])
+    params[:fluid][:thin_wall] = Dict(
+      :domain=>Γ_FCI,
+      :cw=>c_FCI,
+      :τ=>τ_FCI,
+      :jw=>0)
+  else
+    params[:fluid][:j]= Dict(
+      :tags=>["inlet","outlet"],
+      :values=>[z,z])
+    params[:fluid][:thin_wall] = [
+      Dict(
         :domain=>Γ_FCI,
         :cw=>c_FCI,
         :τ=>τ_FCI,
         :jw=>0)
-
-else
- 
-  params[:fluid][:j]= Dict(
-        :tags=>["inlet","outlet"],
-        :values=>[z,z])
-
-  params[:fluid][:thin_wall] = [
-	Dict(
-        :domain=>Γ_FCI,
-        :cw=>c_FCI,
-        :τ=>τ_FCI,
-        :jw=>0)
-	,
-        Dict(
+      ,
+      Dict(
         :domain=>Γ_w,
         :cw=>c_w,
         :τ=>τ_w,
         :jw=>0)
-	]
-end
+    ]
+  end
 
   toc!(t,"pre_process")
 
@@ -186,18 +177,14 @@ end
   if solver == :julia
     params[:solver] = NLSolver(show_trace=true,method=:newton)
     xh = GridapMHD.main(params)
-
   elseif solver == :petsc
-
-   xh = GridapPETSc.with(args=split(petsc_options)) do
-     params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-     params[:vector_type] = Vector{PetscScalar}
-     params[:solver] = PETScNonlinearSolver()
-     params[:solver_postpro] = cache -> snes_postpro(cache,info)
-
-   xh = GridapMHD.main(params)
+    xh = GridapPETSc.with(args=split(petsc_options)) do
+      params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
+      params[:vector_type] = Vector{PetscScalar}
+      params[:solver] = PETScNonlinearSolver()
+      params[:solver_postpro] = cache -> snes_postpro(cache,info)
+      xh = GridapMHD.main(params)
     end
-  
   else
    error()
   end  
@@ -207,28 +194,21 @@ end
   t = params[:ptimer]
   tic!(t,barrier=true)
   
-  
   if dimensionless
-
    uh,ph,jh,φh = xh
-
   else
-
    ūh,p̄h,j̄h,φ̄h = xh
    uh = U0*ūh
    ph = (σ*U0*L*B0^2)*p̄h
    jh = (σ*U0*B0)*j̄h
    φh = (U0*B0*L)*φ̄h
-
   end
 
   divj = ∇⋅jh
 
   if vtk
-
-  writevtk(Ω,joinpath(path,title),order=2,cellfields=["u"=>uh,"p"=>ph,"j"=>jh,"phi"=>φh,"divj"=>divj])
-  toc!(t,"vtk")
-
+    writevtk(Ω,joinpath(path,title),order=2,cellfields=["u"=>uh,"p"=>ph,"j"=>jh,"phi"=>φh,"divj"=>divj])
+    toc!(t,"vtk")
   end
 
   info[:ncells] = num_cells(model)
@@ -241,7 +221,6 @@ end
   info[:N]  = N
   info[:Re] = Ha^2/N
   info, t
-
 end
 
 
