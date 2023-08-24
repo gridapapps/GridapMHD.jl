@@ -8,18 +8,18 @@ function cavity(;
 
   if isa(backend,Nothing)
     @assert isa(np,Nothing)
-    info, t = _cavity(;title=title,path=path,mesh=mesh,kwargs...)
+    info, t = _cavity(;title=title,path=path,kwargs...)
   else
     @assert backend ∈ [:sequential,:mpi]
     @assert !isa(np,Nothing)
     np = isa(np,Int) ? (np,) : np
     if backend == :sequential
       info,t = with_debug() do distribute
-        _cavity(;distribute=distribute,rank_partition=np,title=_title,path=path,mesh=mesh,kwargs...)
+        _cavity(;distribute=distribute,rank_partition=np,title=title,path=path,kwargs...)
       end
     else
       info,t = with_mpi() do distribute
-        _cavity(;distribute=distribute,rank_partition=np,title=_title,path=path,mesh=mesh,kwargs...)
+        _cavity(;distribute=distribute,rank_partition=np,title=title,path=path,kwargs...)
       end
     end
   end
@@ -50,7 +50,9 @@ function _cavity(;
   B0=norm(B),
   vtk=true,
   title="Cavity",
+  path='.',
   solver=:julia,
+  verbose=true,
   )
 
   @assert length(nc) == 3
@@ -61,7 +63,7 @@ function _cavity(;
     rank_partition = (1,)
     distribute = DebugArray
   end
-  @assert length(rank_partition) == length(nc)
+  @assert is_serial || (length(rank_partition) == length(nc))
   parts = distribute(LinearIndices((prod(rank_partition),)))
   
   t = PTimer(parts,verbose=verbose)
@@ -103,6 +105,7 @@ function _cavity(;
       :solve => true,
       :res_assemble => false,
       :jac_assemble => false,
+      :check_valid => false,
       :model => model,
       :fluid => Dict(
           :domain => model,
@@ -115,7 +118,8 @@ function _cavity(;
       :bcs => Dict(
           :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]),
           :j => Dict(:tags => "insulating", :values => ji),
-      )
+      ),
+      :k => 2,
       :ζ => 0.0 # Augmented-Lagragian term 
   )
 
@@ -124,7 +128,7 @@ function _cavity(;
 
   tic!(t; barrier=true)
   # ReferenceFEs
-  k = 2
+  k = params[:k]
   T = Float64
   model = params[:model]
   D = num_cell_dims(model)
@@ -158,7 +162,7 @@ function _cavity(;
   op = FEOperator(res, jac, U, V, assem)
 
   if solver === :block_gmres
-    xh = block_gmres_solver(op,U,V)
+    xh = block_gmres_solver(op,U,V,Ω,params)
   else
     xh = zero(U)
     solver = NLSolver(show_trace=true, method=:newton)
@@ -173,18 +177,69 @@ function _cavity(;
     ph = (ρ * u0^2) * p̄h
     jh = (σ * u0 * B0) * j̄h
     φh = (u0 * B0 * L) * φ̄h
-    writevtk(Ω, title, order=2, cellfields=["uh" => uh, "ph" => ph, "jh" => jh, "phi" => φh])
+    writevtk(Ω, joinpath(path,title), order=2, cellfields=["uh" => uh, "ph" => ph, "jh" => jh, "phi" => φh])
     toc!(t, "vtk")
   end
 
   info = Dict{Symbol,Any}()
-  info[:ncells] = num_cells(model)
+  info[:ncells]  = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
   info[:ndofs_j] = length(get_free_dof_values(j̄h))
   info[:ndofs_φ] = length(get_free_dof_values(φ̄h))
-  info[:ndofs] = length(get_free_dof_values(xh))
-  info[:Re] = Re
-  info[:Ha] = Ha
-  save("$title.bson", info)
+  info[:ndofs]   = sum([info[:ndofs_u], info[:ndofs_p], info[:ndofs_j], info[:ndofs_φ]])
+  info[:Re]      = Re
+  info[:Ha]      = Ha
+
+  return info, t
 end
+
+
+function block_gmres_solver(op,U,V,Ω,params)
+  U_u, U_p, U_j, U_φ = U
+  V_u, V_p, V_j, V_φ = V
+
+  al_op = Gridap.FESpaces.get_algebraic_operator(op)
+
+  k  = params[:k]
+  γ  = params[:fluid][:γ]
+  dΩ = Measure(Ω,2*k)
+  Dj = assemble_matrix((j,v_j) -> ∫(γ*j⋅v_j + γ*(∇⋅j)⋅(∇⋅v_j))*dΩ ,U_j,V_j)
+  Ij = assemble_matrix((j,v_j) -> ∫(j⋅v_j)*dΩ ,U_j,V_j)
+  Δp = assemble_matrix((p,v_p) -> ∫(∇(p)⋅∇(v_p))*dΩ ,U_p,V_p)
+  Ip = assemble_matrix((p,v_p) -> ∫(p*v_p)*dΩ,V_p,V_p)
+  Iφ = assemble_matrix((φ,v_φ) -> ∫(-γ*φ*v_φ)*dΩ ,U_φ,V_φ)
+
+  Dj_solver = LUSolver()
+  Fk_solver = LUSolver()
+  Δp_solver = LUSolver()
+  Ip_solver = LUSolver()
+  Iφ_solver = LUSolver()
+
+  block_solvers = [Dj_solver,Fk_solver,Δp_solver,Ip_solver,Iφ_solver]
+  block_mats = [Dj,Δp,Ip,Ij,Iφ]
+  P = LI2019_Solver(block_solvers...,block_mats...,params)
+  
+  sysmat_solver = GMRESSolver(300,P,1e-8)
+
+  # Gridap's Newton-Raphson solver
+  xh = zero(U)
+  sysmat = jacobian(op,xh)
+  sysmat_ns = numerical_setup(symbolic_setup(sysmat_solver,sysmat),sysmat)
+
+  x  = allocate_col_vector(sysmat)
+  dx = allocate_col_vector(sysmat)
+  b  = allocate_col_vector(sysmat)
+
+  A = allocate_jacobian(al_op,x)
+  nlsolver = NewtonRaphsonSolver(sysmat_solver,1e-5,10)
+  nlsolver_cache = Gridap.Algebra.NewtonRaphsonCache(A,b,dx,sysmat_ns)
+  solve!(x,nlsolver,al_op,nlsolver_cache)
+
+  ūh = FEFunction(U_u,x.blocks[1])
+  p̄h = FEFunction(U_p,x.blocks[2])
+  j̄h = FEFunction(U_j,x.blocks[3])
+  φ̄h = FEFunction(U_φ,x.blocks[4])
+  return [ūh, p̄h, j̄h, φ̄h]
+end
+
