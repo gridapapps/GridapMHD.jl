@@ -1,25 +1,23 @@
 
 function cavity(;
   backend = nothing,
-  np      = nothing,
+  np      = 1,
   title   = "Cavity",
   path    = ".",
   kwargs...)
 
   if isa(backend,Nothing)
-    @assert isa(np,Nothing)
+    @assert np == 1
     info, t = _cavity(;title=title,path=path,kwargs...)
   else
     @assert backend ∈ [:sequential,:mpi]
-    @assert !isa(np,Nothing)
-    np = isa(np,Int) ? (np,) : np
     if backend == :sequential
       info,t = with_debug() do distribute
-        _cavity(;distribute=distribute,rank_partition=np,title=title,path=path,kwargs...)
+        _cavity(;distribute=distribute,np=np,title=title,path=path,kwargs...)
       end
     else
       info,t = with_mpi() do distribute
-        _cavity(;distribute=distribute,rank_partition=np,title=title,path=path,kwargs...)
+        _cavity(;distribute=distribute,np=np,title=title,path=path,kwargs...)
       end
     end
   end
@@ -38,7 +36,7 @@ end
 
 function _cavity(;
   distribute=nothing,
-  rank_partition=nothing,
+  np=1,
   nc=(4,4,4),
   ν=1.0,
   ρ=1.0,
@@ -52,6 +50,7 @@ function _cavity(;
   title="Cavity",
   path='.',
   solver=:julia,
+  solver_params=default_solver_params(solver),
   verbose=true,
   )
 
@@ -59,12 +58,9 @@ function _cavity(;
   is_serial = isa(distribute,Nothing)
 
   if is_serial
-    @assert isa(rank_partition,Nothing)
-    rank_partition = (1,)
     distribute = DebugArray
   end
-  @assert is_serial || (length(rank_partition) == length(nc))
-  parts = distribute(LinearIndices((prod(rank_partition),)))
+  parts = distribute(LinearIndices((np,)))
   
   t = PTimer(parts,verbose=verbose)
   tic!(t, barrier=true)
@@ -84,7 +80,9 @@ function _cavity(;
   if is_serial
     model = simplexify(CartesianDiscreteModel(domain, nc))
   else
-    model = simplexify(CartesianDiscreteModel(parts,rank_partition,domain, nc))
+    # simplexify() is not implemented for DistributedDiscreteModel
+    rank_partition = (np,1,1)
+    model = CartesianDiscreteModel(parts,rank_partition,domain, nc)
   end
   Ω = Interior(model)
 
@@ -120,7 +118,8 @@ function _cavity(;
           :j => Dict(:tags => "insulating", :values => ji),
       ),
       :k => 2,
-      :ζ => 0.0 # Augmented-Lagragian term 
+      :ζ => 0.0, # Augmented-Lagragian term
+      :solver_params => solver_params,
   )
 
   params = add_default_params(_params)
@@ -243,3 +242,6 @@ function block_gmres_solver(op,U,V,Ω,params)
   return [ūh, p̄h, j̄h, φ̄h]
 end
 
+function default_solver_params(solver::Symbol)
+  return Dict()
+end
