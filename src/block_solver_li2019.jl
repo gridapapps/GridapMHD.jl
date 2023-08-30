@@ -20,7 +20,7 @@ struct LI2019_SS <: Gridap.Algebra.SymbolicSetup
   solver::LI2019_Solver
 end
 
-function Gridap.Algebra.symbolic_setup(solver::LI2019_Solver, A::AbstractMatrix)
+function Gridap.Algebra.symbolic_setup(solver::LI2019_Solver, A::AbstractBlockMatrix)
   return LI2019_SS(solver)
 end
 
@@ -35,7 +35,7 @@ mutable struct LI2019_NS <: Gridap.Algebra.NumericalSetup
   caches
 end
 
-function allocate_caches(solver::LI2019_Solver,A::BlockMatrix)
+function allocate_caches(solver::LI2019_Solver,A::AbstractBlockMatrix)
   du = allocate_col_vector(A[Block(1,1)])
   dp = allocate_col_vector(A[Block(2,2)])
   dj = allocate_col_vector(A[Block(3,3)])
@@ -43,11 +43,11 @@ function allocate_caches(solver::LI2019_Solver,A::BlockMatrix)
   return du, dp, dj, dφ
 end
 
-function Gridap.Algebra.numerical_setup(ss::LI2019_SS, A::BlockMatrix)
+function Gridap.Algebra.numerical_setup(ss::LI2019_SS, A::AbstractBlockMatrix)
   solver = ss.solver
 
   Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
-  Fk = Fu - (1.0/κ^2) * Kᵗ * K
+  Fk = Fu# - (1.0/κ^2) * Kᵗ * K
 
   Dj_ns = numerical_setup(symbolic_setup(solver.Dj_solver,solver.Dj),solver.Dj)
   Fk_ns = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
@@ -58,13 +58,13 @@ function Gridap.Algebra.numerical_setup(ss::LI2019_SS, A::BlockMatrix)
   return LI2019_NS(ss.solver,Dj_ns,Fk_ns,Δp_ns,Ip_ns,Iφ_ns,A,caches)
 end
 
-function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::BlockMatrix)
+function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix)
   solver = ns.solver
 
   #! Pattern of matrix changes, so we need to recompute everything.
   # This will get fixed when we are using iterative solvers for Fk
   Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
-  Fk = Fu - (1.0/κ^2) * Kᵗ * K
+  Fk = Fu# - (1.0/κ^2) * Kᵗ * K
   # numerical_setup!(ns.Fk_ns,Fk)
 
   ns.Fk_ns  = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
@@ -74,7 +74,7 @@ function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::BlockMatrix)
 end
 
 # Follows Algorithm 4.1 in (Li,2019)
-function Gridap.Algebra.solve!(x::BlockVector,ns::LI2019_NS,b::BlockVector)
+function Gridap.Algebra.solve!(x::AbstractBlockVector,ns::LI2019_NS,b::AbstractBlockVector)
   sysmat, caches, params = ns.sysmat, ns.caches, ns.solver.params
   fluid = params[:fluid]; ζ = params[:ζ]; iRe = fluid[:β]
   κ = fluid[:γ]; α1 = ζ + iRe;
@@ -93,7 +93,8 @@ function Gridap.Algebra.solve!(x::BlockVector,ns::LI2019_NS,b::BlockVector)
   solve!(φ,ns.Iφ_ns,bφ)
 
   # Solve for u
-  copy!(du,bu); mul!(du,sysmat[Block(1,2)],p,-1.0,1.0) # du = bu - Aup * p
+  copy!(du,bu)
+  mul!(du,sysmat[Block(1,2)],p,-1.0,1.0) # du = bu - Aup * p
   solve!(u,ns.Fk_ns,du)                                # u = Fu \ (bu - Aup * p)
 
   # Solve for j

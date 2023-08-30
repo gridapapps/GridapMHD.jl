@@ -245,3 +245,26 @@ end
 function default_solver_params(solver::Symbol)
   return Dict()
 end
+
+# Overload that will be removed when bug is fixed in PartitionedArrays
+function Base.similar(a::PSparseMatrix,::Type{T},inds::Tuple{<:PRange,<:PRange}) where T
+  rows,cols = inds
+  matrix_partition = map(partition(a),partition(rows),partition(cols)) do values, row_indices, col_indices
+    PartitionedArrays.allocate_local_values(values,T,row_indices,col_indices)
+  end
+  PSparseMatrix(matrix_partition,partition(rows),partition(cols))
+end
+
+function Base.similar(::Type{<:PSparseMatrix{V}},inds::Tuple{<:PRange,<:PRange}) where V
+  rows,cols = inds
+  matrix_partition = map(partition(rows),partition(cols)) do row_indices, col_indices
+    PartitionedArrays.allocate_local_values(V,row_indices,col_indices)
+  end
+  PSparseMatrix(matrix_partition,partition(rows),partition(cols))
+end
+
+function Base.copy(a::PSparseMatrix)
+  matrix_partition = similar(a.matrix_partition)
+  copy!(matrix_partition, a.matrix_partition)
+  PSparseMatrix(matrix_partition,a.row_partition,a.col_partition)
+end
