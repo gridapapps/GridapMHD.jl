@@ -50,9 +50,10 @@ function _cavity(;
   title="Cavity",
   path='.',
   solver=:julia,
-  solver_params=default_solver_params(solver),
+  solver_params=default_solver_params(Val(solver)),
   verbose=true,
   )
+  info = Dict{Symbol,Any}()
 
   @assert length(nc) == 3
   is_serial = isa(distribute,Nothing)
@@ -98,28 +99,29 @@ function _cavity(;
   ji = VectorValue(0.0, 0.0, 0.0)
 
   _params = Dict(
-      :ptimer => t,
-      :debug => false,
-      :solve => true,
-      :res_assemble => false,
-      :jac_assemble => false,
-      :check_valid => false,
-      :model => model,
-      :fluid => Dict(
-          :domain => model,
-          :α => α,
-          :β => β,
-          :γ => γ,
-          :f => f̄,
-          :B => B̄,
-      ),
-      :bcs => Dict(
-          :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]),
-          :j => Dict(:tags => "insulating", :values => ji),
-      ),
-      :k => 2,
-      :ζ => 0.0, # Augmented-Lagragian term
-      :solver_params => solver_params,
+    :ptimer => t,
+    :debug => false,
+    :solve => true,
+    :res_assemble => false,
+    :jac_assemble => false,
+    :check_valid => false,
+    :model => model,
+    :fluid => Dict(
+        :domain => model,
+        :α => α,
+        :β => β,
+        :γ => γ,
+        :f => f̄,
+        :B => B̄,
+    ),
+    :bcs => Dict(
+        :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]),
+        :j => Dict(:tags => "insulating", :values => ji),
+    ),
+    :k => 2,
+    :ζ => 0.0, # Augmented-Lagragian term
+    :solver => solver,
+    :solver_params => solver_params,
   )
 
   params = add_default_params(_params)
@@ -155,17 +157,26 @@ function _cavity(;
 
   tic!(t; barrier=true)
   res, jac = weak_form(params, k)
-  Tm = params[:matrix_type]
-  Tv = params[:vector_type]
+  Tm = params[:solver_params][:matrix_type]
+  Tv = params[:solver_params][:vector_type]
   assem = SparseMatrixAssembler(Tm, Tv, U, V)
   op = FEOperator(res, jac, U, V, assem)
 
-  if solver === :block_gmres
-    xh = block_gmres_solver(op,U,V,Ω,params)
-  else
+  if solver === :julia
     xh = zero(U)
     solver = NLSolver(show_trace=true, method=:newton)
-    xh, cache = solve!(xh, solver, op)
+    xh, solver_cache = solve!(xh, solver, op)
+  elseif solver === :petsc
+    petsc_options = params[:solver_params][:petsc_options]
+    xh = GridapPETSc.with(args=split(petsc_options)) do
+      xh = zero(U)
+      solver = PETScNonlinearSolver()
+      xh, solver_cache = solve!(xh, solver, op)
+      snes_postpro(solver_cache,info)
+      return xh
+    end
+  else
+    xh = block_gmres_solver(op,U,V,Ω,params)
   end
   toc!(t, "solve")
 
@@ -180,7 +191,6 @@ function _cavity(;
     toc!(t, "vtk")
   end
 
-  info = Dict{Symbol,Any}()
   info[:ncells]  = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
@@ -193,8 +203,20 @@ function _cavity(;
   return info, t
 end
 
-
 function block_gmres_solver(op,U,V,Ω,params)
+  uses_petsc = any(s -> s===:mumps, params[:solver_params][:block_solvers])
+  if uses_petsc
+    petsc_options = params[:solver_params][:petsc_options]
+    xh = GridapPETSc.with(args=split(petsc_options)) do
+      _block_gmres_solver(op,U,V,Ω,params)
+    end
+  else
+    xh = _block_gmres_solver(op,U,V,Ω,params)
+  end
+  return xh
+end
+
+function _block_gmres_solver(op,U,V,Ω,params)
   U_u, U_p, U_j, U_φ = U
   V_u, V_p, V_j, V_φ = V
 
@@ -209,13 +231,8 @@ function block_gmres_solver(op,U,V,Ω,params)
   Ip = assemble_matrix((p,v_p) -> ∫(p*v_p)*dΩ,V_p,V_p)
   Iφ = assemble_matrix((φ,v_φ) -> ∫(-γ*φ*v_φ)*dΩ ,U_φ,V_φ)
 
-  Dj_solver = LUSolver()
-  Fk_solver = LUSolver()
-  Δp_solver = LUSolver()
-  Ip_solver = LUSolver()
-  Iφ_solver = LUSolver()
-
-  block_solvers = [Dj_solver,Fk_solver,Δp_solver,Ip_solver,Iφ_solver]
+  solver_params = params[:solver_params]
+  block_solvers = map(s -> get_block_solver(Val(s)),solver_params[:block_solvers])
   block_mats = [Dj,Δp,Ip,Ij,Iφ]
   P = LI2019_Solver(block_solvers...,block_mats...,params)
   
@@ -242,9 +259,53 @@ function block_gmres_solver(op,U,V,Ω,params)
   return [ūh, p̄h, j̄h, φ̄h]
 end
 
-function default_solver_params(solver::Symbol)
-  return Dict()
+function default_solver_params(::Val{:julia})
+  return Dict(
+    :matrix_type => SparseMatrixCSC{Float64,Int64},
+    :vector_type => Vector{Float64},
+  )
 end
+
+function default_solver_params(::Val{:petsc})
+  Dict(
+    :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type   => Vector{PetscScalar},
+    :petsc_options => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  )
+end
+
+function default_solver_params(::Val{:block_gmres})
+  Dict(
+    :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type   => Vector{PetscScalar},
+    :block_solvers => [:mumps,:mumps,:mumps,:mumps,:mumps],
+    :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  )
+end
+
+get_block_solver(::Val{:julia}) = LUSolver()
+get_block_solver(::Val{:mumps}) = PETScLinearSolver(cavity_mumps_setup)
+
+function cavity_mumps_setup(ksp)
+  pc       = Ref{GridapPETSc.PETSC.PC}()
+  mumpsmat = Ref{GridapPETSc.PETSC.Mat}()
+  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
+  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPPREONLY)
+  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
+  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCLU)
+  @check_error_code GridapPETSc.PETSC.PCFactorSetMatSolverType(pc[],GridapPETSc.PETSC.MATSOLVERMUMPS)
+  @check_error_code GridapPETSc.PETSC.PCFactorSetUpMatSolverType(pc[])
+  @check_error_code GridapPETSc.PETSC.PCFactorGetMatrix(pc[],mumpsmat)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  4, 1)
+  # percentage increase in the estimated working space
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  14, 1000)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 28, 2)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 29, 2)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 3, 1.0e-6)
+end
+
+############################################################################################
+# FIXES
 
 # Overload that will be removed when bug is fixed in PartitionedArrays
 function Base.similar(a::PSparseMatrix,::Type{T},inds::Tuple{<:PRange,<:PRange}) where T
