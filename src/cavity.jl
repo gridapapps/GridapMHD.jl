@@ -176,7 +176,7 @@ function _cavity(;
       return xh
     end
   else
-    xh = block_gmres_solver(op,U,V,Ω,params)
+    xh = block_gmres_solver(parts,op,U,V,Ω,params)
   end
   toc!(t, "solve")
 
@@ -203,24 +203,27 @@ function _cavity(;
   return info, t
 end
 
-function block_gmres_solver(op,U,V,Ω,params)
-  uses_petsc = any(s -> s===:mumps, params[:solver_params][:block_solvers])
+function block_gmres_solver(parts,op,U,V,Ω,params)
+  petsc_solvers = [:mumps,:gmres_swartz,:amg,:cg_jacobi]
+  uses_petsc = any(s -> s ∈ petsc_solvers, params[:solver_params][:block_solvers])
   if uses_petsc
     petsc_options = params[:solver_params][:petsc_options]
     xh = GridapPETSc.with(args=split(petsc_options)) do
-      _block_gmres_solver(op,U,V,Ω,params)
+      _block_gmres_solver(parts,op,U,V,Ω,params)
     end
   else
-    xh = _block_gmres_solver(op,U,V,Ω,params)
+    xh = _block_gmres_solver(parts,op,U,V,Ω,params)
   end
   return xh
 end
 
-function _block_gmres_solver(op,U,V,Ω,params)
+function _block_gmres_solver(parts,op,U,V,Ω,params)
   U_u, U_p, U_j, U_φ = U
   V_u, V_p, V_j, V_φ = V
 
   al_op = Gridap.FESpaces.get_algebraic_operator(op)
+  xh = zero(U)
+  sysmat = jacobian(op,xh)
 
   k  = params[:k]
   γ  = params[:fluid][:γ]
@@ -232,15 +235,14 @@ function _block_gmres_solver(op,U,V,Ω,params)
   Iφ = assemble_matrix((φ,v_φ) -> ∫(-γ*φ*v_φ)*dΩ ,U_φ,V_φ)
 
   solver_params = params[:solver_params]
-  block_solvers = map(s -> get_block_solver(Val(s)),solver_params[:block_solvers])
-  block_mats = [Dj,Δp,Ip,Ij,Iφ]
+  block_solvers = map((s,m) -> get_block_solver(Val(s),m),solver_params[:block_solvers],[Dj,sysmat[Block(1,1)],Δp,Ip,Iφ])
+  block_mats    = [Dj,Δp,Ip,Ij,Iφ]
   P = LI2019_Solver(block_solvers...,block_mats...,params)
-  
-  sysmat_solver = GMRESSolver(300,P,1e-8)
+  sysmat_solver = GMRESSolver(150,P,1e-8)
+
+  test_block_solvers(parts,block_solvers,[Dj,sysmat[Block(1,1)],Δp,Ip,Iφ])
 
   # Gridap's Newton-Raphson solver
-  xh = zero(U)
-  sysmat = jacobian(op,xh)
   sysmat_ns = numerical_setup(symbolic_setup(sysmat_solver,sysmat),sysmat)
 
   x  = allocate_col_vector(sysmat)
@@ -257,6 +259,40 @@ function _block_gmres_solver(op,U,V,Ω,params)
   j̄h = FEFunction(U_j,x.blocks[3])
   φ̄h = FEFunction(U_φ,x.blocks[4])
   return [ūh, p̄h, j̄h, φ̄h]
+end
+
+function test_block_solvers(parts,block_solvers,block_mats)
+  Dj_s,Fk_s,Δp_s,Ip_s,Iφ_s = block_solvers
+  Dj,Fk,Δp,Ip,Iφ = block_mats
+
+  function test_solver(s,m)
+    ns = numerical_setup(symbolic_setup(s,m),m)
+    x = allocate_col_vector(m)
+    b = allocate_col_vector(m)
+    fill!(b,1.0)
+    x = solve!(x,ns,b)
+    return norm(b - m*x)
+  end
+
+  # Test Dj solver
+  e = test_solver(Dj_s,Dj)
+  i_am_main(parts) && println("Dj error:",e)
+
+  # Test Fk solver
+  e = test_solver(Fk_s,Fk)
+  i_am_main(parts) && println("Fk error:",e)
+
+  # Test Δp solver
+  e = test_solver(Δp_s,Δp)
+  i_am_main(parts) && println("Δp error:",e)
+
+  # Test Ip solver
+  e = test_solver(Ip_s,Ip)
+  i_am_main(parts) && println("Ip error:",e)
+
+  # Test Iφ solver
+  e = test_solver(Iφ_s,Iφ)
+  i_am_main(parts) && println("Iφ error:",e)
 end
 
 function default_solver_params(::Val{:julia})
@@ -279,12 +315,21 @@ function default_solver_params(::Val{:block_gmres})
     :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type   => Vector{PetscScalar},
     :block_solvers => [:mumps,:mumps,:mumps,:mumps,:mumps],
-    :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+    :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
   )
 end
 
-get_block_solver(::Val{:julia}) = LUSolver()
-get_block_solver(::Val{:mumps}) = PETScLinearSolver(cavity_mumps_setup)
+get_block_solver(::Val{:julia},m) = LUSolver()
+get_block_solver(::Val{:mumps},m) = PETScLinearSolver(cavity_mumps_setup)
+get_block_solver(::Val{:amg},m) = PETScLinearSolver(cavity_amg_setup)
+get_block_solver(::Val{:gmres_swartz},m) = PETScLinearSolver(cavity_gmres_setup)
+get_block_solver(::Val{:cg_jacobi},m) = PETScLinearSolver(cavity_cg_setup)
+
+#function get_block_solver(::Val{:cg_jacobi},m)
+#  P = RichardsonSmoother(JacobiLinearSolver(),10,2.0/3.0)
+#  Pns = numerical_setup(symbolic_setup(P,m),m)
+#  return IS_ConjugateGradientSolver(;Pl=Pns,maxiter=10)
+#end
 
 function cavity_mumps_setup(ksp)
   pc       = Ref{GridapPETSc.PETSC.PC}()
@@ -302,6 +347,54 @@ function cavity_mumps_setup(ksp)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 28, 2)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 29, 2)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 3, 1.0e-6)
+end
+
+function cavity_amg_setup(ksp)
+  rtol = GridapPETSc.PETSC.PETSC_DEFAULT
+  atol = GridapPETSc.PETSC.PETSC_DEFAULT
+  dtol = GridapPETSc.PETSC.PETSC_DEFAULT
+  maxits = PetscInt(2)
+
+  pc = Ref{GridapPETSc.PETSC.PC}()
+  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
+  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPPREONLY)
+  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
+  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCGAMG)
+  #@check_error_code GridapPETSc.PETSC.PCGAMGSetType(pc[],GridapPETSc.PETSC.PCGAMGAGG) # or PCGAMGCLASSICAL
+  #@check_error_code GridapPETSc.PETSC.PCGAMGSetNSmooths(pc[],0)
+  @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
+end
+
+function cavity_gmres_setup(ksp)
+  rtol = PetscScalar(1.e-3)
+  atol = GridapPETSc.PETSC.PETSC_DEFAULT
+  dtol = GridapPETSc.PETSC.PETSC_DEFAULT
+  maxits = GridapPETSc.PETSC.PETSC_DEFAULT
+
+  # GMRES solver
+  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
+  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPGMRES)
+  @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
+
+  # Additive Schwartz preconditioner
+  pc = Ref{GridapPETSc.PETSC.PC}()
+  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
+  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCASM)
+  #@check_error_code GridapPETSc.PETSC.PCASMSetLocalType(pc[],GridapPETSc.PETSC.PC_COMPOSITE_ADDITIVE)
+end
+
+function cavity_cg_setup(ksp)
+  rtol = GridapPETSc.PETSC.PETSC_DEFAULT
+  atol = GridapPETSc.PETSC.PETSC_DEFAULT
+  dtol = GridapPETSc.PETSC.PETSC_DEFAULT
+  maxits = PetscInt(10)
+
+  pc = Ref{GridapPETSc.PETSC.PC}()
+  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
+  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPCG)
+  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
+  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCJACOBI)
+  @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
 end
 
 ############################################################################################

@@ -95,7 +95,7 @@ function Gridap.Algebra.solve!(x::AbstractBlockVector,ns::LI2019_NS,b::AbstractB
   # Solve for u
   copy!(du,bu)
   mul!(du,sysmat[Block(1,2)],p,-1.0,1.0) # du = bu - Aup * p
-  solve!(u,ns.Fk_ns,du)                                # u = Fu \ (bu - Aup * p)
+  solve!(u,ns.Fk_ns,du)                  # u = Fu \ (bu - Aup * p)
 
   # Solve for j
   copy!(dj,bj)
