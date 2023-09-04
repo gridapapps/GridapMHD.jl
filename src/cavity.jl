@@ -349,6 +349,7 @@ function cavity_mumps_setup(ksp)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 3, 1.0e-6)
 end
 
+# Two iterations of standalone AMG solver
 function cavity_amg_setup(ksp)
   rtol = GridapPETSc.PETSC.PETSC_DEFAULT
   atol = GridapPETSc.PETSC.PETSC_DEFAULT
@@ -365,6 +366,7 @@ function cavity_amg_setup(ksp)
   @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
 end
 
+# GMRES + Additive Schwartz preconditioner
 function cavity_gmres_setup(ksp)
   rtol = PetscScalar(1.e-3)
   atol = GridapPETSc.PETSC.PETSC_DEFAULT
@@ -383,6 +385,7 @@ function cavity_gmres_setup(ksp)
   #@check_error_code GridapPETSc.PETSC.PCASMSetLocalType(pc[],GridapPETSc.PETSC.PC_COMPOSITE_ADDITIVE)
 end
 
+# CG + Jacobi preconditioner, 10 iterations
 function cavity_cg_setup(ksp)
   rtol = GridapPETSc.PETSC.PETSC_DEFAULT
   atol = GridapPETSc.PETSC.PETSC_DEFAULT
