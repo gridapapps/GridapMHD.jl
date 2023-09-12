@@ -72,7 +72,6 @@ function _hunt(;
   BL_adapted = true,
   kmap_x = 1,
   kmap_y = 1,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
   info = Dict{Symbol,Any}()
@@ -134,6 +133,10 @@ function _hunt(;
     writevtk(model,"Mesh")
   end
 
+  if isa(solver,Symbol)
+    solver = default_solver_params(Val(solver))
+  end
+
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
@@ -152,25 +155,19 @@ function _hunt(;
     :bcs => Dict(
       :u=>Dict(:tags=>"noslip"),
       :j=>Dict(:tags=>"insulating"),
-    )
+    ),
+    :solver=>solver,
   )
 
   toc!(t,"pre_process")
 
   # Solve it
-  if solver == :julia
-    params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh,fullparams = main(params)
-  elseif solver == :petsc
-    xh,fullparams = GridapPETSc.with(args=split(petsc_options)) do
-      params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-      params[:vector_type] = Vector{PetscScalar}
-      params[:solver] = PETScNonlinearSolver()
-      params[:solver_postpro] = cache -> snes_postpro(cache,info)
-      main(params)
-    end
+  if !uses_petsc(Val(params[:solver][:solver]),params[:solver])
+    xh,fullparams,info = main(params;output=info)
   else
-    error()
+    xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
+      main(params;output=info)
+    end
   end
   t = fullparams[:ptimer]
 

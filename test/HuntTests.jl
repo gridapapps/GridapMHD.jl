@@ -38,7 +38,7 @@ hunt(
   nc=(4,4),
   np=(2,2),
   backend=:sequential,
-  L=2.0,
+  L=1.0,
   B=(0.,50.,0.),
   debug=false,
   vtk=true,

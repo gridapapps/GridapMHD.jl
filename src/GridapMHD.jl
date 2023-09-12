@@ -8,7 +8,6 @@ using Random
 using LinearAlgebra
 using SparseArrays
 using SparseMatricesCSR
-using BlockArrays
 
 using FileIO
 using BSON
@@ -34,6 +33,8 @@ using GridapSolvers.LinearSolvers: allocate_col_vector, allocate_row_vector
 using PartitionedArrays
 using PartitionedArrays: getany
 
+include("Li2019/Li2019.jl")
+
 include("Main.jl")
 
 include("ExtraFunctions.jl")
@@ -43,7 +44,5 @@ include("Hunt.jl")
 include("expansion.jl")
 
 include("cavity.jl")
-
-include("block_solver_li2019.jl")
 
 end # module

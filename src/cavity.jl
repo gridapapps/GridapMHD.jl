@@ -115,8 +115,8 @@ function _cavity(;
         :B => B̄,
     ),
     :bcs => Dict(
-        :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]),
-        :j => Dict(:tags => "insulating", :values => ji),
+      :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]),
+      :j => Dict(:tags => "insulating", :values => ji),
     ),
     :k => 2,
     :ζ => 0.0, # Augmented-Lagragian term
@@ -261,164 +261,8 @@ function _block_gmres_solver(parts,op,U,V,Ω,params)
   return [ūh, p̄h, j̄h, φ̄h]
 end
 
-function test_block_solvers(parts,block_solvers,block_mats)
-  Dj_s,Fk_s,Δp_s,Ip_s,Iφ_s = block_solvers
-  Dj,Fk,Δp,Ip,Iφ = block_mats
-
-  function test_solver(s,m)
-    ns = numerical_setup(symbolic_setup(s,m),m)
-    x = allocate_col_vector(m)
-    b = allocate_col_vector(m)
-    fill!(b,1.0)
-    x = solve!(x,ns,b)
-    return norm(b - m*x)
-  end
-
-  # Test Dj solver
-  e = test_solver(Dj_s,Dj)
-  i_am_main(parts) && println("Dj error:",e)
-
-  # Test Fk solver
-  e = test_solver(Fk_s,Fk)
-  i_am_main(parts) && println("Fk error:",e)
-
-  # Test Δp solver
-  e = test_solver(Δp_s,Δp)
-  i_am_main(parts) && println("Δp error:",e)
-
-  # Test Ip solver
-  e = test_solver(Ip_s,Ip)
-  i_am_main(parts) && println("Ip error:",e)
-
-  # Test Iφ solver
-  e = test_solver(Iφ_s,Iφ)
-  i_am_main(parts) && println("Iφ error:",e)
-end
-
-function default_solver_params(::Val{:julia})
-  return Dict(
-    :matrix_type => SparseMatrixCSC{Float64,Int64},
-    :vector_type => Vector{Float64},
-  )
-end
-
-function default_solver_params(::Val{:petsc})
-  Dict(
-    :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
-    :vector_type   => Vector{PetscScalar},
-    :petsc_options => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
-  )
-end
-
-function default_solver_params(::Val{:block_gmres})
-  Dict(
-    :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
-    :vector_type   => Vector{PetscScalar},
-    :block_solvers => [:mumps,:mumps,:mumps,:mumps,:mumps],
-    :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
-  )
-end
-
-get_block_solver(::Val{:julia},m) = LUSolver()
-get_block_solver(::Val{:mumps},m) = PETScLinearSolver(cavity_mumps_setup)
-get_block_solver(::Val{:amg},m) = PETScLinearSolver(cavity_amg_setup)
-get_block_solver(::Val{:gmres_swartz},m) = PETScLinearSolver(cavity_gmres_setup)
-get_block_solver(::Val{:cg_jacobi},m) = PETScLinearSolver(cavity_cg_setup)
-
-#function get_block_solver(::Val{:cg_jacobi},m)
-#  P = RichardsonSmoother(JacobiLinearSolver(),10,2.0/3.0)
-#  Pns = numerical_setup(symbolic_setup(P,m),m)
-#  return IS_ConjugateGradientSolver(;Pl=Pns,maxiter=10)
-#end
-
-function cavity_mumps_setup(ksp)
-  pc       = Ref{GridapPETSc.PETSC.PC}()
-  mumpsmat = Ref{GridapPETSc.PETSC.Mat}()
-  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
-  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPPREONLY)
-  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
-  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCLU)
-  @check_error_code GridapPETSc.PETSC.PCFactorSetMatSolverType(pc[],GridapPETSc.PETSC.MATSOLVERMUMPS)
-  @check_error_code GridapPETSc.PETSC.PCFactorSetUpMatSolverType(pc[])
-  @check_error_code GridapPETSc.PETSC.PCFactorGetMatrix(pc[],mumpsmat)
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  4, 1)
-  # percentage increase in the estimated working space
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  14, 1000)
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 28, 2)
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 29, 2)
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 3, 1.0e-6)
-end
-
-# Two iterations of standalone AMG solver
-function cavity_amg_setup(ksp)
-  rtol = GridapPETSc.PETSC.PETSC_DEFAULT
-  atol = GridapPETSc.PETSC.PETSC_DEFAULT
-  dtol = GridapPETSc.PETSC.PETSC_DEFAULT
-  maxits = PetscInt(2)
-
-  pc = Ref{GridapPETSc.PETSC.PC}()
-  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
-  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPPREONLY)
-  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
-  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCGAMG)
-  #@check_error_code GridapPETSc.PETSC.PCGAMGSetType(pc[],GridapPETSc.PETSC.PCGAMGAGG) # or PCGAMGCLASSICAL
-  #@check_error_code GridapPETSc.PETSC.PCGAMGSetNSmooths(pc[],0)
-  @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
-end
-
-# GMRES + Additive Schwartz preconditioner
-function cavity_gmres_setup(ksp)
-  rtol = PetscScalar(1.e-3)
-  atol = GridapPETSc.PETSC.PETSC_DEFAULT
-  dtol = GridapPETSc.PETSC.PETSC_DEFAULT
-  maxits = GridapPETSc.PETSC.PETSC_DEFAULT
-
-  # GMRES solver
-  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
-  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPGMRES)
-  @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
-
-  # Additive Schwartz preconditioner
-  pc = Ref{GridapPETSc.PETSC.PC}()
-  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
-  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCASM)
-  #@check_error_code GridapPETSc.PETSC.PCASMSetLocalType(pc[],GridapPETSc.PETSC.PC_COMPOSITE_ADDITIVE)
-end
-
-# CG + Jacobi preconditioner, 10 iterations
-function cavity_cg_setup(ksp)
-  rtol = GridapPETSc.PETSC.PETSC_DEFAULT
-  atol = GridapPETSc.PETSC.PETSC_DEFAULT
-  dtol = GridapPETSc.PETSC.PETSC_DEFAULT
-  maxits = PetscInt(10)
-
-  pc = Ref{GridapPETSc.PETSC.PC}()
-  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
-  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPCG)
-  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
-  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCJACOBI)
-  @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
-end
-
 ############################################################################################
 # FIXES
-
-# Overload that will be removed when bug is fixed in PartitionedArrays
-function Base.similar(a::PSparseMatrix,::Type{T},inds::Tuple{<:PRange,<:PRange}) where T
-  rows,cols = inds
-  matrix_partition = map(partition(a),partition(rows),partition(cols)) do values, row_indices, col_indices
-    PartitionedArrays.allocate_local_values(values,T,row_indices,col_indices)
-  end
-  PSparseMatrix(matrix_partition,partition(rows),partition(cols))
-end
-
-function Base.similar(::Type{<:PSparseMatrix{V}},inds::Tuple{<:PRange,<:PRange}) where V
-  rows,cols = inds
-  matrix_partition = map(partition(rows),partition(cols)) do row_indices, col_indices
-    PartitionedArrays.allocate_local_values(V,row_indices,col_indices)
-  end
-  PSparseMatrix(matrix_partition,partition(rows),partition(cols))
-end
 
 function Base.copy(a::PSparseMatrix)
   matrix_partition = similar(a.matrix_partition)

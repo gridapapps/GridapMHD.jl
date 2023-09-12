@@ -1,8 +1,5 @@
 
-"""
-  This preconditioner is based on [(Li,2019)](https://doi.org/10.1137/19M1260372)
-"""
-struct LI2019_Solver <: Gridap.Algebra.LinearSolver
+struct Li2019_Preconditioner <: Gridap.Algebra.LinearSolver
   Dj_solver
   Fk_solver
   Δp_solver
@@ -17,10 +14,10 @@ struct LI2019_Solver <: Gridap.Algebra.LinearSolver
 end
 
 struct LI2019_SS <: Gridap.Algebra.SymbolicSetup
-  solver::LI2019_Solver
+  solver::Li2019_Preconditioner
 end
 
-function Gridap.Algebra.symbolic_setup(solver::LI2019_Solver, A::AbstractBlockMatrix)
+function Gridap.Algebra.symbolic_setup(solver::Li2019_Preconditioner, A::AbstractBlockMatrix)
   return LI2019_SS(solver)
 end
 
@@ -35,7 +32,7 @@ mutable struct LI2019_NS <: Gridap.Algebra.NumericalSetup
   caches
 end
 
-function allocate_caches(solver::LI2019_Solver,A::AbstractBlockMatrix)
+function allocate_caches(solver::Li2019_Preconditioner,A::AbstractBlockMatrix)
   du = allocate_col_vector(A[Block(1,1)])
   dp = allocate_col_vector(A[Block(2,2)])
   dj = allocate_col_vector(A[Block(3,3)])

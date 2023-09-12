@@ -20,7 +20,7 @@ GridapMHD.cavity(np=2,backend=:sequential,solver=:block_gmres)
 solver_options = Dict(
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
-  :block_solvers => [:mumps,:gmres_swartz,:amg,:cg_jacobi,:cg_jacobi],
+  :block_solvers => [:amg,:gmres_swartz,:amg,:cg_jacobi,:cg_jacobi],
   :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
 )
 GridapMHD.cavity(np=2,backend=:sequential,solver=:block_gmres,solver_params=solver_options)

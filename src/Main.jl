@@ -73,16 +73,14 @@ function add_default_params(_params)
     :solve=>true,
     :res_assemble=>false,
     :jac_assemble=>false,
-    :solver=>false,
-    :solver_postpro=>false,
-    :matrix_type=>false,
-    :vector_type=>false,
     :model=>true,
     :k=>false,
     :fluid=>true,
     :solid=>false,
     :bcs=>true,
+    :solver=>true,
     :check_valid=>false,
+    :ζ=>false,
   )
   _check_mandatory(_params,mandatory,"")
   optional = Dict(
@@ -91,13 +89,10 @@ function add_default_params(_params)
     :solve=>true,
     :res_assemble=>false,
     :jac_assemble=>false,
-    :solver=>NLSolver(show_trace=true,method=:newton),
-    :solver_postpro => (x->nothing),
-    :matrix_type=>SparseMatrixCSC{Float64,Int},
-    :vector_type=>Vector{Float64},
     :k=>2,
     :solid=>nothing,
     :check_valid=>true,
+    :ζ=>nothing,
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
   _check_unused(params,mandatory,params,"")
@@ -107,11 +102,78 @@ function add_default_params(_params)
     params[:solid] = params_solid(params)
   end
   params[:bcs] = params_bcs(params)
+  params[:solver] = params_solver(params)
   params
 end
 
 default_ptimer(model) = PTimer(DebugArray(LinearIndices((1,))))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_parts(model))
+
+"""
+Valid keys for `params[:solver]` are the following.
+
+# Mandatory keys
+- `:solver`: Name of the selected solver.
+            Valid values are `[:julia, :petsc, :block_gmres_li2019]`.
+
+# Optional keys
+-  `:matrix_type`: Matrix type for the linear system.
+-  `:vector_type`: Vector type for the linear system.
+-  `:solver_postpro`: Function to postprocess the solver cache, with signature f(cache,info)
+-  `:petsc_options`: PETSc options for the linear solver (only if PETSc is used).
+-  `:block_solvers`: Array of solvers for the diagonal blocks (only for block-based solvers).
+"""
+function params_solver(params::Dict{Symbol,Any})
+  mandatory = Dict(
+   :solver=>true,
+   :matrix_type=>false,
+   :vector_type=>false,
+   :petsc_options=>false,
+   :solver_postpro=>false,
+   :block_solvers=>false,
+  )
+  _check_mandatory(params[:solver],mandatory,"[:solver]")
+  optional = default_solver_params(Val(params[:solver][:solver]))
+  solver   = _add_optional(params[:solver],mandatory,optional,params,"[:fluid]")
+  return solver
+end
+
+function default_solver_params(::Val{:julia})
+  return Dict(
+    :solver => :julia,
+    :matrix_type => SparseMatrixCSC{Float64,Int64},
+    :vector_type => Vector{Float64},
+    :solver_postpro => ((cache,info) -> nothing),
+    :petsc_options => "",
+    :block_solvers => [],
+  )
+end
+
+function default_solver_params(::Val{:petsc})
+  Dict(
+    :solver => :petsc,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :solver_postpro => ((cache,info) -> snes_postpro(cache,info)),
+    :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
+    :block_solvers => [],
+  )
+end
+
+function default_solver_params(::Val{:block_gmres_li2019})
+  Dict(
+    :solver => :block_gmres_li2019,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason"
+    :solver_postpro => ((cache,info) -> nothing),
+    :block_solvers  => [:mumps,:mumps,:mumps,:mumps,:mumps],
+  )
+end
+
+uses_petsc(::Val{:julia},solver_params) = false
+uses_petsc(::Val{:petsc},solver_params) = true
+uses_petsc(::Val{:block_gmres_li2019},solver_params) = true
 
 """
 Valid keys for `params[:fluid]` are the following.
@@ -457,7 +519,7 @@ or a `GridapDistributed.DistributedDiscreteModel`
 - `:ptimer => default_ptimer(params[:model])`:
   Instance of `PTimer` used to monitor times. New time measurements are added to the given timer.
 """
-function main(_params::Dict)
+function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
 
   params = add_default_params(_params)
 
@@ -505,17 +567,17 @@ function main(_params::Dict)
     toc!(t,"solve")
   else
     res, jac = weak_form(params,k)
-    Tm = params[:matrix_type]
-    Tv = params[:vector_type]
+    Tm = params[:solver][:matrix_type]
+    Tv = params[:solver][:vector_type]
     assem = SparseMatrixAssembler(Tm,Tv,U,V)
     op = FEOperator(res,jac,U,V,assem)
-    xh = zero(U)
+    xh = zero(get_trial(op))
     if params[:solve]
-       solver = params[:solver]
-       xh,cache = solve!(xh,solver,op)
-       solver_postpro = params[:solver_postpro]
-       solver_postpro(cache)
-       toc!(t,"solve")
+      solver = _solver(op,params)
+      xh,cache = solve!(xh,solver,op)
+      solver_postpro = params[:solver][:solver_postpro]
+      solver_postpro(cache,output)
+      toc!(t,"solve")
     end
     if params[:res_assemble]
       tic!(t;barrier=true)
@@ -529,8 +591,16 @@ function main(_params::Dict)
     end
   end
 
-  xh, params
+  xh, params, output
 end
+
+@inline function _solver(op,params)
+  s = params[:solver][:solver]
+  _solver(Val(s),op,params)
+end
+_solver(::Val{:julia},op,params) = NLSolver(show_trace=true,method=:newton)
+_solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
+_solver(::Val{:block_gmres_li2019},op,params) = Li2019Solver(op,params)
 
 function _fluid_mesh(
   model,domain::Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel})
@@ -657,7 +727,7 @@ function weak_form(params,k)
   f  = fluid[:f]
   B  = fluid[:B]
   σf = fluid[:σ]
-  ζ = params[:ζ]
+  ζ  = params[:ζ]
 
   bcs = params[:bcs]
 
