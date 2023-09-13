@@ -4,6 +4,10 @@ function Li2019Solver(op,params)
   U_u, U_p, U_j, U_φ = U
   V_u, V_p, V_j, V_φ = V
 
+  if isa(params[:ζ],Nothing)
+    params[:ζ] = 0.0
+  end
+
   # Preconditioner
   k  = params[:k]
   γ  = params[:fluid][:γ]
@@ -25,6 +29,16 @@ function Li2019Solver(op,params)
   # Nonlinear Solver
   nlsolver = NewtonRaphsonSolver(l_solver,1e-5,10)
   return nlsolver
+end
+
+function Gridap.Algebra.solve!(x::AbstractVector,nls::NewtonRaphsonSolver,op::NonlinearOperator,cache::Nothing)
+  b  = residual(op, x)
+  A  = jacobian(op, x)
+  dx = allocate_col_vector(A)
+  ns = numerical_setup(symbolic_setup(nls.ls, A), A)
+
+  Gridap.Algebra._solve_nr!(x,A,b,dx,ns,nls,op)
+  return Gridap.Algebra.NewtonRaphsonCache(A,b,dx,ns)
 end
 
 # TODO: This is copied from main... should be in a common place

@@ -19,7 +19,7 @@ cavity(np=2,backend=:sequential,solver=:block_gmres_li2019)
 
 # Sequential, GMRES + block preconditioners
 solver = Dict(
-  :solver        => :block_gmres_li2019
+  :solver        => :block_gmres_li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
   :block_solvers => [:amg,:gmres_swartz,:amg,:cg_jacobi,:cg_jacobi],
