@@ -1,9 +1,9 @@
 
-get_block_solver(::Val{:julia}) = LUSolver()
-get_block_solver(::Val{:mumps}) = PETScLinearSolver(li2019_mumps_setup)
-get_block_solver(::Val{:amg}) = PETScLinearSolver(li2019_amg_setup)
+get_block_solver(::Val{:julia})        = LUSolver()
+get_block_solver(::Val{:mumps})        = PETScLinearSolver(li2019_mumps_setup)
+get_block_solver(::Val{:amg})          = PETScLinearSolver(li2019_amg_setup)
 get_block_solver(::Val{:gmres_swartz}) = PETScLinearSolver(li2019_gmres_setup)
-get_block_solver(::Val{:cg_jacobi}) = PETScLinearSolver(li2019_cg_setup)
+get_block_solver(::Val{:cg_jacobi})    = PETScLinearSolver(li2019_cg_setup)
 
 function li2019_mumps_setup(ksp)
   pc       = Ref{GridapPETSc.PETSC.PC}()

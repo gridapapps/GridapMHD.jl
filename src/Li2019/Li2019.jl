@@ -13,8 +13,13 @@ module Li2019
 using LinearAlgebra
 using BlockArrays
 
-using PartitionedArrays
 using Gridap
+using Gridap.Helpers
+using Gridap.Algebra
+using Gridap.FESpaces
+using Gridap.MultiField
+
+using PartitionedArrays
 using GridapDistributed
 using GridapPETSc
 

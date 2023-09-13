@@ -165,7 +165,7 @@ function default_solver_params(::Val{:block_gmres_li2019})
     :solver => :block_gmres_li2019,
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
-    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason"
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> nothing),
     :block_solvers  => [:mumps,:mumps,:mumps,:mumps,:mumps],
   )
@@ -538,7 +538,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
 
   # Test spaces
   mfs = _multi_field_style(params)
-  Ωf = _fluid_mesh(model,params[:fluid][:domain])
+  Ωf  = _fluid_mesh(model,params[:fluid][:domain])
   V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
   V_p = TestFESpace(Ωf,reffe_p;conformity=p_conformity(Ωf))
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
@@ -601,7 +601,7 @@ end
 end
 _solver(::Val{:julia},op,params) = NLSolver(show_trace=true,method=:newton)
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
-_solver(::Val{:block_gmres_li2019},op,params) = Li2019Solver(op,params)
+_solver(::Val{:block_gmres_li2019},op,params) = Li2019.Li2019Solver(op,params)
 
 _multi_field_style(params) = _multi_field_style(Val(params[:solver][:solver]))
 _multi_field_style(::Val{:julia}) = ConsecutiveMultiFieldStyle()
