@@ -6,6 +6,7 @@ version = "0.4.0"
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
 BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
+DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 FlameGraphs = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
 Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
