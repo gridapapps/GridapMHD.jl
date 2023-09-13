@@ -68,7 +68,7 @@ function _expansion(;
   # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
   # after and before the expansion respectively.
   # We assume L=1 in the mesh read from msh_file   
-  msh_file = joinpath(@__FILE__,"..","..","meshes","Expansion_"*mesh*".msh") |> normpath
+  msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh*".msh") |> normpath
   model = GmshDiscreteModel(parts,msh_file)
   if debug && vtk
     writevtk(model,"expansion_model")
@@ -152,7 +152,9 @@ function _expansion(;
   else
     petsc_options = params[:solver][:petsc_options]
     xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
-      main(params;output=info)
+      xh,fullparams,info = main(params;output=info)
+      GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
+      return xh,fullparams,info 
     end
   end
   t = fullparams[:ptimer]

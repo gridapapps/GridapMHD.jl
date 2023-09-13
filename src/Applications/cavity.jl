@@ -177,6 +177,7 @@ function _cavity(;
       xh,cache = solve!(xh,solver,op)
       solver_postpro = params[:solver][:solver_postpro]
       solver_postpro(cache,info)
+      GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
       return xh
     end
   end

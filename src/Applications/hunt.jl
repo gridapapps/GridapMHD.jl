@@ -159,7 +159,9 @@ function _hunt(;
   else
     petsc_options = params[:solver][:petsc_options]
     xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
-      main(params;output=info)
+      xh,fullparams,info = main(params;output=info)
+      GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
+      return xh,fullparams,info 
     end
   end
   t = fullparams[:ptimer]
