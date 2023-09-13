@@ -1,3 +1,0 @@
-module MainTests
-
-end # module

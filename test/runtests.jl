@@ -1,11 +1,10 @@
-module GridapMHDTests
 
 using Test
 
-@time @testset "main" begin include("MainTests.jl") end
+@info "Sequential tests"
+include("seq/runtests.jl")
 
-@time @testset "Hunt" begin include("HuntTests.jl") end
-
-@time @testset "Expansion" begin include("expansion_tests.jl") end
-
-end # module
+@info "MPI tests"
+#MPI.mpiexec() do cmd
+#  cmd = `$(cmd) -np 4 julia -e 'include("test/mpi/runtests.jl")'`
+#end
