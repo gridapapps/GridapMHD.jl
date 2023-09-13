@@ -28,6 +28,6 @@ solver = Dict(
 cavity(np=2,backend=:sequential,solver=solver)
 
 # Distributed MPI, LUSolver
-#GridapMHD.cavity(np=2,backend=:mpi,solver=:petsc)
+# cavity(np=2,backend=:mpi,solver=:petsc)
 
 end # module

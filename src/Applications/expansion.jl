@@ -13,7 +13,7 @@ function expansion(;
     @assert backend ∈ [:sequential,:mpi]
     @assert !isa(np,Nothing)
     np = isa(np,Int) ? (np,) : np
-    if backend == :sequential
+    if backend === :sequential
       info,t = with_debug() do distribute
         _expansion(;distribute=distribute,rank_partition=np,title=_title,path=path,mesh=mesh,kwargs...)
       end

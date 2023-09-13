@@ -11,7 +11,7 @@ function cavity(;
     info, t = _cavity(;title=title,path=path,kwargs...)
   else
     @assert backend ∈ [:sequential,:mpi]
-    if backend == :sequential
+    if backend === :sequential
       info,t = with_debug() do distribute
         _cavity(;distribute=distribute,np=np,title=title,path=path,kwargs...)
       end
@@ -87,6 +87,8 @@ function _cavity(;
   Ω = Interior(model)
 
   # Boundary conditions
+  # TODO: This is not general! Only works for nc=(4,4,4)
+  @assert all(map(nci -> nci==4,nc))
   labels = get_face_labeling(model)
   Γw = append!(collect(1:4), [9, 10, 13, 14], collect(17:21), collect(23:26))
   Γl = append!(collect(5:8), [11, 12, 15, 16, 22])

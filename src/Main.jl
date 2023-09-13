@@ -141,27 +141,27 @@ end
 function default_solver_params(::Val{:julia})
   return Dict(
     :solver => :julia,
-    :matrix_type => SparseMatrixCSC{Float64,Int64},
-    :vector_type => Vector{Float64},
+    :matrix_type    => SparseMatrixCSC{Float64,Int64},
+    :vector_type    => Vector{Float64},
     :solver_postpro => ((cache,info) -> nothing),
-    :petsc_options => "",
-    :block_solvers => [],
+    :petsc_options  => "",
+    :block_solvers  => [],
   )
 end
 
 function default_solver_params(::Val{:petsc})
-  Dict(
+  return Dict(
     :solver => :petsc,
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :solver_postpro => ((cache,info) -> snes_postpro(cache,info)),
     :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
-    :block_solvers => [],
+    :block_solvers  => [],
   )
 end
 
 function default_solver_params(::Val{:block_gmres_li2019})
-  Dict(
+  return Dict(
     :solver => :block_gmres_li2019,
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},

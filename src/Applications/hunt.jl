@@ -14,7 +14,7 @@ function hunt(;
     else
       @assert backend ∈ [:sequential,:mpi]
       @assert !isa(np,Nothing)
-      if backend == :sequential
+      if backend === :sequential
         info,t = with_debug() do distribute
           _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
         end
