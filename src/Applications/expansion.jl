@@ -3,7 +3,7 @@ function expansion(;
   np      = nothing,
   title   = "Expansion",
   mesh    = "710",
-  path    = ".",
+  path    = datadir(),
   kwargs...)
 
   if isa(backend,Nothing)
@@ -41,17 +41,16 @@ function _expansion(;
   distribute=nothing,
   rank_partition=nothing,
   title = "Expansion",
-  mesh = "720",
-  vtk=true,
-  path=".",
+  mesh  = "720",
+  vtk   = true,
+  path  = datadir(),
   debug = false,
-  verbose=true,
-  solver=:julia,
-  N = 1.0,
+  verbose = true,
+  solver  = :julia,
+  N  = 1.0,
   Ha = 1.0,
   cw = 0.028,
-  τ = 100,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
+  τ  = 100,
   )
   
   info = Dict{Symbol,Any}()
@@ -92,6 +91,11 @@ function _expansion(;
   # This gives mean(u_inlet)=1
   u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
 
+  if isa(solver,Symbol)
+    solver = default_solver_params(Val(solver))
+    solver[:petsc_options] = "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
+  end
+
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
@@ -106,7 +110,8 @@ function _expansion(;
       :γ=>γ,
       :f=>VectorValue(0.0,0.0,0.0),
       :B=>VectorValue(0.0,1.0,0.0),
-    )
+    ),
+    :solver=>solver,
    )
 
   if cw == 0.0
@@ -142,19 +147,13 @@ function _expansion(;
   toc!(t,"pre_process")
 
   # Solve it
-  if solver == :julia
-    params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh,fullparams = main(params)
-  elseif solver == :petsc
-    xh,fullparams = GridapPETSc.with(args=split(petsc_options)) do
-    params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-    params[:vector_type] = Vector{PetscScalar}
-    params[:solver] = PETScNonlinearSolver()
-    params[:solver_postpro] = cache -> snes_postpro(cache,info)
-    xh = main(params)
-    end
+  if !uses_petsc(Val(params[:solver][:solver]),params[:solver])
+    xh,fullparams,info = main(params;output=info)
   else
-    error()
+    petsc_options = params[:solver][:petsc_options]
+    xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
+      main(params;output=info)
+    end
   end
   t = fullparams[:ptimer]
   tic!(t,barrier=true)

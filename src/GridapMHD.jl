@@ -11,6 +11,7 @@ using SparseMatricesCSR
 
 using FileIO
 using BSON
+using DrWatson
 
 using Gridap
 using Gridap.Helpers
@@ -33,16 +34,19 @@ using GridapSolvers.LinearSolvers: allocate_col_vector, allocate_row_vector
 using PartitionedArrays
 using PartitionedArrays: getany
 
+# Solvers
 include("Li2019/Li2019.jl")
 
+# Main driver
+include("Fixes.jl")
+include("ExtraFunctions.jl")
 include("Main.jl")
 
-include("ExtraFunctions.jl")
+# Applications
+include("Applications/hunt.jl")
+include("Applications/expansion.jl")
+include("Applications/cavity.jl")
 
-include("Hunt.jl")
-
-include("expansion.jl")
-
-include("cavity.jl")
+export hunt, expansion, cavity
 
 end # module

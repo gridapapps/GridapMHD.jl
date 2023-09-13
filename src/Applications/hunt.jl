@@ -3,7 +3,7 @@ function hunt(;
   np      = nothing,
   title   = "hunt",
   nruns   = 1,
-  path    = ".",
+  path    = datadir(),
   kwargs...)
 
   for ir in 1:nruns
@@ -23,14 +23,6 @@ function hunt(;
           _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
         end
       end
-      # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
-      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
-      # end
-      # Profile.clear()
-      # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
-      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
-      # end
-      # save("test_$(MPI.Comm_rank(MPI.COMM_WORLD)).jlprof", Profile.retrieve()...)
     end
     info[:np] = np
     info[:backend] = backend
@@ -60,14 +52,14 @@ function _hunt(;
   B0=norm(VectorValue(B)),
   nsums = 10,
   vtk=true,
-  title="test",
-  path=".",
-  debug=false,
-  res_assemble=false,
-  jac_assemble=false,
-  solve=true,
-  solver=:julia,
-  verbose=true,
+  title = "test",
+  path  = datadir(),
+  debug = false,
+  res_assemble = false,
+  jac_assemble = false,
+  solve = true,
+  solver = :julia,
+  verbose = true,
   mesh = false,
   BL_adapted = true,
   kmap_x = 1,
@@ -165,6 +157,7 @@ function _hunt(;
   if !uses_petsc(Val(params[:solver][:solver]),params[:solver])
     xh,fullparams,info = main(params;output=info)
   else
+    petsc_options = params[:solver][:petsc_options]
     xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
       main(params;output=info)
     end
@@ -357,4 +350,3 @@ function snes_postpro(cache,info)
   info[:ls_iters] = Int(i_petsc[])
   nothing
 end
-

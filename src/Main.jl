@@ -537,12 +537,13 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
   reffe_φ = ReferenceFE(lagrangian,T,k-1)
 
   # Test spaces
+  mfs = _multi_field_style(params)
   Ωf = _fluid_mesh(model,params[:fluid][:domain])
   V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
   V_p = TestFESpace(Ωf,reffe_p;conformity=p_conformity(Ωf))
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
   V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
-  V = MultiFieldFESpace([V_u,V_p,V_j,V_φ])
+  V = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
 
   # Trial spaces
   # TODO improve for parallel computations
@@ -554,7 +555,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
   U_j = j_bc == z ? V_j : TrialFESpace(V_j,j_bc)
   U_p = TrialFESpace(V_p)
   U_φ = TrialFESpace(V_φ)
-  U = MultiFieldFESpace([U_u,U_p,U_j,U_φ])
+  U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
   toc!(t,"fe_spaces")
 
   tic!(t;barrier=true)
@@ -601,6 +602,11 @@ end
 _solver(::Val{:julia},op,params) = NLSolver(show_trace=true,method=:newton)
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
 _solver(::Val{:block_gmres_li2019},op,params) = Li2019Solver(op,params)
+
+_multi_field_style(params) = _multi_field_style(Val(params[:solver][:solver]))
+_multi_field_style(::Val{:julia}) = ConsecutiveMultiFieldStyle()
+_multi_field_style(::Val{:petsc}) = ConsecutiveMultiFieldStyle()
+_multi_field_style(::Val{:block_gmres_li2019}) = BlockMultiFieldStyle()
 
 function _fluid_mesh(
   model,domain::Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel})

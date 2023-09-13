@@ -7,7 +7,7 @@ function FCI_Entrance(;
   np=nothing,
   title = "FCI_Entrance",
   mesh = "Mesh",
-  path=".",
+  path = datadir(),
   kwargs...
   )
 
@@ -54,11 +54,10 @@ function _FCI_Entrance(;
   rank_partition = nothing,   # Processor layout
   debug = false,          # debugging mode
   vtk = true,             # vtk file as an output
-  mesh = "Mesh",          # Mesh file .msh
-  title = "FCI_entrance", # Title of the job
-  path ="../analysis",    # path for writting the results
+  mesh   = "Mesh",          # Mesh file .msh
+  title  = "FCI_entrance", # Title of the job
+  path   = datadir(),    # path for writting the results
   solver = :petsc,        # solver used for the analyses (julia or petsc)
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 #------------- Derived variables------------------ 
   
@@ -113,6 +112,10 @@ function _FCI_Entrance(;
 
 #-------Dictionary of parameters for the solver-----------
 
+  if isa(solver,Symbol)
+    solver = default_solver_params(Val(solver))
+  end
+
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
@@ -127,6 +130,7 @@ function _FCI_Entrance(;
       :f=>z,
       :B=>B_dir,
     ),
+    :solver=>solver,
   )
 
   if c_w == 0 && c_FCI == 0
@@ -174,20 +178,14 @@ function _FCI_Entrance(;
 
 #-----------------Solver call-------------------------
 
-  if solver == :julia
-    params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh = GridapMHD.main(params)
-  elseif solver == :petsc
-    xh = GridapPETSc.with(args=split(petsc_options)) do
-      params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-      params[:vector_type] = Vector{PetscScalar}
-      params[:solver] = PETScNonlinearSolver()
-      params[:solver_postpro] = cache -> snes_postpro(cache,info)
-      xh = GridapMHD.main(params)
-    end
+  if !uses_petsc(Val(params[:solver][:solver]),params[:solver])
+    xh,fullparams,info = main(params;output=info)
   else
-   error()
-  end  
+    petsc_options = params[:solver][:petsc_options]
+    xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
+      main(params;output=info)
+    end
+  end
 
 #---------------Post process-------------------------
 

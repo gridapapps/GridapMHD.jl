@@ -3,7 +3,7 @@ function cavity(;
   backend = nothing,
   np      = 1,
   title   = "Cavity",
-  path    = ".",
+  path    = datadir(),
   kwargs...)
 
   if isa(backend,Nothing)
@@ -48,9 +48,8 @@ function _cavity(;
   B0=norm(B),
   vtk=true,
   title="Cavity",
-  path='.',
+  path=datadir(),
   solver=:julia,
-  solver_params=default_solver_params(Val(solver)),
   verbose=true,
   )
   info = Dict{Symbol,Any}()
@@ -98,6 +97,10 @@ function _cavity(;
   ul = VectorValue(1.0, 0.0, 0.0)
   ji = VectorValue(0.0, 0.0, 0.0)
 
+  if isa(solver,Symbol)
+    solver = default_solver_params(Val(solver))
+  end
+
   _params = Dict(
     :ptimer => t,
     :debug => false,
@@ -119,9 +122,7 @@ function _cavity(;
       :j => Dict(:tags => "insulating", :values => ji),
     ),
     :k => 2,
-    :ζ => 0.0, # Augmented-Lagragian term
     :solver => solver,
-    :solver_params => solver_params,
   )
 
   params = add_default_params(_params)
@@ -138,9 +139,8 @@ function _cavity(;
   reffe_j = ReferenceFE(raviart_thomas,T,k-2)
   reffe_φ = ReferenceFE(lagrangian,T,k-2)
 
-  mfs = (solver === :block_gmres) ? BlockMultiFieldStyle() : ConsecutiveMultiFieldStyle()
-
   # Test spaces
+  mfs = _multi_field_style(params)
   V_u = TestFESpace(model, reffe_u; dirichlet_tags=["wall", "lid"])
   V_p = TestFESpace(model, reffe_p; constraint=:zeromean)
   V_j = TestFESpace(model, reffe_j; dirichlet_tags="insulating")
@@ -157,26 +157,26 @@ function _cavity(;
 
   tic!(t; barrier=true)
   res, jac = weak_form(params, k)
-  Tm = params[:solver_params][:matrix_type]
-  Tv = params[:solver_params][:vector_type]
+  Tm = params[:solver][:matrix_type]
+  Tv = params[:solver][:vector_type]
   assem = SparseMatrixAssembler(Tm, Tv, U, V)
   op = FEOperator(res, jac, U, V, assem)
 
-  if solver === :julia
-    xh = zero(U)
-    solver = NLSolver(show_trace=true, method=:newton)
-    xh, solver_cache = solve!(xh, solver, op)
-  elseif solver === :petsc
-    petsc_options = params[:solver_params][:petsc_options]
+  xh = zero(get_trial(op))
+  if !uses_petsc(Val(params[:solver][:solver]),params[:solver])
+    solver = _solver(op,params)
+    xh,cache = solve!(xh,solver,op)
+    solver_postpro = params[:solver][:solver_postpro]
+    solver_postpro(cache,info)
+  else
+    petsc_options = params[:solver][:petsc_options]
     xh = GridapPETSc.with(args=split(petsc_options)) do
-      xh = zero(U)
-      solver = PETScNonlinearSolver()
-      xh, solver_cache = solve!(xh, solver, op)
-      snes_postpro(solver_cache,info)
+      solver = _solver(op,params)
+      xh,cache = solve!(xh,solver,op)
+      solver_postpro = params[:solver][:solver_postpro]
+      solver_postpro(cache,info)
       return xh
     end
-  else
-    xh = block_gmres_solver(parts,op,U,V,Ω,params)
   end
   toc!(t, "solve")
 
@@ -201,71 +201,4 @@ function _cavity(;
   info[:Ha]      = Ha
 
   return info, t
-end
-
-function block_gmres_solver(parts,op,U,V,Ω,params)
-  petsc_solvers = [:mumps,:gmres_swartz,:amg,:cg_jacobi]
-  uses_petsc = any(s -> s ∈ petsc_solvers, params[:solver_params][:block_solvers])
-  if uses_petsc
-    petsc_options = params[:solver_params][:petsc_options]
-    xh = GridapPETSc.with(args=split(petsc_options)) do
-      _block_gmres_solver(parts,op,U,V,Ω,params)
-    end
-  else
-    xh = _block_gmres_solver(parts,op,U,V,Ω,params)
-  end
-  return xh
-end
-
-function _block_gmres_solver(parts,op,U,V,Ω,params)
-  U_u, U_p, U_j, U_φ = U
-  V_u, V_p, V_j, V_φ = V
-
-  al_op = Gridap.FESpaces.get_algebraic_operator(op)
-  xh = zero(U)
-  sysmat = jacobian(op,xh)
-
-  k  = params[:k]
-  γ  = params[:fluid][:γ]
-  dΩ = Measure(Ω,2*k)
-  Dj = assemble_matrix((j,v_j) -> ∫(γ*j⋅v_j + γ*(∇⋅j)⋅(∇⋅v_j))*dΩ ,U_j,V_j)
-  Ij = assemble_matrix((j,v_j) -> ∫(j⋅v_j)*dΩ ,U_j,V_j)
-  Δp = assemble_matrix((p,v_p) -> ∫(∇(p)⋅∇(v_p))*dΩ ,U_p,V_p)
-  Ip = assemble_matrix((p,v_p) -> ∫(p*v_p)*dΩ,V_p,V_p)
-  Iφ = assemble_matrix((φ,v_φ) -> ∫(-γ*φ*v_φ)*dΩ ,U_φ,V_φ)
-
-  solver_params = params[:solver_params]
-  block_solvers = map((s,m) -> get_block_solver(Val(s),m),solver_params[:block_solvers],[Dj,sysmat[Block(1,1)],Δp,Ip,Iφ])
-  block_mats    = [Dj,Δp,Ip,Ij,Iφ]
-  P = LI2019_Solver(block_solvers...,block_mats...,params)
-  sysmat_solver = GMRESSolver(150,P,1e-8)
-
-  test_block_solvers(parts,block_solvers,[Dj,sysmat[Block(1,1)],Δp,Ip,Iφ])
-
-  # Gridap's Newton-Raphson solver
-  sysmat_ns = numerical_setup(symbolic_setup(sysmat_solver,sysmat),sysmat)
-
-  x  = allocate_col_vector(sysmat)
-  dx = allocate_col_vector(sysmat)
-  b  = allocate_col_vector(sysmat)
-
-  A = allocate_jacobian(al_op,x)
-  nlsolver = NewtonRaphsonSolver(sysmat_solver,1e-5,10)
-  nlsolver_cache = Gridap.Algebra.NewtonRaphsonCache(A,b,dx,sysmat_ns)
-  solve!(x,nlsolver,al_op,nlsolver_cache)
-
-  ūh = FEFunction(U_u,x.blocks[1])
-  p̄h = FEFunction(U_p,x.blocks[2])
-  j̄h = FEFunction(U_j,x.blocks[3])
-  φ̄h = FEFunction(U_φ,x.blocks[4])
-  return [ūh, p̄h, j̄h, φ̄h]
-end
-
-############################################################################################
-# FIXES
-
-function Base.copy(a::PSparseMatrix)
-  matrix_partition = similar(a.matrix_partition)
-  copy!(matrix_partition, a.matrix_partition)
-  PSparseMatrix(matrix_partition,a.row_partition,a.col_partition)
 end
