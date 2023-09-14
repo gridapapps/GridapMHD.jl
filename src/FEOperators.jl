@@ -37,9 +37,9 @@ function weakform_uu(params,k)
   if ζ !== nothing 
     a(u,dv) = ∫(β*(∇(u)⊙∇(dv)) ) * dΩf
   else
-    a(u,dv) = ∫(β*(∇(u)⊙∇(dv)) + ζ*(∇⋅u)*(∇⋅v)) * dΩf
+    a(u,dv) = ∫(β*(∇(u)⊙∇(dv)) + ζ*(∇⋅u)*(∇⋅dv)) * dΩf
   end
-  l(dv) = ∫( dv⋅f )*dΩf
+  l(dv) = ∫( dv⋅f ) * dΩf
   c(u,dv) = ∫( α*dv⋅(conv∘(u,∇(u))) ) * dΩf
   dc(u,du,dv) = ∫( α*dv⋅( (conv∘(u,∇(du))) + (conv∘(du,∇(u))) ) ) * dΩf
 
