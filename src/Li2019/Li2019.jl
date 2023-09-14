@@ -31,6 +31,8 @@ include("blocks.jl")
 include("preconditioner.jl")
 include("solver.jl")
 
+include("PETScLinearSolvers.jl")
+
 export Li2019Solver
 
 end

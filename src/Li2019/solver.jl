@@ -1,5 +1,5 @@
 
-function Li2019Solver(op,params)
+function Li2019Solver(op::FEOperator,params)
   U, V = get_trial(op), get_test(op)
   U_u, U_p, U_j, U_φ = U
   V_u, V_p, V_j, V_φ = V
@@ -85,4 +85,3 @@ function test_block_solvers(parts,block_solvers,block_mats)
   e = test_solver(Iφ_s,Iφ)
   i_am_main(parts) && println("Iφ error:",e)
 end
-
