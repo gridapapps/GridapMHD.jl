@@ -158,11 +158,7 @@ function _cavity(;
   toc!(t, "fe_spaces")
 
   tic!(t; barrier=true)
-  res, jac = weak_form(params, k)
-  Tm = params[:solver][:matrix_type]
-  Tv = params[:solver][:vector_type]
-  assem = SparseMatrixAssembler(Tm, Tv, U, V)
-  op = FEOperator(res, jac, U, V, assem)
+  op = _fe_operator(mfs,U,V,params)
 
   xh = zero(get_trial(op))
   if !uses_petsc(Val(params[:solver][:solver]),params[:solver])

@@ -34,11 +34,13 @@ function weakform_uu(params,k)
   f  = fluid[:f]
   ζ  = params[:ζ]
 
-  if ζ !== nothing 
-    a(u,dv) = ∫(β*(∇(u)⊙∇(dv)) ) * dΩf
-  else
-    a(u,dv) = ∫(β*(∇(u)⊙∇(dv)) + ζ*(∇⋅u)*(∇⋅dv)) * dΩf
-  end
+  #function a(u,dv)
+  #  _a = ∫(β*(∇(u)⊙∇(dv))) * dΩf
+  #  if ζ !== nothing 
+  #    _a += ∫(ζ*(∇⋅u)*(∇⋅dv)) * dΩf
+  #  end
+  #end
+  a(u,dv) = ∫(β*(∇(u)⊙∇(dv))) * dΩf
   l(dv) = ∫( dv⋅f ) * dΩf
   c(u,dv) = ∫( α*dv⋅(conv∘(u,∇(u))) ) * dΩf
   dc(u,du,dv) = ∫( α*dv⋅( (conv∘(u,∇(du))) + (conv∘(du,∇(u))) ) ) * dΩf
