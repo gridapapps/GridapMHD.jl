@@ -15,11 +15,11 @@ function expansion(;
     np = isa(np,Int) ? (np,) : np
     if backend === :sequential
       info,t = with_debug() do distribute
-        _expansion(;distribute=distribute,rank_partition=np,title=_title,path=path,mesh=mesh,kwargs...)
+        _expansion(;distribute=distribute,rank_partition=np,title=title,path=path,mesh=mesh,kwargs...)
       end
     else
       info,t = with_mpi() do distribute
-        _expansion(;distribute=distribute,rank_partition=np,title=_title,path=path,mesh=mesh,kwargs...)
+        _expansion(;distribute=distribute,rank_partition=np,title=title,path=path,mesh=mesh,kwargs...)
       end
     end
   end
