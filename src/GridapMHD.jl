@@ -8,6 +8,7 @@ using Random
 using LinearAlgebra
 using SparseArrays
 using SparseMatricesCSR
+using BlockArrays
 
 using FileIO
 using BSON
@@ -40,6 +41,7 @@ include("Li2019/Li2019.jl")
 # Main driver
 include("Fixes.jl")
 include("ExtraFunctions.jl")
+include("FEOperators.jl")
 include("Main.jl")
 
 # Applications

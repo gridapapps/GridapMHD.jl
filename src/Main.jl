@@ -567,11 +567,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
     xh = FEFunction(U,free_vals)
     toc!(t,"solve")
   else
-    res, jac = weak_form(params,k)
-    Tm = params[:solver][:matrix_type]
-    Tv = params[:solver][:vector_type]
-    assem = SparseMatrixAssembler(Tm,Tv,U,V)
-    op = FEOperator(res,jac,U,V,assem)
+    op = _fe_operator(mfs,U,V,params)
     xh = zero(get_trial(op))
     if params[:solve]
       solver = _solver(op,params)
@@ -579,6 +575,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
       solver_postpro = params[:solver][:solver_postpro]
       solver_postpro(cache,output)
       toc!(t,"solve")
+      Base.finalize(solver)
     end
     if params[:res_assemble]
       tic!(t;barrier=true)
@@ -607,6 +604,35 @@ _multi_field_style(params) = _multi_field_style(Val(params[:solver][:solver]))
 _multi_field_style(::Val{:julia}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:petsc}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:block_gmres_li2019}) = BlockMultiFieldStyle()
+
+function _fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
+  k = params[:k]
+  res, jac = weak_form(params,k)
+  Tm = params[:solver][:matrix_type]
+  Tv = params[:solver][:vector_type]
+  assem = SparseMatrixAssembler(Tm,Tv,U,V)
+  return FEOperator(res,jac,U,V,assem)
+end
+
+function _fe_operator(::BlockMultiFieldStyle,U,V,params)
+  k = params[:k]
+  Tm = params[:solver][:matrix_type]
+  Tv = params[:solver][:vector_type]
+
+  # Global operator
+  res, jac = weak_form(params,k)
+  assem = SparseMatrixAssembler(Tm,Tv,U,V)
+  op_global = FEOperator(res,jac,U,V,assem)
+
+  # u-u operator
+  U_u, _, _, _ = U
+  V_u, _, _, _ = V
+  res_uu, jac_uu = weak_form_uu(params,k)
+  assem_uu = SparseMatrixAssembler(Tm,Tv,U_u,V_u)
+  op_uu = FEOperator(res_uu,jac_uu,U_u,V_u,assem_uu)
+
+  return FEOperatorMHD(op_global,op_uu)
+end
 
 function _fluid_mesh(
   model,domain::Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel})
