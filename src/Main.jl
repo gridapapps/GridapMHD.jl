@@ -627,7 +627,7 @@ function _fe_operator(::BlockMultiFieldStyle,U,V,params)
   # u-u operator
   U_u, _, _, _ = U
   V_u, _, _, _ = V
-  res_uu, jac_uu = weak_form_uu(params,k)
+  res_uu, jac_uu = weakform_uu(params,k)
   assem_uu = SparseMatrixAssembler(Tm,Tv,U_u,V_u)
   op_uu = FEOperator(res_uu,jac_uu,U_u,V_u,assem_uu)
 
