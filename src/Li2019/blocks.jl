@@ -28,11 +28,11 @@ function li2019_amg_setup(ksp)
   rtol = GridapPETSc.PETSC.PETSC_DEFAULT
   atol = GridapPETSc.PETSC.PETSC_DEFAULT
   dtol = GridapPETSc.PETSC.PETSC_DEFAULT
-  maxits = PetscInt(2)
+  maxits = PetscInt(5)
 
   pc = Ref{GridapPETSc.PETSC.PC}()
   @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
-  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPPREONLY)
+  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPRICHARDSON)
   @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
   @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCGAMG)
   #@check_error_code GridapPETSc.PETSC.PCGAMGSetType(pc[],GridapPETSc.PETSC.PCGAMGAGG) # or PCGAMGCLASSICAL
