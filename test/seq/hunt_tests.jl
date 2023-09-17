@@ -6,6 +6,16 @@ hunt(
   nc=(4,4),
   L=1.0,
   B=(0.,50.,0.),
+  debug=false,
+  vtk=true,
+  title="hunt",
+  solver=:block_gmres_li2019,
+)
+
+hunt(
+  nc=(4,4),
+  L=1.0,
+  B=(0.,50.,0.),
   debug=true,
   vtk=true,
   title="hunt",

@@ -36,8 +36,10 @@ function _p_laplacian(U_p,V_p,Ω,dΩ,params)
   if p_conformity == :H1
     return assemble_matrix((p,v_p) -> ∫(∇(p)⋅∇(v_p))*dΩ ,U_p,V_p)
   elseif p_conformity == :L2
-    Γ  = Boundary(Ω)
-    Λ  = Skeleton(Ω)
+    # TODO: This is only ok if we do not have a solid/fuid split of the mesh...
+    model = params[:model]
+    Γ  = Boundary(model)
+    Λ  = Skeleton(model)
 
     k  = params[:fespaces][:k]
     dΓ = Measure(Γ,2*k)

@@ -8,7 +8,7 @@ using GridapMHD: cavity
 # Serial, LUSolver
 cavity()
 
-# Serial, GMRES + block preconditioner
+# Serial, GMRES + block LU solvers
 cavity(solver=:block_gmres_li2019)
 
 # Sequential, PETSc - SNES + MUMPS

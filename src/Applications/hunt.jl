@@ -79,6 +79,10 @@ function _hunt(;
   t = PTimer(parts,verbose=verbose)
   tic!(t,barrier=true)
 
+  if isa(solver,Symbol)
+    solver = default_solver_params(Val(solver))
+  end
+
   domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
 
   # Reduced quantities
