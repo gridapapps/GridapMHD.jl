@@ -8,7 +8,6 @@ struct Li2019_Preconditioner <: Gridap.Algebra.LinearSolver
   Dj
   Δp
   Ip
-  Ij
   Iφ
   params
 end
@@ -81,9 +80,9 @@ function Gridap.Algebra.solve!(x::AbstractBlockVector,ns::LI2019_NS,b::AbstractB
   du, dp, dj, dφ = caches
 
   # Solve for p
-  solve!(p,ns.Δp_ns,bp)
-  solve!(dp,ns.Ip_ns,bp)
-  p .= -α1 .* dp .- p
+  solve!(dp,ns.Δp_ns,bp)
+  solve!(p,ns.Ip_ns,bp)
+  p .= -α1 .* p .- dp
 
   #  Solve for φ
   #dφ .= -bφ
@@ -99,6 +98,5 @@ function Gridap.Algebra.solve!(x::AbstractBlockVector,ns::LI2019_NS,b::AbstractB
   mul!(dj,sysmat[Block(3,1)],u,-2.0,1.0) # dj = bj - 2.0 * Aju * u
   mul!(dj,sysmat[Block(3,4)],φ,-2.0,1.0) # dj = bj - 2.0 * Aju * u - 2.0 * Ajφ * φ
   solve!(j,ns.Dj_ns,dj)                  # j = Dj \ (bj - 2.0 * Aju * u - 2.0 * Ajφ * φ)
-
   return x
 end

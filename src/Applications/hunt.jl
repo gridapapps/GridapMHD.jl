@@ -125,10 +125,6 @@ function _hunt(;
     writevtk(model,"Mesh")
   end
 
-  if isa(solver,Symbol)
-    solver = default_solver_params(Val(solver))
-  end
-
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
@@ -154,7 +150,7 @@ function _hunt(;
   toc!(t,"pre_process")
 
   # Solve it
-  if !uses_petsc(Val(params[:solver][:solver]),params[:solver])
+  if !uses_petsc(params[:solver])
     xh,fullparams,info = main(params;output=info)
   else
     petsc_options = params[:solver][:petsc_options]

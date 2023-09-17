@@ -66,5 +66,5 @@ function Algebra.numerical_setup!(ns::CachedPETScLinearSolverNS,A::AbstractMatri
   ns.B = convert(PETScMatrix,A)
   @check_error_code PETSC.KSPSetOperators(ns.ksp[],ns.B.mat[],ns.B.mat[])
   @check_error_code PETSC.KSPSetUp(ns.ksp[])
-  ns
+  return ns
 end

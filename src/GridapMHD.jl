@@ -42,6 +42,7 @@ include("Li2019/Li2019.jl")
 include("Fixes.jl")
 include("ExtraFunctions.jl")
 include("FEOperators.jl")
+include("parameters.jl")
 include("Main.jl")
 
 # Applications

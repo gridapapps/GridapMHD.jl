@@ -99,10 +99,6 @@ function _cavity(;
   ul = VectorValue(1.0, 0.0, 0.0)
   ji = VectorValue(0.0, 0.0, 0.0)
 
-  if isa(solver,Symbol)
-    solver = default_solver_params(Val(solver))
-  end
-
   _params = Dict(
     :ptimer => t,
     :debug => false,
@@ -123,8 +119,11 @@ function _cavity(;
       :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]),
       :j => Dict(:tags => "insulating", :values => ji),
     ),
-    :k => 2,
     :solver => solver,
+    :fespaces => Dict(
+      :k => 2,
+      :p_space => :Q,
+    ),
   )
 
   params = add_default_params(_params)
@@ -132,7 +131,7 @@ function _cavity(;
 
   tic!(t; barrier=true)
   # ReferenceFEs
-  k = params[:k]
+  k = params[:fespaces][:k]
   T = Float64
   model = params[:model]
   D = num_cell_dims(model)
@@ -161,7 +160,7 @@ function _cavity(;
   op = _fe_operator(mfs,U,V,params)
 
   xh = zero(get_trial(op))
-  if !uses_petsc(Val(params[:solver][:solver]),params[:solver])
+  if !uses_petsc(params[:solver])
     solver = _solver(op,params)
     xh,cache = solve!(xh,solver,op)
     solver_postpro = params[:solver][:solver_postpro]

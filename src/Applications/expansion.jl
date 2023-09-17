@@ -121,7 +121,7 @@ function _expansion(;
         :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
-		:tags => ["wall", "inlet", "outlet"], 
+		    :tags => ["wall", "inlet", "outlet"], 
         :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
       )
     )
@@ -133,13 +133,13 @@ function _expansion(;
         :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
-	:tags => ["inlet", "outlet"], 
-	:values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
+        :tags => ["inlet", "outlet"], 
+        :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
       ),
       :thin_wall => [Dict(
-	:τ=>τ,
-	:cw=>cw,
-	:domain => Boundary(model, tags="wall")
+        :τ=>τ,
+        :cw=>cw,
+        :domain => Boundary(model, tags="wall")
       )]
     )
   end
@@ -147,7 +147,7 @@ function _expansion(;
   toc!(t,"pre_process")
 
   # Solve it
-  if !uses_petsc(Val(params[:solver][:solver]),params[:solver])
+  if !uses_petsc(params[:solver])
     xh,fullparams,info = main(params;output=info)
   else
     petsc_options = params[:solver][:petsc_options]
