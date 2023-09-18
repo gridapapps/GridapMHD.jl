@@ -50,8 +50,8 @@ function Gridap.Algebra.numerical_setup(ss::LI2019_SS, A::AbstractBlockMatrix)
   Δp_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Δp),solver.Δp)
   Ip_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Ip),solver.Ip)
   Iφ_ns = numerical_setup(symbolic_setup(solver.Iφ_solver,solver.Iφ),solver.Iφ)
-  caches = allocate_caches(solver,A)
-  return LI2019_NS(ss.solver,Dj_ns,Fk_ns,Δp_ns,Ip_ns,Iφ_ns,A,caches)
+  cache = allocate_caches(solver,A)
+  return LI2019_NS(ss.solver,Dj_ns,Fk_ns,Δp_ns,Ip_ns,Iφ_ns,A,cache)
 end
 
 function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix)
@@ -61,9 +61,9 @@ function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix)
   # This will get fixed when we are using iterative solvers for Fk
   Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
   Fk = Fu# - (1.0/κ^2) * Kᵗ * K
-  # numerical_setup!(ns.Fk_ns,Fk)
+  numerical_setup!(ns.Fk_ns,Fk)
 
-  ns.Fk_ns  = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
+  #ns.Fk_ns  = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
   ns.sysmat = A
 
   return ns

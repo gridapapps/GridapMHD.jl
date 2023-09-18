@@ -22,7 +22,7 @@ solver = Dict(
   :solver        => :block_gmres_li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
-  :block_solvers => [:amg,:gmres_swartz,:amg,:cg_jacobi,:cg_jacobi],
+  :block_solvers => [:amg,:gmres_schwarz,:amg,:cg_jacobi,:cg_jacobi],
   :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
 )
 cavity(np=2,backend=:sequential,solver=solver)
