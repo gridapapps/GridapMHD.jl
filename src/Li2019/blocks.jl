@@ -43,7 +43,7 @@ end
 
 # GMRES + Additive Schwartz preconditioner
 function li2019_gmres_setup(ksp)
-  rtol = PetscScalar(1.e-3)
+  rtol = PetscScalar(1.e-5)
   atol = GridapPETSc.PETSC.PETSC_DEFAULT
   dtol = GridapPETSc.PETSC.PETSC_DEFAULT
   maxits = GridapPETSc.PETSC.PETSC_DEFAULT

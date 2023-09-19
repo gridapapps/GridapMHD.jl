@@ -14,14 +14,15 @@ function Li2019Solver(op::FEOperator,params)
   Ωf = _interior(params[:model],params[:fluid][:domain])
   dΩ = Measure(Ωf,2*k)
   Dj = assemble_matrix((j,v_j) -> ∫(γ*j⋅v_j + γ*(∇⋅j)⋅(∇⋅v_j))*dΩ ,U_j,V_j)
+  Fk = _Fk(zero(U_u),U_u,V_u,Ωf,dΩ,params)
   Δp = _p_laplacian(U_p,V_p,Ωf,dΩ,params)
   Ip = assemble_matrix((p,v_p) -> ∫(p*v_p)*dΩ,V_p,V_p)
   Iφ = assemble_matrix((φ,v_φ) -> ∫(-γ*φ*v_φ)*dΩ ,U_φ,V_φ)
 
   block_solvers = map(s -> get_block_solver(Val(s)),params[:solver][:block_solvers])
-  block_mats    = [Dj,Δp,Ip,Iφ]
+  block_mats    = [Dj,Fk,Δp,Ip,Iφ]
   P = Li2019_Preconditioner(block_solvers...,block_mats...,params)
-  #test_preconditioner(op,P)
+  test_preconditioner(op,P)
 
   # Linear Solver
   l_solver = GMRESSolver(150,P,1e-8)
@@ -29,6 +30,18 @@ function Li2019Solver(op::FEOperator,params)
   # Nonlinear Solver
   nlsolver = NewtonRaphsonSolver(l_solver,1e-5,10)
   return nlsolver
+end
+
+function _Fk(u,U_u,V_u,Ω,dΩ,params)
+  fluid = params[:fluid]
+  α  = fluid[:α]
+  β  = fluid[:β]
+  γ  = fluid[:γ]
+  B  = fluid[:B]
+  
+  conv(u,∇u)  = (∇u')⋅u
+  a_fk(u,du,dv) = ∫(β*(∇(du)⊙∇(dv)) + α*dv⋅((conv∘(u,∇(du))) + (conv∘(du,∇(u)))) + γ⋅(du×B)⋅(dv×B)) * dΩ
+  return assemble_matrix((du,dv) -> a_fk(u,du,dv),U_u,V_u)
 end
 
 function _p_laplacian(U_p,V_p,Ω,dΩ,params)
@@ -98,7 +111,7 @@ function test_preconditioner(op,P)
 
   # Test blocks
   block_solvers = [P.Dj_solver,P.Fk_solver,P.Δp_solver,P.Ip_solver,P.Iφ_solver]
-  block_mats    = [P.Dj,A[Block(1,1)],P.Δp,P.Ip,P.Iφ]
+  block_mats    = [P.Dj,P.Fk,P.Δp,P.Ip,P.Iφ]
   test_block_solvers(parts,block_solvers,block_mats)
 
   # Test preconditioner

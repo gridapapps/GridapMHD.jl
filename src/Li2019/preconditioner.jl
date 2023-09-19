@@ -6,6 +6,7 @@ struct Li2019_Preconditioner <: Gridap.Algebra.LinearSolver
   Ip_solver
   Iφ_solver
   Dj
+  Fk
   Δp
   Ip
   Iφ
@@ -42,11 +43,11 @@ end
 function Gridap.Algebra.numerical_setup(ss::LI2019_SS, A::AbstractBlockMatrix)
   solver = ss.solver
 
-  Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
-  Fk = Fu# - (1.0/κ^2) * Kᵗ * K
+  #Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
+  #Fk = Fu# - (1.0/κ^2) * Kᵗ * K
 
   Dj_ns = numerical_setup(symbolic_setup(solver.Dj_solver,solver.Dj),solver.Dj)
-  Fk_ns = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
+  Fk_ns = numerical_setup(symbolic_setup(solver.Fk_solver,solver.Fk),solver.Fk)
   Δp_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Δp),solver.Δp)
   Ip_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Ip),solver.Ip)
   Iφ_ns = numerical_setup(symbolic_setup(solver.Iφ_solver,solver.Iφ),solver.Iφ)
@@ -61,9 +62,9 @@ function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix)
   # This will get fixed when we are using iterative solvers for Fk
   Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
   Fk = Fu# - (1.0/κ^2) * Kᵗ * K
-  numerical_setup!(ns.Fk_ns,Fk)
+  #numerical_setup!(ns.Fk_ns,Fk)
 
-  #ns.Fk_ns  = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
+  ns.Fk_ns  = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
   ns.sysmat = A
 
   return ns
