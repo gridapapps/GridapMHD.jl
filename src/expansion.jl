@@ -118,13 +118,13 @@ function _expansion(;
         :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
-	:tags => ["inlet", "outlet"], 
-	:values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
+        :tags => ["inlet", "outlet"], 
+        :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
       ),
       :thin_wall => [Dict(
-	:τ=>τ,
-	:cw=>cw,
-	:domain => Boundary(model, tags="wall")
+        :τ=>τ,
+        :cw=>cw,
+        :domain => Boundary(model, tags="wall")
       )]
     )
   end
