@@ -13,7 +13,7 @@ function Li2019Solver(op::FEOperator,params)
   γ  = params[:fluid][:γ]
   Ωf = _interior(params[:model],params[:fluid][:domain])
   dΩ = Measure(Ωf,2*k)
-  Dj = assemble_matrix((j,v_j) -> ∫(γ*j⋅v_j + γ*(∇⋅j)⋅(∇⋅v_j))*dΩ ,U_j,V_j)
+  Dj = _Dj(U_j,V_j,Ωf,dΩ,params)
   Fk = _Fk(zero(U_u),U_u,V_u,Ωf,dΩ,params)
   Δp = _p_laplacian(U_p,V_p,Ωf,dΩ,params)
   Ip = assemble_matrix((p,v_p) -> ∫(p*v_p)*dΩ,V_p,V_p)
@@ -22,7 +22,7 @@ function Li2019Solver(op::FEOperator,params)
   block_solvers = map(s -> get_block_solver(Val(s)),params[:solver][:block_solvers])
   block_mats    = [Dj,Fk,Δp,Ip,Iφ]
   P = Li2019_Preconditioner(block_solvers...,block_mats...,params)
-  test_preconditioner(op,P)
+  #test_preconditioner(op,P)
 
   # Linear Solver
   l_solver = GMRESSolver(150,P,1e-8)
@@ -30,6 +30,34 @@ function Li2019Solver(op::FEOperator,params)
   # Nonlinear Solver
   nlsolver = NewtonRaphsonSolver(l_solver,1e-5,10)
   return nlsolver
+end
+
+function _Dj(U_j,V_j,Ω,dΩ,params)
+  fluid = params[:fluid]
+  γ  = fluid[:γ]
+  k = params[:fespaces][:k]
+
+  params_thin_wall = []
+  bcs = params[:bcs]
+  for i in 1:length(bcs[:thin_wall])
+    τ   = bcs[:thin_wall][i][:τ]
+    cw  = bcs[:thin_wall][i][:cw]
+    jw  = bcs[:thin_wall][i][:jw]
+    Γ   = _boundary(params[:model],bcs[:thin_wall][i][:domain])
+    dΓ  = Measure(Γ,2*k)
+    n_Γ = get_normal_vector(Γ)
+    push!(params_thin_wall,(τ,cw,jw,n_Γ,dΓ))
+  end
+
+  function a_j(j,v_j) 
+    r = ∫(γ*j⋅v_j + γ*(∇⋅j)⋅(∇⋅v_j))*dΩ 
+    for p in params_thin_wall
+      τ,cw,jw,n_Γ,dΓ = p
+      r += ∫(τ*(v_j⋅n_Γ)⋅(j⋅n_Γ) + cw*(v_j⋅n_Γ)⋅(n_Γ⋅(∇(j)⋅n_Γ)))*dΓ
+    end
+    return r
+  end
+  return assemble_matrix(a_j,U_j,V_j)
 end
 
 function _Fk(u,U_u,V_u,Ω,dΩ,params)
@@ -99,6 +127,13 @@ function _interior(model,domain::Union{Gridap.Triangulation,GridapDistributed.Di
 end
 function _interior(model,domain)
   return Interior(model,tags=domain)
+end
+
+function _boundary(model,domain::Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation})
+  return domain
+end
+function _boundary(model,domain)
+  Boundary(model,tags=domain)
 end
 
 function test_preconditioner(op,P)
