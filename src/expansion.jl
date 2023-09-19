@@ -79,8 +79,8 @@ function _expansion(;
   β = (1.0/Ha^2)
   γ = 1.0
 
-  # This gives mean(u_inlet)=Re
-  u_inlet((x,y,z)) = VectorValue(36.0*(Ha^2/N)*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+  # This gives mean(u_inlet)=Z , which ensures mean(u_outlet) = 1
+  u_inlet((x,y,z)) = VectorValue(36.0*4.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
 
   params = Dict(
     :ptimer=>t,
