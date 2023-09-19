@@ -210,6 +210,10 @@ function _FullyDeveloped(;
   info[:Re] = Re
   info[:Ha] = Ha
   info[:N] = N
+  info[:cw_s] = cw_s
+  info[:τ_s] = τ_s
+  info[:cw_Ha] = cw_Ha
+  info[:τ_Ha] = τ_Ha
 
   info, t
 end
