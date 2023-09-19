@@ -4,10 +4,10 @@
 #SBATCH -t 48:00:00
 #SBATCH --partition=cpu36c
 
-#SBATCH -o outputExp_Ha100_tau1000_N4n4
-#SBATCH -e errorExp_Ha100_tau1000_N4n4
+#SBATCH -o outputExp_Ha100_tau5000_N4n4
+#SBATCH -e errorExp_Ha100_tau5000_N4n4
 ###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=Exp_Ha100_tau1000_N4n4
+#SBATCH --job-name=Exp_Ha100_tau5000_N4n4
 #SBATCH --mem=0
 
 SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
@@ -43,7 +43,7 @@ echo Tau=${tau}.0 >> $PASS_FILE
 
 mpiexec -n ${SLURM_NPROCS}  julia --project=$GRIDAPMHD -J $GRIDAPMHD/compile/Turgalium_CIEMAT/GridapMHD36c.so -O3 --check-bounds=no -e\
 '
-include("pass_parms.jl")
+include("pass_params.jl")
 using GridapMHD: expansion
 expansion(;
   mesh="68k", 
@@ -52,7 +52,7 @@ expansion(;
   Ha = Hartmann,
   N = 3740.0,
   cw = 0.028,
-  τ = tau,
+  τ = Tau,
   debug=false,
   vtk=true,
   title=JOB_NAME,
@@ -72,4 +72,3 @@ echo "================================================================"
 echo ""
 echo "STATUS = $STATUS"
 echo ""
-
