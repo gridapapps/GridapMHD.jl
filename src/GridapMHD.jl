@@ -33,4 +33,6 @@ include("expansion.jl")
 
 include("FullyDevelopedFlow.jl")
 
+include("Tube.jl")
+
 end # module
