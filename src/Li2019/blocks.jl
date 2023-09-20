@@ -2,9 +2,9 @@
 get_block_solver(::Val{:julia})         = LUSolver()
 get_block_solver(::Val{:mumps})         = PETScLinearSolver(li2019_mumps_setup)
 get_block_solver(::Val{:amg})           = PETScLinearSolver(li2019_amg_setup)
-get_block_solver(::Val{:gmres_schwarz}) = PETScLinearSolver(li2019_gmres_setup)
 get_block_solver(::Val{:cg_jacobi})     = PETScLinearSolver(li2019_cg_setup)
-get_block_solver(::Val{:amg_variable})  = PETScLinearSolver(li2019_amg_rtol_setup)
+get_block_solver(::Val{:gmres_schwarz}) = PETScLinearSolver(li2019_gmres_schwarz_setup)
+get_block_solver(::Val{:gmres_amg})     = PETScLinearSolver(li2019_gmres_amg_setup)
 
 function li2019_mumps_setup(ksp)
   pc       = Ref{GridapPETSc.PETSC.PC}()
@@ -42,7 +42,7 @@ function li2019_amg_setup(ksp)
 end
 
 # GMRES + Additive Schwartz preconditioner
-function li2019_gmres_setup(ksp)
+function li2019_gmres_schwarz_setup(ksp)
   rtol = PetscScalar(1.e-5)
   atol = GridapPETSc.PETSC.PETSC_DEFAULT
   dtol = GridapPETSc.PETSC.PETSC_DEFAULT
@@ -75,15 +75,16 @@ function li2019_cg_setup(ksp)
   @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
 end
 
-function li2019_amg_rtol_setup(ksp)
-  rtol = PetscScalar(1.e-3)
+function li2019_gmres_amg_setup(ksp)
+  rtol = PetscScalar(1.e-5)
   atol = GridapPETSc.PETSC.PETSC_DEFAULT
   dtol = GridapPETSc.PETSC.PETSC_DEFAULT
   maxits = GridapPETSc.PETSC.PETSC_DEFAULT
 
-  pc = Ref{GridapPETSc.PETSC.PC}()
   @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
-  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPRICHARDSON)
+  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPGMRES)
+
+  pc = Ref{GridapPETSc.PETSC.PC}()
   @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
   @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCGAMG)
   @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)

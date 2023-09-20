@@ -82,7 +82,7 @@ ranks = with_debug() do distribute
 end
 
 # Geometry
-n = 8
+n = 16
 model = CartesianDiscreteModel(ranks,np,(0,1,0,1,0,1),(n,n,n))
 
 # FESpaces
@@ -129,3 +129,4 @@ fill!(b,1.0)
     println(norm(b - Δp*x))
   end
 end
+
