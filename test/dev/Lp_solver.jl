@@ -71,11 +71,9 @@ function amg_setup(ksp)
   @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
 end
 
-get_edge_measures(Ω::Triangulation,dΩ) = CellField(map(x->sqrt(x),get_array(∫(1)dΩ),Ω))
+get_edge_measures(Ω::Triangulation,dΩ) = sqrt∘CellField(get_array(∫(1)dΩ),Ω)
 function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ)
-  cell_values = map(get_array,local_views(∫(1)*dΩ))
-  cell_values = map(cv -> map(x->sqrt(x),cv),cell_values)
-  return CellField(cell_values,Ω)
+  return sqrt∘CellField(map(get_array,local_views(∫(1)*dΩ)),Ω)
 end
 
 np = (2,2,1)
