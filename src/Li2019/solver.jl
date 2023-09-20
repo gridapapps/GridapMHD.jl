@@ -25,7 +25,8 @@ function Li2019Solver(op::FEOperator,params)
   #test_preconditioner(op,P)
 
   # Linear Solver
-  l_solver = GMRESSolver(150,P,1e-8)
+  m = params[:solver][:niter]
+  l_solver = GMRESSolver(m,P,1e-8)
 
   # Nonlinear Solver
   nlsolver = NewtonRaphsonSolver(l_solver,1e-5,10)

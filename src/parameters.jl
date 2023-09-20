@@ -140,6 +140,7 @@ function params_solver(params::Dict{Symbol,Any})
    :petsc_options=>false,
    :solver_postpro=>false,
    :block_solvers=>false,
+   :niter=>false,
   )
   _check_mandatory(params[:solver],mandatory,"[:solver]")
   optional = default_solver_params(Val(params[:solver][:solver]))
@@ -155,6 +156,7 @@ function default_solver_params(::Val{:julia})
     :solver_postpro => ((cache,info) -> nothing),
     :petsc_options  => "",
     :block_solvers  => [],
+    :niter          => 1,
   )
 end
 
@@ -166,6 +168,7 @@ function default_solver_params(::Val{:petsc})
     :solver_postpro => ((cache,info) -> snes_postpro(cache,info)),
     :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
     :block_solvers  => [],
+    :niter          => 100,
   )
 end
 
@@ -177,6 +180,7 @@ function default_solver_params(::Val{:block_gmres_li2019})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> nothing),
     :block_solvers  => [:mumps,:mumps,:mumps,:mumps,:mumps],
+    :niter          => 150,
   )
 end
 

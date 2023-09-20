@@ -169,6 +169,8 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
     xh = zero(get_trial(op))
     if params[:solve]
       solver = _solver(op,params)
+      toc!(t,"solver_setup")
+      tic!(t;barrier=true)
       xh,cache = solve!(xh,solver,op)
       solver_postpro = params[:solver][:solver_postpro]
       solver_postpro(cache,output)
