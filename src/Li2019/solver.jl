@@ -104,9 +104,11 @@ function _p_laplacian(U_p,V_p,Ω,dΩ,params)
   end
 end
 
-get_edge_measures(Ω::Triangulation,dΩ) = CellField(get_array(∫(1)dΩ),Ω)
-function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ) 
-  return CellField(map(get_array,local_views(∫(1)*dΩ)),Ω)
+get_edge_measures(Ω::Triangulation,dΩ) = CellField(map(x->sqrt(x),get_array(∫(1)*dΩ)),Ω)
+function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ)
+  cell_values = map(get_array,local_views(∫(1)*dΩ))
+  cell_values = map(cv -> map(x->sqrt(x),cv),cell_values)
+  return CellField(cell_values,Ω)
 end
 
 function Gridap.Algebra.solve!(x::AbstractVector,nls::NewtonRaphsonSolver,op::NonlinearOperator,cache::Nothing)

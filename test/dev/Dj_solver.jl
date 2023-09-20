@@ -6,13 +6,41 @@ using GridapSolvers.LinearSolvers
 import GridapSolvers.PatchBasedSmoothers as PBS
 using Gridap.ReferenceFEs
 
+function test_smoother(s,D_j)
+  ns = numerical_setup(symbolic_setup(s,D_j),D_j)
+
+  b = GridapSolvers.allocate_col_vector(D_j)
+  x = GridapSolvers.allocate_col_vector(D_j)
+  y = GridapSolvers.allocate_row_vector(D_j)
+
+  fill!(b,1.0)
+  y = b - D_j*x
+  solve!(x,ns,y)
+  err = norm(b - D_j*x)
+
+  return err
+end
+
+function test_solver(s,D_j)
+  ns = numerical_setup(symbolic_setup(s,D_j),D_j)
+
+  b = GridapSolvers.allocate_col_vector(D_j)
+  x = GridapSolvers.allocate_col_vector(D_j)
+
+  fill!(b,1.0)
+  solve!(x,ns,b)
+  err = norm(b - D_j*x)
+
+  return err
+end
+
 np = (2,2,1)
 ranks = with_debug() do distribute
   distribute(LinearIndices((prod(np),)))
 end
 
 # Geometry
-n = 4
+n = 16
 model = CartesianDiscreteModel(ranks,np,(0,1,0,1,0,1),(n,n,n))
 
 labels = get_face_labeling(model);
@@ -42,15 +70,9 @@ ap_j(j,v_j) = ∫(γ*j⋅v_j + γ*(∇⋅j)⋅(∇⋅v_j))*dΩp
 
 local_solver = LUSolver()
 patch_solver = PatchBasedLinearSolver(ap_j,P_j,U_j,local_solver)
-smoother = RichardsonSmoother(patch_solver,100,1.0)
 
-ns_smoother = numerical_setup(symbolic_setup(smoother,D_j),D_j)
+#smoother = RichardsonSmoother(patch_solver,10,1.0)
+#test_smoother(smoother,D_j)
 
-b = GridapSolvers.allocate_col_vector(D_j)
-x = GridapSolvers.allocate_col_vector(D_j)
-y = GridapSolvers.allocate_row_vector(D_j)
-
-fill!(b,1.0)
-y = b - D_j*x
-solve!(x,ns_smoother,y)
-err = norm(b - D_j*x)
+solver = GMRESSolver(100,patch_solver;tol=1e-6,verbose=true)
+test_solver(solver,D_j)

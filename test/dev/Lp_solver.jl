@@ -71,9 +71,11 @@ function amg_setup(ksp)
   @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
 end
 
-get_edge_measures(Ω::Triangulation,dΩ) = CellField(get_array(∫(1)dΩ),Ω)
-function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ) 
-  return CellField(map(get_array,local_views(∫(1)*dΩ)),Ω)
+get_edge_measures(Ω::Triangulation,dΩ) = CellField(map(x->sqrt(x),get_array(∫(1)dΩ),Ω))
+function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ)
+  cell_values = map(get_array,local_views(∫(1)*dΩ))
+  cell_values = map(cv -> map(x->sqrt(x),cv),cell_values)
+  return CellField(cell_values,Ω)
 end
 
 np = (2,2,1)
@@ -82,7 +84,7 @@ ranks = with_debug() do distribute
 end
 
 # Geometry
-n = 16
+n = 32
 model = CartesianDiscreteModel(ranks,np,(0,1,0,1,0,1),(n,n,n))
 
 # FESpaces
@@ -123,7 +125,7 @@ fill!(x,0.0)
 fill!(b,1.0)
 @time begin
   GridapPETSc.with(args=split("-ksp_converged_reason")) do 
-    solver = PETScLinearSolver(gmres_schwarz_setup)
+    solver = PETScLinearSolver(gmres_amg_setup)
     ns = numerical_setup(symbolic_setup(solver, Δp), Δp)
     solve!(x,ns,b)
     println(norm(b - Δp*x))
