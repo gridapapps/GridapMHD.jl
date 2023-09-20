@@ -55,6 +55,22 @@ function gmres_schwarz_setup(ksp)
   @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCASM)
 end
 
+function amg_setup(ksp)
+  rtol = GridapPETSc.PETSC.PETSC_DEFAULT
+  atol = GridapPETSc.PETSC.PETSC_DEFAULT
+  dtol = GridapPETSc.PETSC.PETSC_DEFAULT
+  maxits = PetscInt(10)
+
+  pc = Ref{GridapPETSc.PETSC.PC}()
+  @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
+  @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPRICHARDSON)
+  @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
+  @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCGAMG)
+  #@check_error_code GridapPETSc.PETSC.PCGAMGSetType(pc[],GridapPETSc.PETSC.PCGAMGAGG) # or PCGAMGCLASSICAL
+  #@check_error_code GridapPETSc.PETSC.PCGAMGSetNSmooths(pc[],0)
+  @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
+end
+
 get_edge_measures(Ω::Triangulation,dΩ) = CellField(get_array(∫(1)dΩ),Ω)
 function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ) 
   return CellField(map(get_array,local_views(∫(1)*dΩ)),Ω)
@@ -105,9 +121,11 @@ x = GridapSolvers.allocate_col_vector(Δp)
 
 fill!(x,0.0)
 fill!(b,1.0)
-GridapPETSc.with(args=split("-ksp_converged_reason")) do 
-  solver = PETScLinearSolver(gmres_schwarz_setup)
-  ns = numerical_setup(symbolic_setup(solver, Δp), Δp)
-  solve!(x,ns,b)
-  println(norm(b - Δp*x))
+@time begin
+  GridapPETSc.with(args=split("-ksp_converged_reason")) do 
+    solver = PETScLinearSolver(gmres_schwarz_setup)
+    ns = numerical_setup(symbolic_setup(solver, Δp), Δp)
+    solve!(x,ns,b)
+    println(norm(b - Δp*x))
+  end
 end

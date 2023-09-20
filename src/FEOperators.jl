@@ -35,10 +35,11 @@ function weakform_uu(params,k)
   ζ  = params[:ζ]
 
   #function a(u,dv)
-  #  _a = ∫(β*(∇(u)⊙∇(dv))) * dΩf
+  #  r = ∫(β*(∇(u)⊙∇(dv))) * dΩf
   #  if ζ !== nothing 
-  #    _a += ∫(ζ*(∇⋅u)*(∇⋅dv)) * dΩf
+  #    r += ∫(ζ*(∇⋅u)*(∇⋅dv)) * dΩf
   #  end
+  #  return r
   #end
   a(u,dv) = ∫(β*(∇(u)⊙∇(dv))) * dΩf
   l(dv) = ∫( dv⋅f ) * dΩf
