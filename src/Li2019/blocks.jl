@@ -17,11 +17,16 @@ function li2019_mumps_setup(ksp)
   @check_error_code GridapPETSc.PETSC.PCFactorSetUpMatSolverType(pc[])
   @check_error_code GridapPETSc.PETSC.PCFactorGetMatrix(pc[],mumpsmat)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  4, 1)
-  # percentage increase in the estimated working space
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  14, 1000)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  7, 0)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 28, 2)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 29, 2)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 3, 1.0e-6)
+
+  # BLR factorization
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 35, 2)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 36, 0)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 37, 1)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 7, 1.0e-6)
 end
 
 # Five iterations of standalone AMG solver
