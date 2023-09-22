@@ -43,6 +43,7 @@ function _expansion(;
   Ha = 1.0,
   cw = 0.028,
   τ = 100,
+  inlet = :parabolic,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
 )
   
@@ -78,10 +79,13 @@ function _expansion(;
   α = (1.0/N)
   β = (1.0/Ha^2)
   γ = 1.0
-
+  
+  if inlet == :parabolic
   # This gives mean(u_inlet)=Z , which ensures mean(u_outlet) = 1
-  u_inlet((x,y,z)) = VectorValue(36.0*4.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
-
+      u_inlet((x,y,z)) = VectorValue(36.0*4.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+  else
+      u_inlet = 4.0
+  end
   params = Dict(
     :ptimer=>t,
     :debug=>debug,

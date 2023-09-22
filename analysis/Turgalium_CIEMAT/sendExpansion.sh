@@ -53,6 +53,7 @@ expansion(;
   N = 3740.0,
   cw = 0.028,
   τ = Tau,
+  inlet = :parabolic,
   debug=false,
   vtk=true,
   title=JOB_NAME,
