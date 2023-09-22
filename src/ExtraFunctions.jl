@@ -97,3 +97,32 @@ function add_entity!(model,in,name)
   end
   add_tag!(labels,name,[entity])
 end
+
+# Analytical formulas for pressure drop gradients
+
+function kp_shercliff_cartesian(b,Ha)
+    kp = 1/(Ha*(1-0.852*Ha^(-0.5)/d-1/Ha))
+  kp
+end
+
+function kp_shercliff_cylinder(Ha)
+    kp = (3/8)*pi/(Ha-(3/2)*pi)
+  kp
+end
+
+function kp_hunt(b,Ha)
+    kp = 1/(Ha*(1-0.956*Ha^(-0.5)/d-1/Ha))
+  kp
+end
+
+function kp_tillac(b,Ha,cw_s,cw_Ha)
+    k_s = (1/(3*b))*(Ha^(0.5)/(1+cw_s*Ha^(0.5)))
+    k_Ha = (1+cw_Ha)/(1/Ha + cw_Ha)
+    kp = 1/(k_s+k_Ha)
+  kp
+end
+
+function kp_glukhih(Ha,cw)
+    kp = (3/8)*pi*(1+0.833*cw*Ha-0.019*(cw*Ha)^2)/Ha
+  kp
+end
