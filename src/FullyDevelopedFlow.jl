@@ -190,9 +190,12 @@ function _FullyDeveloped(;
   
   
   #Post process
-  u_a(x) = analytical_GeneralHunt_uhunt_u(1,c_Ha,1,Ha,nsums,x)
-  
-  e_u = u_a - uh
+  if cw_s == 0
+    u_a(x) = analytical_GeneralHunt_u(1,c_Ha,1,Ha,nsums,x)
+  else
+    u_a(x) = 0
+  end
+    e_u = u_a - uh
   
   Γ = Boundary(model, tags="outlet")
   dΓ = Measure(Γ,6)
@@ -212,7 +215,7 @@ function _FullyDeveloped(;
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_jh"=>div_jh,"div_uh"=>div_uh])
+        "uh"=>uh,"u_a"=>u_a,"e_u"=>e_u,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_jh"=>div_jh,"div_uh"=>div_uh])
     toc!(t,"vtk")
   end
   if verbose
