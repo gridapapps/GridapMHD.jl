@@ -53,6 +53,7 @@ function _FullyDeveloped(;
   cw_s = 0.0,
   τ_Ha = 100.0,
   τ_s = 100.0,
+  nsums = 10,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
@@ -186,8 +187,26 @@ function _FullyDeveloped(;
   
   div_jh = ∇·jh 
   div_uh = ∇·uh  
-
+  
+  
   #Post process
+  u_a(x) = analytical_GeneralHunt_uhunt_u(1,c_Ha,1,Ha,nsums,x)
+  
+  e_u = u_a - uh
+  
+  Γ = Boundary(model, tags="outlet")
+  dΓ = Measure(Γ,6)
+  uh_0 = sum(∫(uh)*dΓ)
+
+  kp = 1/uh_0
+
+  if cw_s == 0.0 && cw_Ha == 0.0
+    kp_a = kp_shercliff_cartesian(b,Ha)
+  else
+    kp_a = kp_tillac(b,Ha,cw_s,cw_Ha)
+  end
+
+  dev_kp = 100*abs(kp_a-kp)/max(kp_a,kp)
 
   if vtk
     writevtk(Ω,joinpath(path,title),
@@ -214,8 +233,43 @@ function _FullyDeveloped(;
   info[:τ_s] = τ_s
   info[:cw_Ha] = cw_Ha
   info[:τ_Ha] = τ_Ha
-
+  info[:uh_0] = uh_0
+  info[:kp] = kp
+  info[:kp_a] =kp_a
+  info[:dev_kp] = dev_kp 
   info, t
 end
 
+function analytical_GeneralHunt_u(
+  #General Hunt analytical formula (d_b = 0 for Shercliff)
+  l::Float64,       # channel aspect ratio
+  d_b::Float64,     # Hartmann walls conductivity ratio
+  grad_pz::Float64, # Dimensionless (MHD version) presure gradient
+  Ha::Float64,      # Hartmann number
+  n::Int,           # number of sumands included in Fourier series
+  x)                # evaluation point normaliced by the Hartmann characteristic lenght
 
+  V = 0.0; V0=0.0;
+  for k in 0:n
+    α_k = (k + 0.5)*π/l
+    N = (Ha^2 + 4*α_k^2)^(0.5)
+    r1_k = 0.5*( Ha + N)
+    r2_k = 0.5*(-Ha + N)
+    
+    eplus_1k = 1 + exp(-2*r1_k)
+    eminus_1k = 1 - exp(-2*r1_k)
+    eplus_2k = 1 + exp(-2*r2_k)
+    eminus_2k = 1 - exp(-2*r2_k)
+    eplus_k = 1 + exp(-2*(r1_k+r2_k))
+    e_x_1k = 0.5*(exp(-r1_k*(1-x[2]))+exp(-r1_k*(1+x[2])))
+    e_x_2k = 0.5*(exp(-r2_k*(1-x[2]))+exp(-r2_k*(1+x[2])))
+    
+    V2 = ((d_b*r2_k + eminus_2k/eplus_2k)*e_x_1k)/(0.5*N*d_b*eplus_1k + eplus_k/eplus_2k)
+    V3 = ((d_b*r1_k + eminus_1k/eplus_1k)*e_x_2k)/(0.5*N*d_b*eplus_2k + eplus_k/eplus_1k)
+
+    V += 2*(-1)^k*cos(α_k * x[1])/(l*α_k^3) * (1-V2-V3)
+  end
+  u_z = V*Ha^2*(-grad_pz) 
+
+  VectorValue(0.0*u_z,0.0*u_z,u_z)
+end
