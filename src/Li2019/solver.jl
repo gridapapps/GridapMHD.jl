@@ -26,7 +26,7 @@ function Li2019Solver(op::FEOperator,params)
 
   # Linear Solver
   m = params[:solver][:niter]
-  l_solver = GMRESSolver(m,P;tol=1e-8,verbose=i_am_main(get_parts(U)))
+  l_solver = GMRESSolver(m,P;rtol=1.e-6,atol=1e-14,verbose=i_am_main(get_parts(U)))
 
   # Nonlinear Solver
   nlsolver = NewtonRaphsonSolver(l_solver,1e-5,10)
