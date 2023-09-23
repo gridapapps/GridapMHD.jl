@@ -119,6 +119,20 @@ function Gridap.Algebra.solve!(x::AbstractVector,nls::NewtonRaphsonSolver,op::No
   return Gridap.Algebra.NewtonRaphsonCache(A,b,dx,ns)
 end
 
+function Gridap.Algebra._check_convergence(nls,b)
+  parts = GridapDistributed.get_parts(b)
+  m0 = maximum(abs,b)
+  i_am_main(parts) && println(" >> Initial non-linear residual: ",m0)
+  return (false, m0)
+end
+
+function Gridap.Algebra._check_convergence(nls,b,m0)
+  parts = GridapDistributed.get_parts(b)
+  m = maximum(abs,b)
+  i_am_main(parts) && println(" >> Non-linear residual: ",m)
+  return m < nls.tol * m0
+end
+
 # TODO: This is copied from main... should be in a common place
 function _interior(model,domain::Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel})
   return Interior(domain)
