@@ -27,11 +27,12 @@ using GridapSolvers
 using GridapSolvers.LinearSolvers
 using GridapSolvers.LinearSolvers: allocate_col_vector, allocate_row_vector
 
+include("NLSolvers.jl")
+include("PETScLinearSolvers.jl")
+
 include("blocks.jl")
 include("preconditioner.jl")
 include("solver.jl")
-
-include("PETScLinearSolvers.jl")
 
 export Li2019Solver
 

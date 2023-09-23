@@ -1,15 +1,8 @@
 
 struct Li2019_Preconditioner <: Gridap.Algebra.LinearSolver
-  Dj_solver
-  Fk_solver
-  Δp_solver
-  Ip_solver
-  Iφ_solver
-  Dj
-  Fk
-  Δp
-  Ip
-  Iφ
+  op
+  block_solvers
+  block_weakforms
   params
 end
 
@@ -43,30 +36,44 @@ end
 function Gridap.Algebra.numerical_setup(ss::LI2019_SS, A::AbstractBlockMatrix)
   solver = ss.solver
 
-  #Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
-  #Fk = Fu# - (1.0/κ^2) * Kᵗ * K
+  U = get_trial(solver.op); U_u, U_p, U_j, U_φ = U
+  V = get_test(solver.op);  V_u, V_p, V_j, V_φ = V
+  a_Dj,a_Fk,a_Δp,a_Ip,a_Iφ = solver.block_weakforms
+  Dj_solver,Fk_solver,Δp_solver,Ip_solver,Iφ_solver = solver.block_solvers
 
-  Dj_ns = numerical_setup(symbolic_setup(solver.Dj_solver,solver.Dj),solver.Dj)
-  Fk_ns = numerical_setup(symbolic_setup(solver.Fk_solver,solver.Fk),solver.Fk)
-  Δp_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Δp),solver.Δp)
-  Ip_ns = numerical_setup(symbolic_setup(solver.Δp_solver,solver.Ip),solver.Ip)
-  Iφ_ns = numerical_setup(symbolic_setup(solver.Iφ_solver,solver.Iφ),solver.Iφ)
+  u  = zero(U_u)
+  Dj = assemble_matrix(a_Dj,U_j,V_j)
+  Fk = assemble_matrix((du,dv) -> a_Fk(u,du,dv),U_u,V_u)
+  Δp = assemble_matrix(a_Δp,U_p,V_p)
+  Ip = assemble_matrix(a_Ip,U_p,V_p)
+  Iφ = assemble_matrix(a_Iφ,U_φ,V_φ)
+
+  Dj_ns = numerical_setup(symbolic_setup(Dj_solver,Dj),Dj)
+  Fk_ns = numerical_setup(symbolic_setup(Fk_solver,Fk),Fk)
+  Δp_ns = numerical_setup(symbolic_setup(Δp_solver,Δp),Δp)
+  Ip_ns = numerical_setup(symbolic_setup(Ip_solver,Ip),Ip)
+  Iφ_ns = numerical_setup(symbolic_setup(Iφ_solver,Iφ),Iφ)
   cache = allocate_caches(solver,A)
   return LI2019_NS(ss.solver,Dj_ns,Fk_ns,Δp_ns,Ip_ns,Iφ_ns,A,cache)
 end
 
 function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix)
-  solver = ns.solver
-
-  #! Pattern of matrix changes, so we need to recompute everything.
-  # This will get fixed when we are using iterative solvers for Fk
-  Fu = A[Block(1,1)]; K = A[Block(3,1)]; Kᵗ = A[Block(1,3)]; κ = solver.params[:fluid][:γ]
-  Fk = Fu# - (1.0/κ^2) * Kᵗ * K
-  #numerical_setup!(ns.Fk_ns,Fk)
-
-  ns.Fk_ns  = numerical_setup(symbolic_setup(solver.Fk_solver,Fk),Fk)
+  Fk = A[Block(1,1)]
+  numerical_setup!(ns.Fk_ns,Fk)
   ns.sysmat = A
+  return ns
+end
 
+function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix, x::AbstractBlockVector)
+  solver = ns.solver
+  U = get_trial(solver.op); U_u, _, _, _ = U
+  V = get_test(solver.op);  V_u, _, _, _ = V
+  _ ,a_Fk, _, _, _ = solver.block_weakforms
+
+  u  = FEFunction(U_u,x[Block(1)])
+  Fk = assemble_matrix((du,dv) -> a_Fk(u,du,dv),U_u,V_u)
+  ns.Fk_ns  = numerical_setup!(ns.Fk_ns,Fk)
+  ns.sysmat = A
   return ns
 end
 

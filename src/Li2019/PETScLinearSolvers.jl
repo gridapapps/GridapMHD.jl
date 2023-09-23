@@ -3,15 +3,13 @@ using GridapPETSc: PETScMatrix, PETScVector, PETScLinearSolverSS
 using GridapPETSc.PETSC
 using MPI
 
-mutable struct CachedPETScLinearSolverNS{T} <: NumericalSetup
-  A::T
+mutable struct CachedPETScLinearSolverNS <: NumericalSetup
   B::PETScMatrix
   ksp::Ref{KSP}
   initialized::Bool
   caches
-  function CachedPETScLinearSolverNS(A,B::PETScMatrix,caches)
-    T=typeof(A)
-    new{T}(A,B,Ref{KSP}(),false,caches)
+  function CachedPETScLinearSolverNS(B::PETScMatrix,caches)
+    new(B,Ref{KSP}(),false,caches)
   end
 end
 
@@ -45,7 +43,7 @@ end
 function Algebra.numerical_setup(ss::PETScLinearSolverSS,A::AbstractMatrix)
   B = convert(PETScMatrix,A)
   caches = get_petsc_caches(A)
-  ns = CachedPETScLinearSolverNS(A,B,caches)
+  ns = CachedPETScLinearSolverNS(B,caches)
   @check_error_code PETSC.KSPCreate(B.comm,ns.ksp)
   @check_error_code PETSC.KSPSetOperators(ns.ksp[],ns.B.mat[],ns.B.mat[])
   ss.solver.setup(ns.ksp)
@@ -62,8 +60,7 @@ function Algebra.solve!(x::AbstractVector{PetscScalar},ns::CachedPETScLinearSolv
 end
 
 function Algebra.numerical_setup!(ns::CachedPETScLinearSolverNS,A::AbstractMatrix)
-  ns.A = A
-  ns.B = convert(PETScMatrix,A)
+  copy!(ns.B,A)
   @check_error_code PETSC.KSPSetOperators(ns.ksp[],ns.B.mat[],ns.B.mat[])
   @check_error_code PETSC.KSPSetUp(ns.ksp[])
   return ns

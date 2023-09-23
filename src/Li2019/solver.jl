@@ -13,15 +13,15 @@ function Li2019Solver(op::FEOperator,params)
   γ  = params[:fluid][:γ]
   Ωf = _interior(params[:model],params[:fluid][:domain])
   dΩ = Measure(Ωf,2*k)
-  Dj = _Dj(U_j,V_j,Ωf,dΩ,params)
-  Fk = _Fk(zero(U_u),U_u,V_u,Ωf,dΩ,params)
-  Δp = _p_laplacian(U_p,V_p,Ωf,dΩ,params)
-  Ip = assemble_matrix((p,v_p) -> ∫(p*v_p)*dΩ,V_p,V_p)
-  Iφ = assemble_matrix((φ,v_φ) -> ∫(-γ*φ*v_φ)*dΩ ,U_φ,V_φ)
+  a_Dj = _Dj(dΩ,params)
+  a_Fk = _Fk(dΩ,params)
+  a_Δp = _p_laplacian(dΩ,params)
+  a_Ip(p,v_p) = ∫(p*v_p)*dΩ
+  a_Iφ(φ,v_φ) = ∫(-γ*φ*v_φ)*dΩ
 
-  block_solvers = map(s -> get_block_solver(Val(s)),params[:solver][:block_solvers])
-  block_mats    = [Dj,Fk,Δp,Ip,Iφ]
-  P = Li2019_Preconditioner(block_solvers...,block_mats...,params)
+  block_solvers   = map(s -> get_block_solver(Val(s)),params[:solver][:block_solvers])
+  block_weakforms = [a_Dj,a_Fk,a_Δp,a_Ip,a_Iφ]
+  P = Li2019_Preconditioner(op,block_solvers,block_weakforms,params)
   #test_preconditioner(op,P)
 
   # Linear Solver
@@ -33,7 +33,7 @@ function Li2019Solver(op::FEOperator,params)
   return nlsolver
 end
 
-function _Dj(U_j,V_j,Ω,dΩ,params)
+function _Dj(dΩ,params)
   fluid = params[:fluid]
   γ  = fluid[:γ]
   k = params[:fespaces][:k]
@@ -58,10 +58,10 @@ function _Dj(U_j,V_j,Ω,dΩ,params)
     end
     return r
   end
-  return assemble_matrix(a_j,U_j,V_j)
+  return a_j
 end
 
-function _Fk(u,U_u,V_u,Ω,dΩ,params)
+function _Fk(dΩ,params)
   fluid = params[:fluid]
   α  = fluid[:α]
   β  = fluid[:β]
@@ -69,39 +69,40 @@ function _Fk(u,U_u,V_u,Ω,dΩ,params)
   B  = fluid[:B]
   
   conv(u,∇u)  = (∇u')⋅u
-  a_fk(u,du,dv) = ∫(β*(∇(du)⊙∇(dv)) + α*dv⋅((conv∘(u,∇(du))) + (conv∘(du,∇(u)))) + γ⋅(du×B)⋅(dv×B)) * dΩ
-  return assemble_matrix((du,dv) -> a_fk(u,du,dv),U_u,V_u)
+  function a_fk(u,du,dv) 
+    r = ∫(β*(∇(du)⊙∇(dv)) + α*dv⋅((conv∘(u,∇(du))) + (conv∘(du,∇(u)))) + γ⋅(du×B)⋅(dv×B)) * dΩ
+    return r
+  end
+  return a_fk
 end
 
-function _p_laplacian(U_p,V_p,Ω,dΩ,params)
+function _p_laplacian(dΩ,params)
   p_conformity = params[:fespaces][:p_conformity]
-  if p_conformity == :H1
-    return assemble_matrix((p,v_p) -> ∫(∇(p)⋅∇(v_p))*dΩ ,U_p,V_p)
-  elseif p_conformity == :L2
-    # TODO: This is only ok if we do not have a solid/fuid split of the mesh...
-    model = params[:model]
-    Γ  = Boundary(model)
-    Λ  = Skeleton(model)
 
-    k  = params[:fespaces][:k]
-    dΓ = Measure(Γ,2*k)
-    dΛ = Measure(Λ,2*k)
+  model = params[:model]
+  Γ  = Boundary(model)
+  Λ  = Skeleton(model)
 
-    n_Γ = get_normal_vector(Γ)
-    n_Λ = get_normal_vector(Λ)
+  k  = params[:fespaces][:k]
+  dΓ = Measure(Γ,2*k)
+  dΛ = Measure(Λ,2*k)
 
-    h_e_Λ = get_edge_measures(Λ,dΛ)
-    h_e_Γ = get_edge_measures(Γ,dΓ)
+  n_Γ = get_normal_vector(Γ)
+  n_Λ = get_normal_vector(Λ)
 
-    β = 100.0
-    aΛ(u,v) = ∫(-jump(u⋅n_Λ)⋅mean(∇(v)) - mean(∇(u))⋅jump(v⋅n_Λ))*dΛ + ∫(β/h_e_Λ*jump(u⋅n_Λ)⋅jump(v⋅n_Λ))*dΛ
-    aΓ(u,v) = ∫(-(∇(u)⋅n_Γ)⋅v - u⋅(∇(v)⋅n_Γ))*dΓ + ∫(β/h_e_Γ*(u⋅n_Γ)⋅(v⋅n_Γ))*dΓ
+  h_e_Λ = get_edge_measures(Λ,dΛ)
+  h_e_Γ = get_edge_measures(Γ,dΓ)
 
-    ap(p,v_p) = ∫(∇(p)⋅∇(v_p))*dΩ + aΛ(p,v_p) + aΓ(p,v_p)
-    return assemble_matrix(ap,U_p,V_p)
-  else
-    error("Unknown p_conformity: $p_conformity")
+  β = 100.0
+  function a_Δp(u,v)
+    r = ∫(∇(u)⋅∇(v))*dΩ
+    if p_conformity == :L2
+      r += ∫(-jump(u⋅n_Λ)⋅mean(∇(v)) - mean(∇(u))⋅jump(v⋅n_Λ) + β/h_e_Λ*jump(u⋅n_Λ)⋅jump(v⋅n_Λ))*dΛ
+      r += ∫(-(∇(u)⋅n_Γ)⋅v - u⋅(∇(v)⋅n_Γ) + β/h_e_Γ*(u⋅n_Γ)⋅(v⋅n_Γ))*dΓ
+    end
+    return r
   end
+  return a_Δp
 end
 
 get_edge_measures(Ω::Triangulation,dΩ) = sqrt∘CellField(get_array(∫(1)dΩ),Ω)
@@ -109,28 +110,12 @@ function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ)
   return sqrt∘CellField(map(get_array,local_views(∫(1)*dΩ)),Ω)
 end
 
-function Gridap.Algebra.solve!(x::AbstractVector,nls::NewtonRaphsonSolver,op::NonlinearOperator,cache::Nothing)
-  b  = residual(op, x)
-  A  = jacobian(op, x)
-  dx = allocate_col_vector(A)
-  ns = numerical_setup(symbolic_setup(nls.ls, A), A)
-
-  Gridap.Algebra._solve_nr!(x,A,b,dx,ns,nls,op)
-  return Gridap.Algebra.NewtonRaphsonCache(A,b,dx,ns)
-end
-
-function Gridap.Algebra._check_convergence(nls,b)
-  parts = GridapDistributed.get_parts(b)
-  m0 = maximum(abs,b)
-  i_am_main(parts) && println(" >> Initial non-linear residual: ",m0)
-  return (false, m0)
-end
-
-function Gridap.Algebra._check_convergence(nls,b,m0)
-  parts = GridapDistributed.get_parts(b)
-  m = maximum(abs,b)
-  i_am_main(parts) && println(" >> Non-linear residual: ",m)
-  return m < nls.tol * m0
+function Gridap.Algebra.numerical_setup!(
+    ns::GridapSolvers.LinearSolvers.GMRESNumericalSetup,
+    A::AbstractMatrix,
+    x::AbstractVector)
+  numerical_setup!(ns.Pl_ns,A,x)
+  ns.A = A
 end
 
 # TODO: This is copied from main... should be in a common place
