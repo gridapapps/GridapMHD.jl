@@ -54,6 +54,7 @@ function Gridap.Algebra.numerical_setup(ss::LI2019_SS, A::AbstractBlockMatrix)
   Ip_ns = numerical_setup(symbolic_setup(Ip_solver,Ip),Ip)
   Iφ_ns = numerical_setup(symbolic_setup(Iφ_solver,Iφ),Iφ)
   cache = allocate_caches(solver,A)
+  GC.gc() # Try to get rid of Julia matrices
   return LI2019_NS(ss.solver,Dj_ns,Fk_ns,Δp_ns,Ip_ns,Iφ_ns,A,cache)
 end
 
@@ -74,6 +75,7 @@ function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix, 
   Fk = assemble_matrix((du,dv) -> a_Fk(u,du,dv),U_u,V_u)
   ns.Fk_ns  = numerical_setup!(ns.Fk_ns,Fk)
   ns.sysmat = A
+  GC.gc() # Try to get rid of Julia matrices
   return ns
 end
 
