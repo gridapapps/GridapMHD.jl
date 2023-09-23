@@ -5,6 +5,7 @@ get_block_solver(::Val{:amg})           = PETScLinearSolver(li2019_amg_setup)
 get_block_solver(::Val{:cg_jacobi})     = PETScLinearSolver(li2019_cg_setup)
 get_block_solver(::Val{:gmres_schwarz}) = PETScLinearSolver(li2019_gmres_schwarz_setup)
 get_block_solver(::Val{:gmres_amg})     = PETScLinearSolver(li2019_gmres_amg_setup)
+get_block_solver(::Val{:from_options})  = PETScLinearSolver()
 
 function li2019_mumps_setup(ksp)
   pc       = Ref{GridapPETSc.PETSC.PC}()
@@ -21,12 +22,6 @@ function li2019_mumps_setup(ksp)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 28, 2)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 29, 2)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 3, 1.0e-6)
-
-  # BLR factorization
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 35, 2)
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 36, 0)
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 37, 1)
-  @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 7, 1.0e-6)
 end
 
 # Five iterations of standalone AMG solver
