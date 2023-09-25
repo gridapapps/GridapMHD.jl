@@ -94,13 +94,13 @@ function _FullyDeveloped(;
   Ω = Interior(model)
   
   labels = get_face_labeling(model)
-  tags_u = append!(collect(1:20),[23,24,25,26])
-  tags_j_Ha = append!(collect(1:20),[25,26])
-  tags_j_side = append!(collect(1:20),[23,24])
+  tags_j_Ha = append!(collect(1:20),[23,24])
+  tags_j_side = append!(collect(1:20),[25,26])
+  tags_outlet = append!(collect(1:20),[22])
 
-  add_tag_from_tags!(labels,"noslip",tags_u)
   add_tag_from_tags!(labels,"Ha_walls",tags_j_Ha)
   add_tag_from_tags!(labels,"side_walls",tags_j_side)
+  add_tag_from_tags!(labels,"outlet",tags_outlet)
   
   if mesh
     writevtk(model,"Mesh")
@@ -122,7 +122,7 @@ function _FullyDeveloped(;
       :B=>dirB,
     ),
     :bcs => Dict(
-      :u=>Dict(:tags=>["noslip"]),
+      :u=>Dict(:tags=>["Ha_walls","side_walls"]),
       :j=>Dict{Symbol,Vector{String}}(),
       :thin_wall=>Vector{Dict{Symbol,Any}}() 
     )
@@ -197,9 +197,8 @@ function _FullyDeveloped(;
   end
     e_u = u_a - uh
   
-  Γ = Boundary(model, tags="outlet")
-  dΓ = Measure(Γ,6)
-  uh_0 = sum(∫(uh)*dΓ)
+  dΩ = Measure(Ω,6)
+  uh_0 = sum(∫(uh)*dΩ)/sum(∫(1.0)*dΩ)
 
   kp = 1/uh_0
 
