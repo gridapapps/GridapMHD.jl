@@ -121,9 +121,11 @@ Valid keys for `params[:solver]` are the following:
             Valid values are `[:julia, :petsc, :block_gmres_li2019]`.
 
 # Optional keys
+-  `:rtol` : Relative tolerance.
 -  `:matrix_type`: Matrix type for the linear system.
 -  `:vector_type`: Vector type for the linear system.
 -  `:solver_postpro`: Function to postprocess the solver cache, with signature f(cache,info)
+-  `:niter`: Number of iterations for the linear solver (only for iterative solvers).
 -  `:petsc_options`: PETSc options for the linear solver (only if PETSc is used).
 -  `:block_solvers`: Array of solvers for the diagonal blocks (only for block-based solvers).
 """
@@ -141,6 +143,7 @@ function params_solver(params::Dict{Symbol,Any})
    :solver_postpro=>false,
    :block_solvers=>false,
    :niter=>false,
+   :rtol=>false,
   )
   _check_mandatory(params[:solver],mandatory,"[:solver]")
   optional = default_solver_params(Val(params[:solver][:solver]))
@@ -157,6 +160,7 @@ function default_solver_params(::Val{:julia})
     :petsc_options  => "",
     :block_solvers  => [],
     :niter          => 1,
+    :rtol           => 1e-5,
   )
 end
 
@@ -169,6 +173,7 @@ function default_solver_params(::Val{:petsc})
     :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
     :block_solvers  => [],
     :niter          => 100,
+    :rtol           => 1e-5,
   )
 end
 
@@ -179,8 +184,9 @@ function default_solver_params(::Val{:block_gmres_li2019})
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> nothing),
-    :block_solvers  => [:mumps,:mumps,:mumps,:mumps,:mumps],
+    :block_solvers  => [:mumps,:mumps,:mumps,:mumps],
     :niter          => 150,
+    :rtol           => 1e-5,
   )
 end
 

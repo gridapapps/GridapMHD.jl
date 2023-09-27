@@ -4,6 +4,9 @@ function Li2019Solver(op::FEOperator,params)
   U_u, U_p, U_j, U_φ = U
   V_u, V_p, V_j, V_φ = V
 
+  nl_rtol = params[:solver][:rtol]
+  l_rtol  = nl_rtol/10.0
+
   if isa(params[:ζ],Nothing)
     params[:ζ] = 0.0
   end
@@ -15,21 +18,21 @@ function Li2019Solver(op::FEOperator,params)
   dΩ = Measure(Ωf,2*k)
   a_Dj = _Dj(dΩ,params)
   a_Fk = _Fk(dΩ,params)
-  a_Δp = _p_laplacian(dΩ,params)
+  #a_Δp = _p_laplacian(dΩ,params)
   a_Ip(p,v_p) = ∫(p*v_p)*dΩ
-  a_Iφ(φ,v_φ) = ∫(-γ*φ*v_φ)*dΩ
+  a_Iφ(φ,v_φ) = ∫(-φ*v_φ)*dΩ
 
   block_solvers   = map(s -> get_block_solver(Val(s)),params[:solver][:block_solvers])
-  block_weakforms = [a_Dj,a_Fk,a_Δp,a_Ip,a_Iφ]
+  block_weakforms = [a_Dj,a_Fk,a_Ip,a_Iφ]
   P = Li2019_Preconditioner(op,block_solvers,block_weakforms,params)
   #test_preconditioner(op,P)
 
   # Linear Solver
   m = params[:solver][:niter]
-  l_solver = GMRESSolver(m,P;rtol=1.e-6,atol=1e-14,verbose=i_am_main(get_parts(U)))
+  l_solver = GMRESSolver(m,P;rtol=l_rtol,atol=1e-14,verbose=i_am_main(get_parts(U)))
 
   # Nonlinear Solver
-  nlsolver = NewtonRaphsonSolver(l_solver,1e-5,10)
+  nlsolver = NewtonRaphsonSolver(l_solver,nl_rtol,10)
   return nlsolver
 end
 
@@ -51,7 +54,7 @@ function _Dj(dΩ,params)
   end
 
   function a_j(j,v_j) 
-    r = ∫(γ*j⋅v_j + γ*(∇⋅j)⋅(∇⋅v_j))*dΩ 
+    r = ∫(j⋅v_j + (∇⋅j)⋅(∇⋅v_j))*dΩ 
     for p in params_thin_wall
       τ,cw,jw,n_Γ,dΓ = p
       r += ∫(τ*(v_j⋅n_Γ)⋅(j⋅n_Γ) + cw*(v_j⋅n_Γ)⋅(n_Γ⋅(∇(j)⋅n_Γ)))*dΓ

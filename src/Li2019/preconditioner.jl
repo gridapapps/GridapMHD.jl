@@ -18,7 +18,6 @@ mutable struct LI2019_NS <: Gridap.Algebra.NumericalSetup
   solver
   Dj_ns
   Fk_ns
-  Δp_ns
   Ip_ns
   Iφ_ns
   sysmat
@@ -38,24 +37,22 @@ function Gridap.Algebra.numerical_setup(ss::LI2019_SS, A::AbstractBlockMatrix)
 
   U = get_trial(solver.op); U_u, U_p, U_j, U_φ = U
   V = get_test(solver.op);  V_u, V_p, V_j, V_φ = V
-  a_Dj,a_Fk,a_Δp,a_Ip,a_Iφ = solver.block_weakforms
-  Dj_solver,Fk_solver,Δp_solver,Ip_solver,Iφ_solver = solver.block_solvers
+  a_Dj,a_Fk,a_Ip,a_Iφ = solver.block_weakforms
+  Dj_solver,Fk_solver,Ip_solver,Iφ_solver = solver.block_solvers
 
   u  = zero(U_u)
   Dj = assemble_matrix(a_Dj,U_j,V_j)
   Fk = assemble_matrix((du,dv) -> a_Fk(u,du,dv),U_u,V_u)
-  Δp = assemble_matrix(a_Δp,U_p,V_p)
   Ip = assemble_matrix(a_Ip,U_p,V_p)
   Iφ = assemble_matrix(a_Iφ,U_φ,V_φ)
 
   Dj_ns = numerical_setup(symbolic_setup(Dj_solver,Dj),Dj)
   Fk_ns = numerical_setup(symbolic_setup(Fk_solver,Fk),Fk)
-  Δp_ns = numerical_setup(symbolic_setup(Δp_solver,Δp),Δp)
   Ip_ns = numerical_setup(symbolic_setup(Ip_solver,Ip),Ip)
   Iφ_ns = numerical_setup(symbolic_setup(Iφ_solver,Iφ),Iφ)
   cache = allocate_caches(solver,A)
   GC.gc() # Try to get rid of Julia matrices
-  return LI2019_NS(ss.solver,Dj_ns,Fk_ns,Δp_ns,Ip_ns,Iφ_ns,A,cache)
+  return LI2019_NS(ss.solver,Dj_ns,Fk_ns,Ip_ns,Iφ_ns,A,cache)
 end
 
 function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix)
@@ -69,7 +66,7 @@ function Gridap.Algebra.numerical_setup!(ns::LI2019_NS, A::AbstractBlockMatrix, 
   solver = ns.solver
   U = get_trial(solver.op); U_u, _, _, _ = U
   V = get_test(solver.op);  V_u, _, _, _ = V
-  _ ,a_Fk, _, _, _ = solver.block_weakforms
+  _ ,a_Fk, _, _ = solver.block_weakforms
 
   u  = FEFunction(U_u,x[Block(1)])
   Fk = assemble_matrix((du,dv) -> a_Fk(u,du,dv),U_u,V_u)
@@ -83,16 +80,16 @@ end
 function Gridap.Algebra.solve!(x::AbstractBlockVector,ns::LI2019_NS,b::AbstractBlockVector)
   sysmat, caches, params = ns.sysmat, ns.caches, ns.solver.params
   fluid = params[:fluid]; ζ = params[:ζ]; iRe = fluid[:β]
-  κ = fluid[:γ]; α1 = ζ + iRe;
+  α1 = ζ + iRe;
 
   bu, bp, bj, bφ = blocks(b)
   u , p , j , φ  = blocks(x)
   du, dp, dj, dφ = caches
 
   # Solve for p
-  solve!(dp,ns.Δp_ns,bp)
+  #solve!(dp,ns.Δp_ns,bp)
   solve!(p,ns.Ip_ns,bp)
-  p .= -α1 .* p .- dp
+  p .*= -α1 #.- dp
 
   #  Solve for φ
   #dφ .= -bφ
@@ -104,9 +101,10 @@ function Gridap.Algebra.solve!(x::AbstractBlockVector,ns::LI2019_NS,b::AbstractB
   solve!(u,ns.Fk_ns,du)                  # u = Fu \ (bu - Aup * p)
 
   # Solve for j
+  coef = 1.0
   copy!(dj,bj)
-  mul!(dj,sysmat[Block(3,1)],u,-2.0,1.0) # dj = bj - 2.0 * Aju * u
-  mul!(dj,sysmat[Block(3,4)],φ,-2.0,1.0) # dj = bj - 2.0 * Aju * u - 2.0 * Ajφ * φ
-  solve!(j,ns.Dj_ns,dj)                  # j = Dj \ (bj - 2.0 * Aju * u - 2.0 * Ajφ * φ)
+  mul!(dj,sysmat[Block(3,1)],u,-coef,1.0) # dj = bj - 2.0 * Aju * u
+  mul!(dj,sysmat[Block(3,4)],φ,-coef,1.0) # dj = bj - 2.0 * Aju * u - 2.0 * Ajφ * φ
+  solve!(j,ns.Dj_ns,dj)                   # j = Dj \ (bj - 2.0 * Aju * u - 2.0 * Ajφ * φ)
   return x
 end

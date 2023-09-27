@@ -42,14 +42,13 @@ end
 function Gridap.Algebra._check_convergence(nls,b)
   parts = GridapDistributed.get_parts(b)
   m0 = maximum(abs,b)
-  i_am_main(parts) && println(" >> Initial non-linear residual: ",m0)
+  i_am_main(parts) && println(" >> Non-linear residual: e_a = $m0, e_r = 1.0")
   return (false, m0)
 end
 
 function Gridap.Algebra._check_convergence(nls,b,m0)
   parts = GridapDistributed.get_parts(b)
   m = maximum(abs,b)
-  i_am_main(parts) && println(" >> Non-linear residual: ",m)
+  i_am_main(parts) && println(" >> Non-linear residual: e_a = $m, e_r = $(m/m0)")
   return m < nls.tol * m0
 end
-
