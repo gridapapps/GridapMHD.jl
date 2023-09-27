@@ -101,7 +101,7 @@ end
 # Analytical formulas for pressure drop gradients
 
 function kp_shercliff_cartesian(b,Ha)
-    kp = 1/(Ha*(1-0.852*Ha^(-0.5)/d-1/Ha))
+    kp = 1/(Ha*(1-0.852*Ha^(-0.5)/b-1/Ha))
   kp
 end
 
@@ -111,7 +111,7 @@ function kp_shercliff_cylinder(Ha)
 end
 
 function kp_hunt(b,Ha)
-    kp = 1/(Ha*(1-0.956*Ha^(-0.5)/d-1/Ha))
+    kp = 1/(Ha*(1-0.956*Ha^(-0.5)/b-1/Ha))
   kp
 end
 

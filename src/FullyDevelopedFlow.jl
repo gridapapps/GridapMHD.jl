@@ -190,15 +190,15 @@ function _FullyDeveloped(;
   
   
   #Post process
-  if cw_s == 0
-    u_a(x) = analytical_GeneralHunt_u(1,c_Ha,1,Ha,nsums,x)
-  else
-    u_a(x) = 0
-  end
+  if cw_s == 0.0
+    u_a(x) = analytical_GeneralHunt_u(1.0,cw_Ha,-1.0,Ha,nsums,x)
     e_u = u_a - uh
+  else
+    e_u =  uh
+  end
   
   dΩ = Measure(Ω,6)
-  uh_0 = sum(∫(uh)*dΩ)/sum(∫(1.0)*dΩ)
+  uh_0 = sum(∫(uh)*dΩ)[3]/sum(∫(1.0)*dΩ)
 
   kp = 1/uh_0
 
@@ -214,7 +214,7 @@ function _FullyDeveloped(;
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"u_a"=>u_a,"e_u"=>e_u,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_jh"=>div_jh,"div_uh"=>div_uh])
+        "uh"=>uh,"e_u"=>e_u,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_jh"=>div_jh,"div_uh"=>div_uh])
     toc!(t,"vtk")
   end
   if verbose
@@ -235,6 +235,7 @@ function _FullyDeveloped(;
   info[:τ_s] = τ_s
   info[:cw_Ha] = cw_Ha
   info[:τ_Ha] = τ_Ha
+  info[:b] = b
   info[:uh_0] = uh_0
   info[:kp] = kp
   info[:kp_a] =kp_a

@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -N 1
-#SBATCH --ntasks-per-node=1
-#SBATCH -t 20:00:00
-#SBATCH --partition=cpu36c
+#SBATCH --ntasks-per-node=4
+#SBATCH -t 10:00:00
+#SBATCH --partition=volta
 
 #SBATCH -o outputFD_test
 #SBATCH -e errorFD_test
@@ -27,24 +27,27 @@ source env.sh
 #export OMPI_MCA_btl_openib_if_include="mlx5_0:1"
 
 #mpiexec -n ${SLURM_NPROCS} julia --project=$GRIDAPMHD -J $GRIDAPMHD/compile/Turgalium_CIEMAT/GridapMHD36c.so -O3 --check-bounds=no -e\
-julia --project=$GRIDAPMHD -e\
+mpiexec -n ${SLURM_NPROCS} julia --project=$GRIDAPMHD -O3 --check-bounds=no -e\
 '
 using GridapMHD:FullyDeveloped 
 FullyDeveloped(
-  nc=(6,6),
-#  np=(4,5),
-#  backend=:mpi,
-  Ha = 10.0,
+  nc=(60,60),
+  np=(2,2),
+  backend=:mpi,
+  Ha = 1000.0,
   b = 1.5,
-  dir_B=(0.0,1.0,0.0),
-  cw_s = 1.0,
-  cw_Ha = 0.0,
-  debug=true,
-  vtk=true,
+  dir_B = (0.0,1.0,0.0),
+  cw_s = 0.01,
+  τ_Ha = 1e5,
+  cw_Ha = 0.01,
+  τ_s = 1e5,
+  nsums = 100,
+  debug = false,
+  vtk = true,
   title="FD_test",
-  mesh = true,
-  solver=:julia,
-#  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_14 1000",
+  mesh = false,
+  solver=:petsc,
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001"
  )'
 
 duration=$SECONDS
