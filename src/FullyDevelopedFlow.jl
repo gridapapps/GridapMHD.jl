@@ -49,6 +49,7 @@ function _FullyDeveloped(;
   solver=:julia,
   verbose=true,
   mesh = false,
+  strech_fine = false,
   cw_Ha = 0.0,
   cw_s = 0.0,
   τ_Ha = 100.0,
@@ -88,11 +89,22 @@ function _FullyDeveloped(;
      ncoord  
    end
 
+  function map_fine(coord)
+     ncoord = GridapMHD.strechMHD(coord,domain=(0,-b,0,-1.0),factor=(strech_Ha,strech_Ha),dirs=(1,2))
+     ncoord = GridapMHD.strechMHD(ncoord,domain=(0,b,0,1.0),factor=(strech_Ha,strech_Ha),dirs=(1,2))
+     ncoord
+  end
+
  partition=(nc[1],nc[2],3)
+ if strech_fine
+ model = CartesianDiscreteModel(
+     parts,domain,partition;isperiodic=(false,false,true),map=map_fine)
+ else
  model = CartesianDiscreteModel(
      parts,domain,partition;isperiodic=(false,false,true),map=map1)
+ end
   Ω = Interior(model)
-  
+ 
   labels = get_face_labeling(model)
   tags_j_Ha = append!(collect(1:20),[23,24])
   tags_j_side = append!(collect(1:20),[25,26])
@@ -199,6 +211,11 @@ function _FullyDeveloped(;
   
   dΩ = Measure(Ω,6)
   uh_0 = sum(∫(uh)*dΩ)[3]/sum(∫(1.0)*dΩ)
+ 
+  uh = uh/uh_0
+  ph = ph/uh_0
+  jh = jh/uh_0
+  φh  =φh/uh_0  
 
   kp = 1/uh_0
 
