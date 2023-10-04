@@ -66,9 +66,12 @@ function rotate(x::VectorValue{3},p)
   return VectorValue{3}(x[p[1]],x[p[2]],x[p[3]])
 end
 function stretch(x::VectorValue{3})
-  α = 1.0; β = 2.0; γ = 0.2;
-  return VectorValue{3}(α⋅x[1],β⋅x[2],γ⋅x[3])
+  offset = VectorValue{3}(0.0,-1.0,-1.0)
+  α = 8.0; β = 2.0/3.0; γ = 2.0;
+  return VectorValue{3}(α⋅x[1],β⋅x[2],γ⋅x[3]) + offset
 end
+
+coordinate_transformation(x) = stretch(rotate(VectorValue{3}(x...)))
 
 function generate_face_labeling()
   num_faces = [20,36,21,4]
@@ -115,7 +118,7 @@ function generate_base_mesh()
     (0,-1,1),(1,-1,1),               # Extension,  2nd layer
     (0,-1,2),(1,-1,2),               # Extension,  3rd layer
   ]
-  vertices = map(x -> rotate(stretch(VectorValue{3,Float64}(x...))),vertices)
+  vertices = map(coordinate_transformation,vertices)
 
   c2n_map = Table([
     [ 1, 2, 3, 4, 5, 6, 7, 8],
@@ -143,7 +146,7 @@ function asymmetric_refinement(model)
     (0,-1,1) ,(1,-1,1) ,(0,-2/3,1) ,(1,-2/3,1) ,(0,-1/3,1) ,(1,-1/3,1),
     (0,-1,2) ,(1,-1,2) ,(0,-2/3,2) ,(1,-2/3,2) ,(0,-1/3,2) ,(1,-1/3,2),
   ]
-  vertices = map(x -> rotate(stretch(VectorValue{3,Float64}(x...))),vertices)
+  vertices = map(coordinate_transformation,vertices)
 
   c2n_map = Table([
     [ 1, 2, 3, 4, 9,10,11,12],[ 3, 4, 5, 6,11,12,13,14],[ 5, 6, 7, 8,13,14,15,16],
@@ -198,7 +201,7 @@ function main(distribute,np)
   ranks  = distribute(LinearIndices((prod(np),)))
   cmodel = generate_base_mesh()
   model  = refine_mesh(ranks,cmodel,3)
-  write_mesh(model)
+  #write_mesh(model)
   write_bcs(model)
   return nothing
 end

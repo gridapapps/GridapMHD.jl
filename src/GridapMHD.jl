@@ -35,6 +35,9 @@ using GridapSolvers.LinearSolvers: allocate_col_vector, allocate_row_vector
 using PartitionedArrays
 using PartitionedArrays: getany
 
+# Mesh generation
+include("Meshers/meshers.jl")
+
 # Solvers
 include("Li2019/Li2019.jl")
 
