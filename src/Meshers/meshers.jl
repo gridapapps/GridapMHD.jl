@@ -7,6 +7,7 @@ module Meshers
 
   include("expansion_mesher.jl")
 
+  export expansion_generate_base_mesh
   export expansion_generate_mesh
   export expansion_generate_mesh_hierarchy
   

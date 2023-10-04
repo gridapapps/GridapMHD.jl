@@ -45,8 +45,8 @@ function expansion_generate_face_labeling()
     dface_to_entity = map(f -> findfirst(faces -> f ∈ faces, entity_to_dface),1:num_faces[d+1])
     return dface_to_entity
   end
-  tag_to_name = ["PbLi","inlet","outlet","wall"]
-  tag_to_entities = [[1],[2],[3],[4]]
+  tag_to_name = ["PbLi","inlet","outlet","wall","interior","boundary"]
+  tag_to_entities = [[1],[2],[3],[4],[1],[2,3,4]]
   return FaceLabeling(d_to_dface_to_entity,tag_to_entities,tag_to_name)
 end
 
@@ -144,7 +144,7 @@ end
                      where 
                         num_levels = length(ranks_per_level)
 """
-function expansion_generate_mesh_hierarchy(ranks,num_refs_coarse::Int,ranks_per_level)
+function expansion_generate_mesh_hierarchy(ranks,num_refs_coarse::Integer,ranks_per_level::Vector{<:Integer})
   mh = GridapP4est.with(ranks) do
     num_levels = length(ranks_per_level)
     cparts     = generate_subparts(ranks,ranks_per_level[num_levels])

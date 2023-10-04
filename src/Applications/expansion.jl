@@ -67,7 +67,7 @@ function _expansion(;
 
   # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
   # after and before the expansion respectively.
-  # We assume L=1 in the mesh read from msh_file   
+  # We assume L=1 in the mesh read from msh_file
   msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh*".msh") |> normpath
   model = GmshDiscreteModel(parts,msh_file)
   if debug && vtk

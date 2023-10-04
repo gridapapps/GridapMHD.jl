@@ -24,9 +24,10 @@ using Gridap.FESpaces
 using Gridap.MultiField
 
 using GridapDistributed
+using GridapGmsh
+
 using GridapPETSc
 using GridapPETSc.PETSC
-using GridapGmsh
 
 using GridapSolvers
 using GridapSolvers.LinearSolvers
