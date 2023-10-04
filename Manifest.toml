@@ -2,7 +2,7 @@
 
 julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "87fa3db445f8d3be14bbb58b8214574cf4a3477c"
+project_hash = "85608191a30efd1ea35fdb641f47b4f021f94012"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -71,10 +71,14 @@ version = "7.4.11"
     Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
 
 [[deps.ArrayLayouts]]
-deps = ["FillArrays", "LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "56c347caf09ad8acb3e261fe75f8e09652b7b05b"
+deps = ["FillArrays", "LinearAlgebra"]
+git-tree-sha1 = "9a731850434825d183af39c6e6cd0a1c32dd7e20"
 uuid = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
-version = "0.7.10"
+version = "1.4.2"
+weakdeps = ["SparseArrays"]
+
+    [deps.ArrayLayouts.extensions]
+    ArrayLayoutsSparseArraysExt = "SparseArrays"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -95,9 +99,9 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[deps.BlockArrays]]
 deps = ["ArrayLayouts", "FillArrays", "LinearAlgebra"]
-git-tree-sha1 = "21490270d1fcf2efa9ddb2126d6958e9b72a4db0"
+git-tree-sha1 = "54cd829dd26330c42e1cf9df68470dd4df602c61"
 uuid = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
-version = "0.16.11"
+version = "0.16.38"
 
 [[deps.Bzip2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -153,9 +157,9 @@ version = "0.3.0"
 
 [[deps.Compat]]
 deps = ["UUIDs"]
-git-tree-sha1 = "e460f044ca8b99be31d35fe54fc33a5c33dd8ed7"
+git-tree-sha1 = "8a62af3e248a8c4bad6b32cbbe663ae02275e32c"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.9.0"
+version = "4.10.0"
 weakdeps = ["Dates", "LinearAlgebra"]
 
     [deps.Compat.extensions]
@@ -229,9 +233,9 @@ version = "1.6.0"
 
 [[deps.DrWatson]]
 deps = ["Dates", "FileIO", "JLD2", "LibGit2", "MacroTools", "Pkg", "Random", "Requires", "Scratch", "UnPack"]
-git-tree-sha1 = "d79f58f511d90e721496f1cdfd2ef74a313f226b"
+git-tree-sha1 = "f83dbe0ef99f1cf32b815f0dad632cb25129604e"
 uuid = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
-version = "2.12.7"
+version = "2.13.0"
 
 [[deps.Expat_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -273,10 +277,15 @@ version = "1.16.1"
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[deps.FillArrays]]
-deps = ["LinearAlgebra", "Random", "SparseArrays", "Statistics"]
-git-tree-sha1 = "deed294cde3de20ae0b2e0355a6c4e1c6a5ceffc"
+deps = ["LinearAlgebra", "Random"]
+git-tree-sha1 = "a20eaa3ad64254c61eeb5f230d9306e937405434"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "0.12.8"
+version = "1.6.1"
+weakdeps = ["SparseArrays", "Statistics"]
+
+    [deps.FillArrays.extensions]
+    FillArraysSparseArraysExt = "SparseArrays"
+    FillArraysStatisticsExt = "Statistics"
 
 [[deps.FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "Setfield", "SparseArrays"]
@@ -362,19 +371,19 @@ version = "1.3.1"
 
 [[deps.Gridap]]
 deps = ["AbstractTrees", "BSON", "BlockArrays", "Combinatorics", "DataStructures", "DocStringExtensions", "FastGaussQuadrature", "FileIO", "FillArrays", "ForwardDiff", "JLD2", "JSON", "LineSearches", "LinearAlgebra", "NLsolve", "NearestNeighbors", "PolynomialBases", "QuadGK", "Random", "SparseArrays", "SparseMatricesCSR", "StaticArrays", "Test", "WriteVTK"]
-git-tree-sha1 = "df58e0d727deb49a3a7d501324b66fbc73abb433"
+git-tree-sha1 = "f504a1dc2a1474784e6d9854692d320be171f18f"
 repo-rev = "master"
 repo-url = "https://github.com/gridap/Gridap.jl.git"
 uuid = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
-version = "0.17.19"
+version = "0.17.20"
 
 [[deps.GridapDistributed]]
 deps = ["BlockArrays", "FillArrays", "Gridap", "LinearAlgebra", "MPI", "PartitionedArrays", "SparseArrays", "SparseMatricesCSR", "WriteVTK"]
-git-tree-sha1 = "bd6a595b99fd374bfdcc1b6af5b27107ec6c0102"
-repo-rev = "block-assemblers-v0.3"
+git-tree-sha1 = "a61a30f052a9a9d2a1548c80d1a130e78c62cb3c"
+repo-rev = "master"
 repo-url = "https://github.com/gridap/GridapDistributed.jl.git"
 uuid = "f9701e48-63b3-45aa-9a63-9bc6c271f355"
-version = "0.3.0"
+version = "0.3.1"
 
 [[deps.GridapGmsh]]
 deps = ["Gridap", "GridapDistributed", "Libdl", "Metis", "PartitionedArrays", "gmsh_jll"]
@@ -384,9 +393,9 @@ version = "0.7.0"
 
 [[deps.GridapP4est]]
 deps = ["ArgParse", "FillArrays", "Gridap", "GridapDistributed", "Libdl", "MPI", "P4est_wrapper", "PartitionedArrays", "Test"]
-git-tree-sha1 = "607df79afd9ccc3727a154058049d4fc14054040"
+git-tree-sha1 = "bdd70ce74399f58a07b1188fb577523d4567def7"
 uuid = "c2c8e14b-f5fd-423d-9666-1dd9ad120af9"
-version = "0.3.0"
+version = "0.3.1"
 
 [[deps.GridapPETSc]]
 deps = ["Gridap", "GridapDistributed", "Libdl", "LinearAlgebra", "MPI", "PETSc_jll", "PartitionedArrays", "Random", "SparseArrays", "SparseMatricesCSR"]
@@ -395,8 +404,8 @@ uuid = "bcdc36c2-0c3e-11ea-095a-c9dadae499f1"
 version = "0.5.0"
 
 [[deps.GridapSolvers]]
-deps = ["ArgParse", "BlockArrays", "FillArrays", "Gridap", "GridapDistributed", "GridapP4est", "GridapPETSc", "IterativeSolvers", "LinearAlgebra", "MPI", "PartitionedArrays", "Printf", "SparseArrays", "SparseMatricesCSR"]
-git-tree-sha1 = "f92273b3b25c211e091b41527a42feb1ed227468"
+deps = ["AbstractTrees", "ArgParse", "BlockArrays", "FillArrays", "Gridap", "GridapDistributed", "GridapP4est", "GridapPETSc", "IterativeSolvers", "LinearAlgebra", "MPI", "PartitionedArrays", "Printf", "SparseArrays", "SparseMatricesCSR"]
+git-tree-sha1 = "54cf8a2af34519137ab986b60365d7bb72ed845e"
 repo-rev = "develop"
 repo-url = "https://github.com/gridap/GridapSolvers.jl.git"
 uuid = "6d3209ee-5e3c-4db7-a716-942eb12ed534"
@@ -605,9 +614,9 @@ version = "5.6.0+0"
 
 [[deps.MPI]]
 deps = ["Distributed", "DocStringExtensions", "Libdl", "MPICH_jll", "MPIPreferences", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "PkgVersion", "PrecompileTools", "Requires", "Serialization", "Sockets"]
-git-tree-sha1 = "df53d0e1e0dbebf2315f4cd35e13e52ad43416c2"
+git-tree-sha1 = "b4d8707e42b693720b54f0b3434abee6dd4d947a"
 uuid = "da04e1cc-30fd-572f-bb4f-1f8673147195"
-version = "0.20.15"
+version = "0.20.16"
 
     [deps.MPI.extensions]
     AMDGPUExt = "AMDGPU"
@@ -668,9 +677,9 @@ version = "1.4.0"
 
 [[deps.MicrosoftMPI_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "a8027af3d1743b3bfae34e54872359fdebb31422"
+git-tree-sha1 = "a7023883872e52bc29bcaac74f19adf39347d2d5"
 uuid = "9237b28f-5490-5468-be7b-bb81f5f5e6cf"
-version = "10.1.3+4"
+version = "10.1.4+0"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
@@ -737,9 +746,9 @@ version = "0.8.1+0"
 
 [[deps.OpenMPI_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
-git-tree-sha1 = "f3080f4212a8ba2ceb10a34b938601b862094314"
+git-tree-sha1 = "e25c1778a98e34219a00455d6e4384e017ea9762"
 uuid = "fe0851c0-eecd-5654-98d4-656369965a5c"
-version = "4.1.5+0"
+version = "4.1.6+0"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -824,9 +833,9 @@ version = "0.3.3"
 
 [[deps.PolynomialBases]]
 deps = ["ArgCheck", "AutoHashEquals", "FFTW", "FastGaussQuadrature", "LinearAlgebra", "Requires", "SimpleUnPack", "SpecialFunctions"]
-git-tree-sha1 = "f83125eeab135df4d101492cd570f2f30690b294"
+git-tree-sha1 = "aa1877430a7e8b0c7a35ea095c415d462af0870f"
 uuid = "c74db56a-226d-5e98-8bb0-a6049094aeea"
-version = "0.4.20"
+version = "0.4.21"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -850,9 +859,9 @@ uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 
 [[deps.QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
-git-tree-sha1 = "eeab25344bf9901146c0200a7ca64ea479f8bf5c"
+git-tree-sha1 = "9ebcd48c498668c7fa0e97a9cae873fbee7bfee1"
 uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
-version = "2.9.0"
+version = "2.9.1"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
@@ -942,9 +951,9 @@ version = "2.3.1"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore"]
-git-tree-sha1 = "51621cca8651d9e334a659443a74ce50a3b6dfab"
+git-tree-sha1 = "0adf069a2a490c47273727e029371b31d44b72b2"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.6.3"
+version = "1.6.5"
 weakdeps = ["Statistics"]
 
     [deps.StaticArrays.extensions]
@@ -1012,17 +1021,22 @@ version = "1.0.2"
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
+[[deps.VTKBase]]
+git-tree-sha1 = "c2d0db3ef09f1942d08ea455a9e252594be5f3b6"
+uuid = "4004b06d-e244-455f-a6ce-a5f9919cc534"
+version = "1.0.1"
+
 [[deps.WriteVTK]]
-deps = ["Base64", "CodecZlib", "FillArrays", "LightXML", "TranscodingStreams"]
-git-tree-sha1 = "f50c47d715199601a54afdd5267f24c8174842ae"
+deps = ["Base64", "CodecZlib", "FillArrays", "LightXML", "TranscodingStreams", "VTKBase"]
+git-tree-sha1 = "7b46936613e41cfe1c6a5897d243ddcab8feabec"
 uuid = "64499a7a-5c06-52f2-abe2-ccb03c286192"
-version = "1.16.0"
+version = "1.18.0"
 
 [[deps.XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Zlib_jll"]
-git-tree-sha1 = "04a51d15436a572301b5abbb9d099713327e9fc4"
+git-tree-sha1 = "24b81b59bd35b3c42ab84fa589086e19be919916"
 uuid = "02c8fc9c-b97f-50b9-bbe4-9be30ff0a78a"
-version = "2.10.4+0"
+version = "2.11.5+0"
 
 [[deps.XSLT_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgcrypt_jll", "Libgpg_error_jll", "Libiconv_jll", "Pkg", "XML2_jll", "Zlib_jll"]

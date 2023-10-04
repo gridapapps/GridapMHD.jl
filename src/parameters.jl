@@ -183,7 +183,7 @@ function default_solver_params(::Val{:block_gmres_li2019})
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
-    :solver_postpro => ((cache,info) -> nothing),
+    :solver_postpro => ((cache,info) -> gridap_solver_postpro(cache,info)),
     :block_solvers  => [:mumps,:mumps,:mumps,:mumps],
     :niter          => 150,
     :rtol           => 1e-5,
@@ -196,6 +196,24 @@ uses_petsc(solver::Symbol) = uses_petsc(Val(solver))
 uses_petsc(::Val{:julia}) = false
 uses_petsc(::Val{:petsc}) = true
 uses_petsc(::Val{:block_gmres_li2019}) = true
+
+function snes_postpro(cache,info)
+  snes = cache.snes[]
+  i_petsc = Ref{PetscInt}()
+  @check_error_code PETSC.SNESGetIterationNumber(snes,i_petsc)
+  info[:nls_iters] = Int(i_petsc[])
+  @check_error_code PETSC.SNESGetLinearSolveIterations(snes,i_petsc)
+  info[:ls_iters] = Int(i_petsc[])
+  nothing
+end
+
+function gridap_solver_postpro(cache,info)
+  ls = cache.ns.solver
+  log = ls.inner_log
+
+  info[:ls_iters] = log.num_iters
+  info[:ls_residuals] = log.residuals[1:log.num_iters+1]
+end
 
 """
 Valid keys for `params[:fespaces]` are the following:

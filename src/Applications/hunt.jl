@@ -342,13 +342,3 @@ function analytical_hunt_j(
 
   VectorValue(j_x,j_y,0.0)
 end
-
-function snes_postpro(cache,info)
-  snes = cache.snes[]
-  i_petsc = Ref{PetscInt}()
-  @check_error_code PETSC.SNESGetIterationNumber(snes,i_petsc)
-  info[:nls_iters] = Int(i_petsc[])
-  @check_error_code PETSC.SNESGetLinearSolveIterations(snes,i_petsc)
-  info[:ls_iters] = Int(i_petsc[])
-  nothing
-end
