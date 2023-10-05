@@ -393,8 +393,8 @@ version = "0.7.0"
 
 [[deps.GridapP4est]]
 deps = ["ArgParse", "FillArrays", "Gridap", "GridapDistributed", "Libdl", "MPI", "P4est_wrapper", "PartitionedArrays", "Test"]
-git-tree-sha1 = "bdd70ce74399f58a07b1188fb577523d4567def7"
-repo-rev = "main"
+git-tree-sha1 = "8188694b39e7afafd19539d9864db96ad67159b9"
+repo-rev = "uniform-3d"
 repo-url = "https://github.com/gridap/GridapP4est.jl.git"
 uuid = "c2c8e14b-f5fd-423d-9666-1dd9ad120af9"
 version = "0.3.1"

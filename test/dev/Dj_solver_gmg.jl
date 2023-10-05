@@ -3,6 +3,7 @@ using PartitionedArrays
 using Gridap, GridapPETSc, GridapSolvers, GridapDistributed
 
 using GridapSolvers.LinearSolvers
+using GridapSolvers.MultilevelTools
 import GridapSolvers.PatchBasedSmoothers as PBS
 using Gridap.ReferenceFEs, Gridap.Geometry
 
@@ -73,7 +74,7 @@ function setup(
   return params
 end
 
-function _Dj(PD,dΩ,params)
+function _Dj(dΩ,params)
   fluid = params[:fluid]
   γ  = fluid[:γ]
   k = params[:fespaces][:k]
@@ -92,10 +93,10 @@ function _Dj(PD,dΩ,params)
 
   function a_j(j,v_j) 
     r = ∫(j⋅v_j + (∇⋅j)⋅(∇⋅v_j))*dΩ 
-    for p in params_thin_wall
-      τ,cw,jw,n_Γ,dΓ = p
-      r += ∫(τ*(v_j⋅n_Γ)⋅(j⋅n_Γ) + cw*(v_j⋅n_Γ)⋅(n_Γ⋅(∇(j)⋅n_Γ)))*dΓ
-    end
+    #for p in params_thin_wall
+    #  τ,cw,jw,n_Γ,dΓ = p
+    #  r += ∫(τ*(v_j⋅n_Γ)⋅(j⋅n_Γ) + cw*(v_j⋅n_Γ)⋅(n_Γ⋅(∇(j)⋅n_Γ)))*dΓ
+    #end
     return r
   end
   return a_j
@@ -114,6 +115,74 @@ function test_solver(s,D_j)
   return err
 end
 
+function test_smoother(s,D_j)
+  ns = numerical_setup(symbolic_setup(s,D_j),D_j)
+  b = GridapSolvers.allocate_col_vector(D_j)
+  x = GridapSolvers.allocate_col_vector(D_j)
+  r = GridapSolvers.allocate_row_vector(D_j)
+  fill!(b,1.0)
+  fill!(x,1.0)
+  mul!(r,D_j,x)
+  r .= b .- r
+  solve!(x,ns,r)
+  err = norm(b - D_j*x)
+  return err
+end
+
+function PBS.PatchDecomposition(mh::ModelHierarchy)
+  pds = Vector{PBS.DistributedPatchDecomposition}(undef,num_levels(mh))
+  for lev in 1:num_levels(mh)
+    model = get_model(mh,lev)
+    pds[lev] = PBS.PatchDecomposition(model)
+  end
+  return pds
+end
+
+function get_hierarchy_matrices(mh,tests,trials)
+  mats = Vector{AbstractMatrix}(undef,num_levels(mh))
+  A = nothing
+  b = nothing
+  for lev in 1:num_levels(mh)
+    model = get_model(mh,lev)
+    U_j = get_fe_space(trials,lev)
+    V_j = get_fe_space(tests,lev)
+    Ω   = Triangulation(model)
+    dΩ  = Measure(Ω,2*k)
+    ai  = GridapMHD.Li2019._Dj(dΩ,params)
+    if lev == 1
+      f = VectorValue(1.0,1.0,1.0)
+      li(v) = ∫(v⋅f)*dΩ
+      op    = AffineFEOperator(ai,li,U_j,V_j)
+      A, b  = get_matrix(op), get_vector(op)
+      mats[lev] = A
+    else
+      mats[lev] = assemble_matrix(ai,U_j,V_j)
+    end
+  end
+  return mats
+end
+
+function get_patch_smoothers(tests,patch_spaces,patch_decompositions,qdegree,params)
+  mh = tests.mh
+  nlevs = num_levels(mh)
+  smoothers = Vector{RichardsonSmoother}(undef,nlevs-1)
+  for lev in 1:nlevs-1
+    parts = get_level_parts(mh,lev)
+    if i_am_in(parts)
+      PD = patch_decompositions[lev]
+      Ph = get_fe_space(patch_spaces,lev)
+      Vh = get_fe_space(tests,lev)
+      Ω  = Triangulation(PD)
+      dΩ = Measure(Ω,qdegree)
+      a_j = _Dj(dΩ,params)
+      local_solver = LUSolver() # IS_ConjugateGradientSolver(;reltol=1.e-6)
+      patch_smoother = PatchBasedLinearSolver(a_j,Ph,Vh,local_solver)
+      smoothers[lev] = RichardsonSmoother(patch_smoother,10,1.0)
+    end
+  end
+  return smoothers
+end
+
 ############################################################################################
 
 np = 1
@@ -123,34 +192,38 @@ end
 
 # Geometry
 #model  = GridapMHD.Meshers.expansion_generate_base_mesh()
-mh = GridapMHD.Meshers.expansion_generate_mesh_hierarchy(ranks,2,[1,1])
+mh = GridapMHD.Meshers.expansion_generate_mesh_hierarchy(ranks,1,[1,1,1]);
+model = get_model(mh,1)
 params = setup(model);
 
 # FESpaces
 k = params[:fespaces][:k]
+qdegree = 2*k
 j_bc = params[:bcs][:j][:values]
 reffe_j = ReferenceFE(raviart_thomas,Float64,k-1)
-V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
-U_j = TrialFESpace(V_j,j_bc)
-
-Ω = Triangulation(model)
-dΩ = Measure(Ω,2*k)
-a_j = GridapMHD.Li2019._Dj(dΩ,params)
-D_j = assemble_matrix(a_j,U_j,V_j)
+tests  = TestFESpace(mh,reffe_j;dirichlet_tags=params[:bcs][:j][:tags]);
+trials = TrialFESpace(tests,j_bc);
 
 # Patch solver
-PD  = PBS.PatchDecomposition(model)
-P_j = PBS.PatchFESpace(model,reffe_j,DivConformity(),PD,V_j)
+patch_decompositions = PBS.PatchDecomposition(mh)
+patch_spaces = PBS.PatchFESpace(mh,reffe_j,DivConformity(),patch_decompositions,tests);
+smoothers = get_patch_smoothers(tests,patch_spaces,patch_decompositions,qdegree,params)
 
-Ωp   = Triangulation(PD)
-dΩp  = Measure(Ωp,2*k)
-ap_j = _Dj(PD,dΩp,params)
+restrictions, prolongations = setup_transfer_operators(trials,qdegree;mode=:residual);
+smatrices, A, b = get_hierarchy_matrices(mh,tests,trials);
 
-local_solver = LUSolver()
-patch_solver = PatchBasedLinearSolver(ap_j,P_j,U_j,local_solver)
+gmg = GMGLinearSolver(mh,
+                      smatrices,
+                      prolongations,
+                      restrictions,
+                      pre_smoothers=smoothers,
+                      post_smoothers=smoothers,
+                      maxiter=4,
+                      rtol=1.0e-8,
+                      verbose=true,
+                      mode=:preconditioner)
 
-#smoother = RichardsonSmoother(patch_solver,10,1.0)
-#test_smoother(smoother,D_j)
+solver = FGMRESSolver(100,gmg;rtol=1e-6,verbose=true)
+test_solver(solver,smatrices[1])
 
-solver = FGMRESSolver(100,patch_solver;rtol=1e-6,verbose=true)
-test_solver(solver,D_j)
+test_smoother(gmg,smatrices[1])
