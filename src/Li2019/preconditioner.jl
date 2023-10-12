@@ -101,7 +101,7 @@ function Gridap.Algebra.solve!(x::AbstractBlockVector,ns::LI2019_NS,b::AbstractB
   solve!(u,ns.Fk_ns,du)                  # u = Fu \ (bu - Aup * p)
 
   # Solve for j
-  coef = 1.0
+  coef = 2.0
   copy!(dj,bj)
   mul!(dj,sysmat[Block(3,1)],u,-coef,1.0) # dj = bj - 2.0 * Aju * u
   mul!(dj,sysmat[Block(3,4)],φ,-coef,1.0) # dj = bj - 2.0 * Aju * u - 2.0 * Ajφ * φ

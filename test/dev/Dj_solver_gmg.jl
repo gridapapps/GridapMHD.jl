@@ -159,7 +159,7 @@ function get_hierarchy_matrices(mh,tests,trials)
       mats[lev] = assemble_matrix(ai,U_j,V_j)
     end
   end
-  return mats
+  return mats, A, b
 end
 
 function get_patch_smoothers(tests,patch_spaces,patch_decompositions,qdegree,params)
@@ -197,8 +197,8 @@ model = get_model(mh,1)
 params = setup(model);
 
 # FESpaces
-k = params[:fespaces][:k]
-qdegree = 2*k
+k = 1#params[:fespaces][:k]
+qdegree = 2*k+2
 j_bc = params[:bcs][:j][:values]
 reffe_j = ReferenceFE(raviart_thomas,Float64,k-1)
 tests  = TestFESpace(mh,reffe_j;dirichlet_tags=params[:bcs][:j][:tags]);
@@ -224,6 +224,14 @@ gmg = GMGLinearSolver(mh,
                       mode=:preconditioner)
 
 solver = FGMRESSolver(100,gmg;rtol=1e-6,verbose=true)
-test_solver(solver,smatrices[1])
 
-test_smoother(gmg,smatrices[1])
+ns = numerical_setup(symbolic_setup(solver,A),A)
+x = GridapSolvers.allocate_col_vector(A)
+solve!(x,ns,b)
+
+
+Pl = LinearSolvers.IdentitySolver()
+solver2 = GMRESSolver(1000;Pl=Pl,rtol=1e-6,verbose=true)
+ns2 = numerical_setup(symbolic_setup(solver2,A),A)
+x2 = GridapSolvers.allocate_col_vector(A)
+solve!(x2,ns2,b)
