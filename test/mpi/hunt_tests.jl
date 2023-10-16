@@ -14,7 +14,7 @@ solver = Dict(
   :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
 )
 hunt(
-  nc=(4,4),
+  nc=(6,6),
   np=(2,2),
   backend=:mpi,
   L=1.0,
