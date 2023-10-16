@@ -27,7 +27,7 @@ SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 [compat]
 BSON = "0.3"
 FileIO = "1"
-GridapDistributed = "0.3"
+GridapDistributed = "0.3.1"
 MPI = "0.20"
 PackageCompiler = "2"
 SparseMatricesCSR = "0.6.6"

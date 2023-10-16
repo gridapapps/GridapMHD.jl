@@ -71,6 +71,9 @@ hunt(
   solver=:block_gmres_li2019,
 )
 
+using GridapMHD: hunt
+using GridapPETSc, SparseMatricesCSR
+
 # Li2019, MUMPS for Dj
 solver = Dict(
   :solver        => :block_gmres_li2019,
