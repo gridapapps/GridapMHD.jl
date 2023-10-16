@@ -53,8 +53,7 @@ end
 
 ##Functions for geometry generation
 
-function cuboid(;dx=1,dy=1,dz=1,x0=Point(0,0,0),name="cuboid",
-  faces=["face$i" for i in 1:6])
+function cuboid(;dx=1,dy=1,dz=1,x0=Point(0,0,0),name="cuboid",faces=["face$i" for i in 1:6])
   e1 = VectorValue(1,0,0)
   e2 = VectorValue(0,1,0)
   e3 = VectorValue(0,0,1)
