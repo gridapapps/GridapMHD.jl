@@ -5,7 +5,7 @@ function Li2019Solver(op::FEOperator,params)
   V_u, V_p, V_j, V_φ = V
 
   nl_rtol = params[:solver][:rtol]
-  l_rtol  = nl_rtol*1.e-2
+  l_rtol  = nl_rtol/100.0
 
   if isa(params[:ζ],Nothing)
     params[:ζ] = 0.0
@@ -114,7 +114,7 @@ function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ)
 end
 
 function Gridap.Algebra.numerical_setup!(
-    ns::GridapSolvers.LinearSolvers.GMRESNumericalSetup,
+    ns::GridapSolvers.LinearSolvers.FGMRESNumericalSetup,
     A::AbstractMatrix,
     x::AbstractVector)
   numerical_setup!(ns.Pl_ns,A,x)
