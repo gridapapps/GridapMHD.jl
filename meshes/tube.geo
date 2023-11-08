@@ -5,7 +5,7 @@ R = 1.0;
 
 
 //Pipe lenght
-L = 2.5; 
+L = 4.0; 
 
 //side of the internal square
 p = 0.5;
@@ -14,16 +14,16 @@ p = 0.5;
 // Circle
 
 //+Centre
-Point(1) = {0.0, 0.0, -L, 1.0};
+Point(1) = {0.0, 0.0, -0.5*L, 1.0};
 
 //+
-Point(2) = {0.0, R, -L, 1.0};
+Point(2) = {0.0, R, -0.5*L, 1.0};
 //+
-Point(3) = {R, 0.0, -L, 1.0};
+Point(3) = {R, 0.0, -0.5*L, 1.0};
 //+
-Point(4) = {0.0, -R, -L, 1.0};
+Point(4) = {0.0, -R, -0.5*L, 1.0};
 //+
-Point(5) = {-R, 0.0, -L, 1.0};
+Point(5) = {-R, 0.0, -0.5*L, 1.0};
 
 //+
 Circle(1) = {2, 1, 3};
@@ -37,13 +37,13 @@ Circle(4) = {5, 1, 2};
 // internal square
 
 //+
-Point(6) = {0.0, p, -L, 1.0};
+Point(6) = {0.0, p, -0.5*L, 1.0};
 //+
-Point(7) = {p, 0.0, -L, 1.0};
+Point(7) = {p, 0.0, -0.5*L, 1.0};
 //+
-Point(8) = {0.0, -p, -L, 1.0};
+Point(8) = {0.0, -p, -0.5*L, 1.0};
 //+
-Point(9) = {-p, 0.0, -L, 1.0};
+Point(9) = {-p, 0.0, -0.5*L, 1.0};
 
 // sides of the square
 
@@ -87,7 +87,7 @@ Transfinite Curve {1, 2, 3, 4, 5, 6 , 7, 8} = 10;
 
 //Radial nodes
 
-Transfinite Curve {9, 10, 11, 12} = 25 Using Progression 1.25;
+Transfinite Curve {9, 10, 11, 12} = 24 Using Progression 1.3;
 
 // Superficial Mesh
 
@@ -95,7 +95,7 @@ Transfinite Surface {1, 2, 3, 4, 5};
 //Recombine Surface {1, 2, 3, 4, 5};
 
 // Extrusion
-Extrude {0.0,0.0,L} {Surface{1, 2, 3, 4, 5}; Layers{10};} 
+Extrude {0.0,0.0,L} {Surface{1, 2, 3, 4, 5}; Layers{16};} 
 
 //Physical tags
 //+
