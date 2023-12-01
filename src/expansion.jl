@@ -39,6 +39,7 @@ function _expansion(;
   debug = false,
   verbose=true,
   solver=:julia,
+  Z = 4.0, #Expansion Ratio, it has to be consistent with the mesh
   N = 1.0,
   Ha = 1.0,
   cw = 0.028,
@@ -57,9 +58,8 @@ function _expansion(;
   t = PTimer(t_parts,verbose=verbose)
   tic!(t,barrier=true)
 
-  # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
+  # The domain is of size L_out x 2 x 2 and L_in x 2/Z x 2
   # after and before the expansion respectively.
-  # We assume L=1 in the mesh read from msh_file   
   msh_file = joinpath(@__FILE__,"..","..","meshes","Expansion_"*mesh*".msh") |> normpath
   model = GmshDiscreteModel(parts,msh_file)
   if debug && vtk
@@ -82,7 +82,13 @@ function _expansion(;
   
   if inlet == :parabolic
   # This gives mean(u_inlet)=Z , which ensures mean(u_outlet) = 1
-      u_inlet((x,y,z)) = VectorValue(36.0*4.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+      u_inlet((x,y,z)) = VectorValue(36.0*Z*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+  
+  elseif inlet == :shercliff
+  # Shercliff velocity profile at the entrance with mean(u_inlet) = Z, which ensures mean(u_outlet) = 1
+     kp_inlet = GridapMHD.kp_shercliff_cartesian(1/Z,Ha)
+     ux_inlet((x,y,z)) = GridapMHD.analytical_GeneralHunt_u(1.0/Z, 0.0, -kp_inlet, Ha,200,(z,y,x)) 
+     u_inlet((x,y,z)) = VectorValue(Z*ux_inlet((x,y,z))[3],0.0,0.0)
   else
       u_inlet = 4.0
   end
