@@ -2,38 +2,42 @@
 
 //Puntos de la figura 2D  en z=-1.0 para luego extruir
 
+L_in = 2.0; // Longitud de ambos canales
+L_out = 4.0;
+Z = 4.0; // Expansion ratio
+
 //+
-Point(1) = {-8, 0, -1.0, 1.0};
+Point(1) = {-L_in, 0, -1.0, 1.0};
 //+
-Point(2) = {-8, 0.25, -1.0, 1.0};
+Point(2) = {-L_in, 1/Z, -1.0, 1.0};
 //+
-Point(3) = {0, 0.25, -1.0, 1.0};
+Point(3) = {0, 1/Z, -1.0, 1.0};
 //+
-Point(4) = {0, 0.625, -1.0, 1.0};
+Point(4) = {0, (1+1/Z)*0.5, -1.0, 1.0};
 //+
 Point(5) = {0, 1.0, -1.0, 1.0};
 //+
-Point(6) = {8, 1.0, -1.0, 1.0};
+Point(6) = {L_out, 1.0, -1.0, 1.0};
 //+
-Point(7) = {8, 0.625, -1.0, 1.0};
+Point(7) = {L_out, (1+1/Z)*0.5, -1.0, 1.0};
 //+
-Point(8) = {8, 0.25, -1.0, 1.0};
+Point(8) = {L_out, 1/Z, -1.0, 1.0};
 //+
-Point(9) = {8, 0, -1.0, 1.0};
+Point(9) = {L_out, 0, -1.0, 1.0};
 //+
-Point(10) = {8, -0.25, -1.0, 1.0};
+Point(10) = {L_out, -1/Z, -1.0, 1.0};
 //+
-Point(11) = {8, -0.625, -1.0, 1.0};
+Point(11) = {L_out, -(1+1/Z)*0.5, -1.0, 1.0};
 //+
-Point(12) = {8, -1.0, -1.0, 1.0};
+Point(12) = {L_out, -1.0, -1.0, 1.0};
 //+
 Point(13) = {0, -1.0, -1.0, 1.0};
 //+
-Point(14) = {0, -0.625, -1.0, 1.0};
+Point(14) = {0, -(1+1/Z)*0.5, -1.0, 1.0};
 //+
-Point(15) = {0, -0.25, -1.0, 1.0};
+Point(15) = {0, -1/Z, -1.0, 1.0};
 //+
-Point(16) = {-8, -0.25, -1.0, 1.0};
+Point(16) = {-L_in, -1/Z, -1.0, 1.0};
 
 //Punto extra en el centro
 //+
@@ -85,11 +89,13 @@ Line(18) = {17, 15};
 //Defino los nodos de las líneas
 
 //+
-Transfinite Curve {-2, 15, 5, -12} = 100 Using Progression 1.02; //Nodos axiales
+Transfinite Curve {-2, 15} = 15 Using Progression 1.1; //Nodos axiales canal de entrada
 //+
-Transfinite Curve {-1, 17, 8, 16, -18, -9} = 25 Using Progression 1.35; //Nodos dirección Hartmann en el canal pequeño
+Transfinite Curve {5, -12} = 30 Using Progression 1.1; //Nodos axiales canal de salida
 //+
-Transfinite Curve {3, -7, 13, -11, -14, 10, -4, 6} = 25 Using Progression 1.35; //Nodos dirección Hartmann en el canal pequeño
+Transfinite Curve {-1, 17, 8, 16, -18, -9} = 20 Using Progression 1.25; //Nodos dirección Hartmann en el canal pequeño
+//+
+Transfinite Curve {3, -7, 13, -11, -14, 10, -4, 6} = 20 Using Progression 1.25; //Nodos dirección Hartmann en el canal grande (x4)
 
 //Defino la superfice
 
@@ -109,7 +115,7 @@ Transfinite Surface {2} = {5, 6, 12, 13};
 Recombine Surface {1,2}; //Esto hace desaparecer los triangulos
 //+
 Extrude {0.0,0.0,2.0} {
-    Surface{1,2}; Layers{{8,20,8}, {0.1,0.9,1}}; Recombine; //Pongo 8 nodos en las capas limites side para Ha = 1000
+    Surface{1,2}; Layers{{8,16,8}, {0.1,0.9,1}}; Recombine; //Pongo 8 nodos en las capas limites side para Ha = 1000
 }
 
 //Defino las tags para las condiciones de contorno (los números de las superficies los genera gmsh automáticamente al extruir)
