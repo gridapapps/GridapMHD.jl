@@ -53,10 +53,11 @@ hunt(
 
 expansion(
   mesh="710",
-  Ha = 10.0,
+  Ha = 100.0,
   N = 10.0,
   cw = 0.01,
   debug=false,
+  inlet=:shercliff,
   vtk=true,
   title="warmup_gmsh_petsc",
   solver=:petsc,
@@ -70,7 +71,7 @@ FullyDeveloped(
   dir_B=(0.0,1.0,0.0),
   b=1.0,
   vtk=true,
-  title="test",
+  title="warmup_thinwall",
   path=".",
   debug=false,
   solver=:petsc,

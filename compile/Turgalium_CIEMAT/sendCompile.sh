@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=1
 #SBATCH -t 20:00:00
-#SBATCH --partition=cpu36c
+#SBATCH --partition=volta
 
 #SBATCH -o outputCompile36c
 #SBATCH -e errorCompile36c
@@ -26,7 +26,7 @@ SECONDS=0
 
 source /ws/blankets/GridapMHD.jl/analysis/Turgalium_CIEMAT/env.sh
 
-
+#julia --project=$GRIDAPMHD -e 'using Pkg; Pkg.precompile()'
 julia --project=$GRIDAPMHD -O3 --check-bounds=no --color=yes $GRIDAPMHD/compile/Turgalium_CIEMAT/compile36c.jl
 
 duration=$SECONDS
