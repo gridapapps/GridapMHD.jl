@@ -80,18 +80,15 @@ function _expansion(;
   β = (1.0/Ha^2)
   γ = 1.0
   
-  if inlet == :parabolic
-  # This gives mean(u_inlet)=Z , which ensures mean(u_outlet) = 1
-      u_inlet((x,y,z)) = VectorValue(36.0*Z*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+# This gives a parabolic profile with mean(u_inlet)=Z , which ensures mean(u_outlet) = 1
+#  u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
+   
+# Shercliff velocity profile at the entrance with mean(u_inlet) = Z, which ensures mean(u_outlet) = 1
+#  kp_inlet = GridapMHD.kp_shercliff_cartesian(1/Z,Ha)
+#  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(1.0/Z, 0.0, -Z*kp_inlet, Ha,200,(z,y,x))[3],0.0,0.0)
   
-  elseif inlet == :shercliff
-  # Shercliff velocity profile at the entrance with mean(u_inlet) = Z, which ensures mean(u_outlet) = 1
-     kp_inlet = GridapMHD.kp_shercliff_cartesian(1/Z,Ha)
-     ux_inlet((x,y,z)) = GridapMHD.analytical_GeneralHunt_u(1.0/Z, 0.0, -kp_inlet, Ha,200,(z,y,x)) 
-     u_inlet((x,y,z)) = VectorValue(Z*ux_inlet((x,y,z))[3],0.0,0.0)
-  else
-      u_inlet = 4.0
-  end
+#  u_inlet_cte = VectorValue(Z,0.0,0.0)
+  
   params = Dict(
     :ptimer=>t,
     :debug=>debug,
@@ -113,7 +110,7 @@ function _expansion(;
    params[:bcs] = Dict( 
       :u => Dict(
         :tags => ["inlet", "wall"],
-        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+        :values => [u_inlet(inlet,Ha,Z), VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
 		:tags => ["wall", "inlet", "outlet"], 
@@ -125,7 +122,7 @@ function _expansion(;
    params[:bcs] = Dict(
       :u => Dict(
         :tags => ["inlet", "wall"],
-        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+        :values => [u_inlet(inlet,Ha,Z), VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
         :tags => ["inlet", "outlet"], 
@@ -188,3 +185,24 @@ function _expansion(;
   info, t
 
 end
+
+function u_inlet(inlet,Ha,Z)
+ 
+  u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)  
+    
+  kp_inlet = GridapMHD.kp_shercliff_cartesian(Z,Ha)
+  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(Z, 0.0, -Z*kp_inlet, Ha,5555500,(z,y,x))[3],0.0,0.0) 
+
+  u_inlet_cte = VectorValue(Z,0.0,0.0)  
+
+  if inlet == :parabolic
+	U = u_inlet_parabolic
+  elseif inlet == :shercliff
+        U = u_inlet_shercliff
+  else
+        U = u_inlet_cte
+  end
+ U
+end
+
+	
