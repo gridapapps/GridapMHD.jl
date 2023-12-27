@@ -31,7 +31,7 @@ using GridapPETSc.PETSC
 
 using GridapSolvers
 using GridapSolvers.LinearSolvers
-using GridapSolvers.LinearSolvers: allocate_col_vector, allocate_row_vector
+using GridapSolvers.LinearSolvers: allocate_in_domain, allocate_in_range
 
 using PartitionedArrays
 using PartitionedArrays: getany
@@ -45,7 +45,6 @@ include("Li2019/Li2019.jl")
 # Main driver
 include("Fixes.jl")
 include("ExtraFunctions.jl")
-include("FEOperators.jl")
 include("parameters.jl")
 include("Main.jl")
 

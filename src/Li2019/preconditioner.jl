@@ -25,10 +25,10 @@ mutable struct LI2019_NS <: Gridap.Algebra.NumericalSetup
 end
 
 function allocate_caches(solver::Li2019_Preconditioner,A::AbstractBlockMatrix)
-  du = allocate_col_vector(A[Block(1,1)])
-  dp = allocate_col_vector(A[Block(2,2)])
-  dj = allocate_col_vector(A[Block(3,3)])
-  dφ = allocate_col_vector(A[Block(4,4)])
+  du = allocate_in_domain(A[Block(1,1)])
+  dp = allocate_in_domain(A[Block(2,2)])
+  dj = allocate_in_domain(A[Block(3,3)])
+  dφ = allocate_in_domain(A[Block(4,4)])
   return du, dp, dj, dφ
 end
 

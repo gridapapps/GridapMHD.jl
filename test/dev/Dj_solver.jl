@@ -9,9 +9,9 @@ using Gridap.ReferenceFEs
 function test_smoother(s,D_j)
   ns = numerical_setup(symbolic_setup(s,D_j),D_j)
 
-  b = GridapSolvers.allocate_col_vector(D_j)
-  x = GridapSolvers.allocate_col_vector(D_j)
-  y = GridapSolvers.allocate_row_vector(D_j)
+  b = GridapSolvers.allocate_in_domain(D_j)
+  x = GridapSolvers.allocate_in_domain(D_j)
+  y = GridapSolvers.allocate_in_range(D_j)
 
   fill!(b,1.0)
   y = b - D_j*x
@@ -24,8 +24,8 @@ end
 function test_solver(s,D_j)
   ns = numerical_setup(symbolic_setup(s,D_j),D_j)
 
-  b = GridapSolvers.allocate_col_vector(D_j)
-  x = GridapSolvers.allocate_col_vector(D_j)
+  b = GridapSolvers.allocate_in_domain(D_j)
+  x = GridapSolvers.allocate_in_domain(D_j)
 
   fill!(b,1.0)
   solve!(x,ns,b)

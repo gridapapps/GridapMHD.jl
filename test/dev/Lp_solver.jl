@@ -116,8 +116,8 @@ a_dg(p,v_p) = a_cg(p,v_p) + aΛ(p,v_p) + aΓ(p,v_p)
 Δp = assemble_matrix(a_dg,U_p,V_p)
 
 # Solver
-b = GridapSolvers.allocate_col_vector(Δp)
-x = GridapSolvers.allocate_col_vector(Δp)
+b = GridapSolvers.allocate_in_domain(Δp)
+x = GridapSolvers.allocate_in_domain(Δp)
 
 fill!(x,0.0)
 fill!(b,1.0)

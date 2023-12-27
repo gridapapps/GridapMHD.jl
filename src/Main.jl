@@ -291,8 +291,13 @@ end
 function weak_form(params,k)
 
   fluid = params[:fluid]
-  Ωf  = _interior(params[:model],fluid[:domain])
-  dΩf = Measure(Ωf,2*k)
+  Ωf    = _interior(params[:model],fluid[:domain])
+  dΩf   = Measure(Ωf,2*k)
+
+  α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
+  f = fluid[:f]
+  B = fluid[:B]
+  ζ = params[:ζ]
 
   solid = params[:solid]
   if solid !== nothing
@@ -300,14 +305,6 @@ function weak_form(params,k)
     dΩs = Measure(Ωs,2*k)
     σs  = solid[:σ]
   end
-
-  α  = fluid[:α]
-  β  = fluid[:β]
-  γ  = fluid[:γ]
-  f  = fluid[:f]
-  B  = fluid[:B]
-  σf = fluid[:σ]
-  ζ  = params[:ζ]
 
   bcs = params[:bcs]
 
@@ -466,6 +463,3 @@ function a_B(x,dy,γ,B,dΩ)
   v_u, v_p, v_j, v_φ = dy
   ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
 end
-
-
-

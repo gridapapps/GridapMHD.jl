@@ -41,8 +41,8 @@ end
 function test_solver(s,D_j)
   ns = numerical_setup(symbolic_setup(s,D_j),D_j)
 
-  b = GridapSolvers.allocate_col_vector(D_j)
-  x = GridapSolvers.allocate_col_vector(D_j)
+  b = GridapSolvers.allocate_in_domain(D_j)
+  x = GridapSolvers.allocate_in_domain(D_j)
 
   fill!(b,1.0)
   solve!(x,ns,b)

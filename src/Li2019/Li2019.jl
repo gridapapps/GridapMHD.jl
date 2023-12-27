@@ -25,10 +25,9 @@ using GridapPETSc
 
 using GridapSolvers
 using GridapSolvers.LinearSolvers
-using GridapSolvers.LinearSolvers: allocate_col_vector, allocate_row_vector
+using GridapSolvers.LinearSolvers: allocate_in_domain, allocate_in_range
 
 include("NLSolvers.jl")
-include("PETScLinearSolvers.jl")
 
 include("blocks.jl")
 include("preconditioner.jl")

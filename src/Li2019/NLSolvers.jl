@@ -2,7 +2,7 @@
 function Gridap.Algebra.solve!(x::AbstractVector,nls::NewtonRaphsonSolver,op::NonlinearOperator,cache::Nothing)
   b  = residual(op, x)
   A  = jacobian(op, x)
-  dx = allocate_col_vector(A)
+  dx = allocate_in_domain(A)
   ns = numerical_setup(symbolic_setup(nls.ls, A), A)
 
   Gridap.Algebra._solve_nr!(x,A,b,dx,ns,nls,op)
