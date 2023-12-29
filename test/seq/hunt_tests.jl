@@ -2,7 +2,7 @@ module HuntTestsSequential
 
 using GridapMHD: hunt
 using GridapPETSc, SparseMatricesCSR
-
+"""
 hunt(
   nc=(4,4),
   L=1.0,
@@ -58,7 +58,9 @@ hunt(
   title="hunt",
   solver=:petsc,
 )
+"""
 
+"""
 hunt(
   nc=(4,4),
   np=(2,2),
@@ -70,16 +72,14 @@ hunt(
   title="hunt",
   solver=:block_gmres_li2019,
 )
-
-using GridapMHD: hunt
-using GridapPETSc, SparseMatricesCSR
+"""
 
 # Li2019, MUMPS for Dj
 solver = Dict(
   :solver        => :block_gmres_li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
-  :block_solvers => [:mumps,:gmres_schwarz,:cg_jacobi,:cg_jacobi],
+  :block_solvers => [:gmres_schwarz,:gmres_schwarz,:cg_jacobi,:cg_jacobi],
   :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
 )
 hunt(

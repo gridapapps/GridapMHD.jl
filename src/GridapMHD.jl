@@ -1,9 +1,5 @@
 module GridapMHD
 
-# using Profile
-# using FileIO
-# using MPI
-
 using Random
 using LinearAlgebra
 using SparseArrays
@@ -15,23 +11,15 @@ using BSON
 using DrWatson
 
 using Gridap
-using Gridap.Helpers
-using Gridap.Algebra
-using Gridap.CellData
-using Gridap.ReferenceFEs
-using Gridap.Geometry
-using Gridap.FESpaces
-using Gridap.MultiField
+using Gridap.Helpers, Gridap.Algebra, Gridap.CellData, Gridap.ReferenceFEs
+using Gridap.Geometry, Gridap.FESpaces, Gridap.MultiField
 
 using GridapDistributed
 using GridapGmsh
-
 using GridapPETSc
-using GridapPETSc.PETSC
 
 using GridapSolvers
-using GridapSolvers.LinearSolvers
-using GridapSolvers.LinearSolvers: allocate_in_domain, allocate_in_range
+using GridapSolvers.LinearSolvers, GridapSolvers.NonlinearSolvers, GridapSolvers.BlockSolvers
 
 using PartitionedArrays
 using PartitionedArrays: getany
@@ -40,12 +28,14 @@ using PartitionedArrays: getany
 include("Meshers/meshers.jl")
 
 # Solvers
-include("Li2019/Li2019.jl")
+include("Solvers/petsc.jl")
+include("Solvers/li2019.jl")
 
 # Main driver
 include("Fixes.jl")
 include("ExtraFunctions.jl")
 include("parameters.jl")
+include("weakforms.jl")
 include("Main.jl")
 
 # Applications

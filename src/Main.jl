@@ -198,12 +198,12 @@ end
 end
 _solver(::Val{:julia},op,params) = NLSolver(show_trace=true,method=:newton)
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
-_solver(::Val{:block_gmres_li2019},op,params) = Li2019.Li2019Solver(op,params)
+_solver(::Val{:block_gmres_li2019},op,params) = Li2019Solver(op,params)
 
 _multi_field_style(params) = _multi_field_style(Val(params[:solver][:solver]))
 _multi_field_style(::Val{:julia}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:petsc}) = ConsecutiveMultiFieldStyle()
-_multi_field_style(::Val{:block_gmres_li2019}) = BlockMultiFieldStyle()
+_multi_field_style(::Val{:block_gmres_li2019}) = BlockMultiFieldStyle(4,(1,1,1,1),(3,1,2,4)) # (j,u,p,φ)
 
 function _fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
   k = params[:fespaces][:k]
@@ -215,23 +215,13 @@ function _fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
 end
 
 function _fe_operator(::BlockMultiFieldStyle,U,V,params)
-  k  = params[:fespaces][:k]
+  # TODO: BlockFEOperator, which only updates nonlinear blocks (only important for high Re)
+  k = params[:fespaces][:k]
+  res, jac = weak_form(params,k)
   Tm = params[:solver][:matrix_type]
   Tv = params[:solver][:vector_type]
-
-  # Global operator
-  res, jac = weak_form(params,k)
   assem = SparseMatrixAssembler(Tm,Tv,U,V)
-  op_global = FEOperator(res,jac,U,V,assem)
-
-  # u-u operator
-  U_u, _, _, _ = U
-  V_u, _, _, _ = V
-  res_uu, jac_uu = weakform_uu(params,k)
-  assem_uu = SparseMatrixAssembler(Tm,Tv,U_u,V_u)
-  op_uu = FEOperator(res_uu,jac_uu,U_u,V_u,assem_uu)
-
-  return FEOperatorMHD(op_global,op_uu)
+  return FEOperator(res,jac,U,V,assem)
 end
 
 function _fluid_mesh(
@@ -286,180 +276,4 @@ function _rand(vt::Type{<:PVector{T,A}},ids::PRange) where {T,A}
     _rand(Tv,1:local_length(indices))
   end
   return PVector(values,partition(ids))
-end
-
-function weak_form(params,k)
-
-  fluid = params[:fluid]
-  Ωf    = _interior(params[:model],fluid[:domain])
-  dΩf   = Measure(Ωf,2*k)
-
-  α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
-  f = fluid[:f]
-  B = fluid[:B]
-  ζ = params[:ζ]
-
-  solid = params[:solid]
-  if solid !== nothing
-    Ωs  = _interior(params[:model],solid[:domain])
-    dΩs = Measure(Ωs,2*k)
-    σs  = solid[:σ]
-  end
-
-  bcs = params[:bcs]
-
-  params_φ = []
-  for i in 1:length(bcs[:φ])
-    φ_i = bcs[:φ][i][:value]
-    Γ = _boundary(params[:model],bcs[:φ][i][:domain])
-    dΓ = Measure(Γ,2*k)
-    n_Γ = get_normal_vector(Γ)
-    push!(params_φ,(φ_i,n_Γ,dΓ))
-  end
-
-  params_thin_wall = []
-  for i in 1:length(bcs[:thin_wall])
-    τ_i  = bcs[:thin_wall][i][:τ]
-    cw_i = bcs[:thin_wall][i][:cw]
-    jw_i = bcs[:thin_wall][i][:jw]
-    Γ    = _boundary(params[:model],bcs[:thin_wall][i][:domain])
-    dΓ   = Measure(Γ,2*k)
-    n_Γ  = get_normal_vector(Γ)
-    push!(params_thin_wall,(τ_i,cw_i,jw_i,n_Γ,dΓ))
-  end
-
-  if length(bcs[:t]) != 0
-    error("Boundary tranction not yet implemented")
-  end
-
-  params_f = []
-  for i in 1:length(bcs[:f])
-    f_i  = bcs[:f][i][:value]
-    Ω_i  = _interior(params[:model],bcs[:f][i][:domain])
-    dΩ_i = Measure(Ω_i,2*k)
-    push!(params_f,(f_i,dΩ_i))
-  end
-
-  params_B = []
-  for i in 1:length(bcs[:B])
-    B_i  = bcs[:B][i][:value]
-    Ω_i  = _interior(params[:model],bcs[:B][i][:domain])
-    dΩ_i = Measure(Ω_i,2*k)
-    push!(params_f,(γ,B_i,dΩ_i))
-  end
-
-  function a(x,dy)
-    r = a_mhd(x,dy,β,γ,B,σf,dΩf)
-    for p in params_thin_wall
-      r = r + a_thin_wall(x,dy,p...)
-    end
-    for p in params_B
-      r = r + a_B(x,dy,p...)
-    end
-    if solid !== nothing
-      r = r + a_solid(x,dy,σs,dΩs)
-    end
-    if ζ !== nothing
-      r = r + a_augmented_lagragian(x,dy,ζ,dΩf)
-    end
-    r
-  end
-
-  function ℓ(dy)
-    r = ℓ_mhd(dy,f,dΩf)
-    for p in params_φ
-      r = r + ℓ_φ(dy,p...)
-    end
-    for p in params_thin_wall
-      r = r + ℓ_thin_wall(dy,p...)
-    end
-    for p in params_f
-      r = r + ℓ_f(dy,p...)
-    end
-    r
-  end
-
-  function c(x,dy)
-    r = c_mhd(x,dy,α,dΩf)
-    r
-  end
-
-  function dc(x,dx,dy)
-    r = dc_mhd(x,dx,dy,α,dΩf)
-    r
-  end
-
-  res(x,dy) = c(x,dy) + a(x,dy) - ℓ(dy)
-  jac(x,dx,dy) = dc(x,dx,dy) + a(dx,dy)
-
-  return res, jac
-end
-
-conv(u,∇u) = (∇u')⋅u
-
-function a_solid(x,dy,σ,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( j⋅v_j - σ*φ*(∇⋅v_j) + (∇⋅j)*v_φ)dΩ
-end
-
-function a_augmented_lagragian(x,dy,ζ,dΩf)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  return ∫( ζ*(∇⋅u)*(∇⋅v_u) ) * dΩf
-end
-
-function a_mhd(x,dy,β,γ,B,σ,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫(
-    β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u) -(γ*(j×B)⋅v_u) -
-    (∇⋅u)*v_p +
-    j⋅v_j - σ*φ*(∇⋅v_j) - σ*(u×B)⋅v_j +
-    - (∇⋅j)*v_φ ) * dΩ
-end
-
-function ℓ_mhd(dy,f,dΩ)
-  v_u, v_p, v_j, v_φ = dy
-  ∫( v_u⋅f )*dΩ
-end
-
-function c_mhd(x,dy,α,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( α*v_u⋅(conv∘(u,∇(u))) ) * dΩ
-end
-
-function dc_mhd(x,dx,dy,α,dΩ)
-  u, p, j, φ = x
-  du , dp , dj , dφ  = dx
-  v_u, v_p, v_j, v_φ = dy
-  ∫( α*v_u⋅( (conv∘(u,∇(du))) + (conv∘(du,∇(u))) ) ) * dΩ
-end
-
-function ℓ_φ(dy,φ,n_Γ,dΓ)
-  v_u, v_p, v_j, v_φ = dy
-  ∫( -(v_j⋅n_Γ)*φ )*dΓ
-end
-
-function ℓ_f(dy,f,dΩ)
-  v_u, v_p, v_j, v_φ = dy
-  ∫( v_u⋅f )*dΩ
-end
-
-function ℓ_thin_wall(dy,τ,cw,jw,n_Γ,dΓ)
-  v_u, v_p, v_j, v_φ = dy
-  ∫( τ*(v_j⋅n_Γ)*jw ) * dΓ
-end
-
-function a_thin_wall(x,dy,τ,cw,jw,n_Γ,dΓ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( τ*((v_j⋅n_Γ)*(j⋅n_Γ) + cw*(v_j⋅n_Γ)*(n_Γ⋅(∇(j)⋅n_Γ))) )*dΓ
-end
-
-function a_B(x,dy,γ,B,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
 end
