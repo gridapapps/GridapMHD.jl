@@ -118,7 +118,7 @@ Valid keys for `params[:solver]` are the following:
 
 # Mandatory keys
 - `:solver`: Name of the selected solver.
-            Valid values are `[:julia, :petsc, :block_gmres_li2019]`.
+            Valid values are `[:julia, :petsc, :li2019]`.
 
 # Optional keys
 -  `:rtol` : Relative tolerance.
@@ -177,9 +177,9 @@ function default_solver_params(::Val{:petsc})
   )
 end
 
-function default_solver_params(::Val{:block_gmres_li2019})
+function default_solver_params(::Val{:li2019})
   return Dict(
-    :solver => :block_gmres_li2019,
+    :solver => :li2019,
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
@@ -195,7 +195,7 @@ uses_petsc(solver::Symbol) = uses_petsc(Val(solver))
 
 uses_petsc(::Val{:julia}) = false
 uses_petsc(::Val{:petsc}) = true
-uses_petsc(::Val{:block_gmres_li2019}) = true
+uses_petsc(::Val{:li2019}) = true
 
 function snes_postpro(cache,info)
   snes = cache.snes[]

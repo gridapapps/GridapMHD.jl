@@ -70,13 +70,13 @@ hunt(
   debug=false,
   vtk=true,
   title="hunt",
-  solver=:block_gmres_li2019,
+  solver=:li2019,
 )
 """
 
 # Li2019, MUMPS for Dj
 solver = Dict(
-  :solver        => :block_gmres_li2019,
+  :solver        => :li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
   :block_solvers => [:gmres_schwarz,:gmres_schwarz,:cg_jacobi,:cg_jacobi],
@@ -108,7 +108,7 @@ petsc_options = """
   -sub_pc_type lu
 """
 solver = Dict(
-  :solver        => :block_gmres_li2019,
+  :solver        => :li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
   :block_solvers => [:from_options,:gmres_schwarz,:cg_jacobi,:cg_jacobi],

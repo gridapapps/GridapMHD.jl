@@ -9,13 +9,13 @@ using GridapMHD: cavity
 cavity()
 
 # Serial, GMRES + block LU solvers
-cavity(solver=:block_gmres_li2019)
+cavity(solver=:li2019)
 
 # Sequential, PETSc - SNES + MUMPS
 cavity(np=2,backend=:sequential,solver=:petsc)
 
 # Sequential, GMRES + block LU solvers
-cavity(np=2,backend=:sequential,solver=:block_gmres_li2019)
+cavity(np=2,backend=:sequential,solver=:li2019)
 
 # Sequential, GMRES + block preconditioners
 petsc_options = """
@@ -31,7 +31,7 @@ petsc_options = """
   -sub_pc_type lu
 """
 solver = Dict(
-  :solver        => :block_gmres_li2019,
+  :solver        => :li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
   :block_solvers => [:from_options,:gmres_schwarz,:cg_jacobi,:cg_jacobi],

@@ -9,11 +9,11 @@ using GridapMHD: cavity
 cavity(np=4,nc=(4,4,4),backend=:mpi,solver=:petsc)
 
 # GMRES + block LU solvers
-cavity(np=4,nc=(4,4,4),backend=:mpi,solver=:block_gmres_li2019)
+cavity(np=4,nc=(4,4,4),backend=:mpi,solver=:li2019)
 
 # GMRES + block preconditioners
 solver = Dict(
-  :solver        => :block_gmres_li2019,
+  :solver        => :li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
   :block_solvers => [:amg,:gmres_swartz,:amg,:cg_jacobi,:cg_jacobi],
