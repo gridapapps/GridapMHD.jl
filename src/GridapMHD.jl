@@ -30,6 +30,7 @@ include("Meshers/meshers.jl")
 # Solvers
 include("Solvers/petsc.jl")
 include("Solvers/li2019.jl")
+include("Solvers/badia2024.jl")
 
 # Main driver
 include("Fixes.jl")
