@@ -10,10 +10,7 @@
 """
 function Li2019Solver(op::FEOperator,params)
 
-  if isa(params[:ζ],Nothing)
-    params[:ζ] = 0.0
-  end
-  α1 = params[:ζ] + params[:fluid][:β]
+  α1 = params[:fluid][:ζ] + params[:fluid][:β]
   inv_α1 = 1.0/α1
 
   # Preconditioner

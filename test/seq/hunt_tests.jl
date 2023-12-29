@@ -74,6 +74,25 @@ hunt(
 )
 """
 
+solver = Dict(
+  :solver         => :badia2024,
+  :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+  :vector_type    => Vector{PetscScalar},
+  :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+  :block_solvers  => [:gmres_schwarz,:cg_jacobi,:cg_jacobi],
+)
+hunt(
+  nc=(4,4),
+  np=(2,2),
+  backend=:sequential,
+  L=1.0,
+  B=(0.,50.,0.),
+  debug=false,
+  vtk=true,
+  title="hunt",
+  solver=solver,
+)
+
 # Li2019, MUMPS for Dj
 solver = Dict(
   :solver        => :li2019,

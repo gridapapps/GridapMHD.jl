@@ -1,17 +1,12 @@
 
 function Badia2024Solver(op::FEOperator,params)
-  if isa(params[:ζ],Nothing)
-    params[:ζ] = 0.0
-  end
-  α1 = params[:ζ] + params[:fluid][:β]
-  inv_α1 = 1.0/α1
 
   # Preconditioner
   model = params[:model]
   k  = params[:fespaces][:k]
   Ωf = _interior(model,params[:fluid][:domain])
   dΩ = Measure(Ωf,2*k)
-  a_Ip(p,v_p) = ∫(-inv_α1*p*v_p)*dΩ
+  a_Ip(p,v_p) = ∫(p*v_p)*dΩ
   a_Iφ(φ,v_φ) = ∫(-φ*v_φ)*dΩ
 
   U_u, U_p, U_j, U_φ = get_trial(op)

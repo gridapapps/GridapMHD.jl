@@ -83,7 +83,6 @@ function add_default_params(_params)
     :fespaces=>false,
     :solver=>true,
     :check_valid=>false,
-    :ζ=>false,
   )
   _check_mandatory(_params,mandatory,"")
   optional = Dict(
@@ -95,7 +94,6 @@ function add_default_params(_params)
     :solid=>nothing,
     :fespaces=>nothing,
     :check_valid=>true,
-    :ζ=>nothing,
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
   _check_unused(params,mandatory,params,"")
@@ -118,7 +116,7 @@ Valid keys for `params[:solver]` are the following:
 
 # Mandatory keys
 - `:solver`: Name of the selected solver.
-            Valid values are `[:julia, :petsc, :li2019]`.
+            Valid values are `[:julia, :petsc, :li2019, :badia2024]`.
 
 # Optional keys
 -  `:rtol` : Relative tolerance.
@@ -184,8 +182,21 @@ function default_solver_params(::Val{:li2019})
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_solver_postpro(cache,info)),
-    :block_solvers  => [:mumps,:mumps,:mumps,:mumps],
-    :niter          => 150,
+    :block_solvers  => [:mumps,:gmres_schwarz,:cg_jacobi,:cg_jacobi],
+    :niter          => 80,
+    :rtol           => 1e-5,
+  )
+end
+
+function default_solver_params(::Val{:badia2024})
+  return Dict(
+    :solver => :badia2024,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+    :solver_postpro => ((cache,info) -> gridap_solver_postpro(cache,info)),
+    :block_solvers  => [:mumps,:cg_jacobi,:cg_jacobi],
+    :niter          => 80,
     :rtol           => 1e-5,
   )
 end
@@ -196,6 +207,7 @@ uses_petsc(solver::Symbol) = uses_petsc(Val(solver))
 uses_petsc(::Val{:julia}) = false
 uses_petsc(::Val{:petsc}) = true
 uses_petsc(::Val{:li2019}) = true
+uses_petsc(::Val{:badia2024}) = true
 
 function snes_postpro(cache,info)
   snes = cache.snes[]
@@ -280,6 +292,7 @@ Valid keys for `params[:fluid]` are the following.
 # Optional keys
 -  `:f=>VectorValue(0,0,0)`: Value of the parameter `f`.
 -  `:σ=>1`: Value of the parameter `σ`.
+-  `:ζ=>0`: Value of the augmented lagrangian weight.
 """
 function params_fluid(params::Dict{Symbol,Any})
   mandatory = Dict(
@@ -290,8 +303,9 @@ function params_fluid(params::Dict{Symbol,Any})
    :B=>true,
    :f=>false,
    :σ=>false,
+   :ζ=>false,
   )
-  optional = Dict(:σ=>1,:f=>VectorValue(0,0,0))
+  optional = Dict(:σ=>1.0,:f=>VectorValue(0,0,0),:ζ=>0.0)
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
   fluid
 end

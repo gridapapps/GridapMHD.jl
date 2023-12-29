@@ -199,11 +199,13 @@ end
 _solver(::Val{:julia},op,params) = NLSolver(show_trace=true,method=:newton)
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
 _solver(::Val{:li2019},op,params) = Li2019Solver(op,params)
+_solver(::Val{:badia2024},op,params) = Badia2024Solver(op,params)
 
 _multi_field_style(params) = _multi_field_style(Val(params[:solver][:solver]))
 _multi_field_style(::Val{:julia}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:petsc}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:li2019}) = BlockMultiFieldStyle(4,(1,1,1,1),(3,1,2,4)) # (j,u,p,φ)
+_multi_field_style(::Val{:badia2024}) = BlockMultiFieldStyle(3,(2,1,1),(1,3,2,4)) # ([u,j],p,φ)
 
 function _fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
   k = params[:fespaces][:k]

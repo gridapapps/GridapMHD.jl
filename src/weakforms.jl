@@ -20,7 +20,7 @@ function weak_form(params,k)
     if solid !== nothing
       r = r + a_solid(x,dy,σs,dΩs)
     end
-    if ζ !== nothing
+    if abs(ζ) > eps(typeof(ζ))
       r = r + a_augmented_lagragian(x,dy,ζ,dΩf)
     end
     r
@@ -67,7 +67,7 @@ function retrieve_fluid_params(params,k)
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
   f = fluid[:f]
   B = fluid[:B]
-  ζ = params[:ζ]
+  ζ = fluid[:ζ]
   return Ωf, dΩf, α, β, γ, σf, f, B, ζ
 end
 
