@@ -140,7 +140,7 @@ end
   ranks_per_level :: Number of processors per level
   num_refs_coarse :: Number of refinements to perform for the coarsest model. 
                      Finest mesh will have 
-                        num_cells = 12*2^(3*(num_refs+num_levels))
+                        num_cells = 12*2^(3*(num_refs_coarse+num_levels))
                      where 
                         num_levels = length(ranks_per_level)
 """

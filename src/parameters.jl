@@ -31,6 +31,19 @@ function _add_optional(_subparams,mandatory,optional,params,p)
   subparams
 end
 
+function _add_optional_weak(_subparams,mandatory,optional,params,p)
+  # New dict
+  subparams = Dict{Symbol,Any}()
+  merge!(subparams,_subparams)
+  # Set default args
+  for key in keys(optional)
+    if !haskey(subparams,key)
+      subparams[key] = optional[key]
+    end
+  end
+  subparams
+end
+
 function _check_unused(subparams,mandatory,params,p)
   if params[:check_valid]
     for key in keys(subparams)
@@ -82,17 +95,18 @@ function add_default_params(_params)
     :bcs=>true,
     :fespaces=>false,
     :solver=>true,
+    :multigrid=>false,
     :check_valid=>false,
   )
   _check_mandatory(_params,mandatory,"")
   optional = Dict(
     :ptimer=>default_ptimer(_params[:model]),
     :debug=>false,
-    :solve=>true,
     :res_assemble=>false,
     :jac_assemble=>false,
     :solid=>nothing,
     :fespaces=>nothing,
+    :multigrid=>nothing,
     :check_valid=>true,
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
@@ -105,6 +119,7 @@ function add_default_params(_params)
   params[:bcs] = params_bcs(params)
   params[:fespaces] = params_fespaces(params)
   params[:solver] = params_solver(params)
+  params[:multigrid] = params_multigrid(params)
   params
 end
 
@@ -123,6 +138,8 @@ Valid keys for `params[:solver]` are the following:
 -  `:matrix_type`: Matrix type for the linear system.
 -  `:vector_type`: Vector type for the linear system.
 -  `:solver_postpro`: Function to postprocess the solver cache, with signature f(cache,info)
+
+# Solver-dependent optional keys
 -  `:niter`: Number of iterations for the linear solver (only for iterative solvers).
 -  `:petsc_options`: PETSc options for the linear solver (only if PETSc is used).
 -  `:block_solvers`: Array of solvers for the diagonal blocks (only for block-based solvers).
@@ -135,17 +152,17 @@ function params_solver(params::Dict{Symbol,Any})
 
   mandatory = Dict(
    :solver=>true,
+   :rtol=>false,
    :matrix_type=>false,
    :vector_type=>false,
-   :petsc_options=>false,
    :solver_postpro=>false,
-   :block_solvers=>false,
    :niter=>false,
-   :rtol=>false,
+   :petsc_options=>false,
+   :block_solvers=>false,
   )
   _check_mandatory(params[:solver],mandatory,"[:solver]")
   optional = default_solver_params(Val(params[:solver][:solver]))
-  solver   = _add_optional(params[:solver],mandatory,optional,params,"[:fluid]")
+  solver   = _add_optional_weak(params[:solver],mandatory,optional,params,"[:solver]")
   return solver
 end
 
@@ -155,9 +172,6 @@ function default_solver_params(::Val{:julia})
     :matrix_type    => SparseMatrixCSC{Float64,Int64},
     :vector_type    => Vector{Float64},
     :solver_postpro => ((cache,info) -> nothing),
-    :petsc_options  => "",
-    :block_solvers  => [],
-    :niter          => 1,
     :rtol           => 1e-5,
   )
 end
@@ -168,8 +182,7 @@ function default_solver_params(::Val{:petsc})
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :solver_postpro => ((cache,info) -> snes_postpro(cache,info)),
-    :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps",
-    :block_solvers  => [],
+    :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0",
     :niter          => 100,
     :rtol           => 1e-5,
   )
@@ -181,7 +194,7 @@ function default_solver_params(::Val{:li2019})
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
-    :solver_postpro => ((cache,info) -> gridap_solver_postpro(cache,info)),
+    :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:mumps,:gmres_schwarz,:cg_jacobi,:cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
@@ -194,7 +207,7 @@ function default_solver_params(::Val{:badia2024})
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
-    :solver_postpro => ((cache,info) -> gridap_solver_postpro(cache,info)),
+    :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:mumps,:cg_jacobi,:cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
@@ -203,11 +216,17 @@ end
 
 uses_petsc(solver::Dict) = uses_petsc(solver[:solver])
 uses_petsc(solver::Symbol) = uses_petsc(Val(solver))
-
 uses_petsc(::Val{:julia}) = false
 uses_petsc(::Val{:petsc}) = true
 uses_petsc(::Val{:li2019}) = true
 uses_petsc(::Val{:badia2024}) = true
+
+uses_multigrid(solver::Dict) = any(space_uses_multigrid(solver))
+space_uses_multigrid(solver::Dict) = space_uses_multigrid(Val(solver[:solver]),solver)
+space_uses_multigrid(::Val{:julia},solver) = fill(false,4)
+space_uses_multigrid(::Val{:petsc},solver) = fill(false,4)
+space_uses_multigrid(::Val{:li2019},solver) = map(s -> s==:gmg, solver[:block_solvers])
+space_uses_multigrid(::Val{:badia2024},solver) = map(s -> s==:gmg, solver[:block_solvers])[[1,1,2,3]]
 
 function snes_postpro(cache,info)
   snes = cache.snes[]
@@ -219,7 +238,7 @@ function snes_postpro(cache,info)
   nothing
 end
 
-function gridap_solver_postpro(cache,info)
+function gridap_postpro(cache,info)
   ls = cache.ns.solver
   log = ls.inner_log
 
@@ -273,6 +292,28 @@ function p_conformity(Ω::GridapDistributed.DistributedTriangulation,feparams)
 end
 p_conformity(model::DiscreteModel,feparams) = p_conformity(Interior(model),feparams)
 p_conformity(model::GridapDistributed.DistributedDiscreteModel,feparams) = p_conformity(Interior(model),feparams)
+
+"""
+Valid keys for `params[:multigrid]` are the following:
+
+# Optional keys
+-  `:k`: Polynomial degree for the fluid velocity.
+-  `:p_space`: FESpace conformity for pressure. Possible values are [:P,:Q]
+"""
+function params_multigrid(params::Dict{Symbol,Any})
+  solver = params[:solver]
+  if !uses_multigrid(solver)
+    if !isa(params[:multigrid],Nothing)
+      @warn "Multigrid is not used with solver $(solver[:solver]). Ignoring params[:multigrid]."
+    end
+    return nothing
+  end
+  if isa(params[:multigrid],Nothing) || !haskey(params[:multigrid],:mh)
+    @error "Multigrid is used with solver $(solver[:solver]), but params[:multigrid] is missing!"
+  end
+  multigrid = params[:multigrid]
+  return multigrid
+end
 
 """
 Valid keys for `params[:fluid]` are the following.

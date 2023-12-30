@@ -47,13 +47,21 @@ function _expansion(;
   debug = false,
   verbose = true,
   solver  = :julia,
+  formulation = :cfd,
   N  = 1.0,
   Ha = 1.0,
   cw = 0.028,
   τ  = 100,
   )
   
-  info = Dict{Symbol,Any}()
+  info   = Dict{Symbol,Any}()
+  params = Dict{Symbol,Any}(
+    :debug=>debug,
+    :solve=>true,
+    :res_assemble=>false,
+    :jac_assemble=>false,
+    :solver=>solver,
+  )
 
   if isa(distribute,Nothing)
     @assert isa(rank_partition,Nothing)
@@ -63,59 +71,46 @@ function _expansion(;
   parts = distribute(LinearIndices((prod(rank_partition),)))
 
   t = PTimer(parts,verbose=verbose)
+  params[:ptimer] = t
   tic!(t,barrier=true)
 
-  # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
-  # after and before the expansion respectively.
-  # We assume L=1 in the mesh read from msh_file
-  msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh*".msh") |> normpath
-  model = GmshDiscreteModel(parts,msh_file)
+  # Mesh
+  model = expansion_mesh(mesh,parts,params)
   if debug && vtk
     writevtk(model,"expansion_model")
-    toc!(t,"model")
   end
   Ω = Interior(model,tags="PbLi")
-  toc!(t,"triangulation")
+  toc!(t,"model")
 
   # Parameters and bounday conditions
 
-  # Option 1 (CFD)
-  # α = 1.0
-  # β = 1.0/Re
-  # γ = N
-  # Option 2 (MHD) is chosen in the experimental article
-  α = (1.0/N)
-  β = (1.0/Ha^2)
-  γ = 1.0
-
-  # This gives mean(u_inlet)=1
-  u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)
-
-  if isa(solver,Symbol)
-    solver = default_solver_params(Val(solver))
-    solver[:petsc_options] = "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
+  # Fluid parameters
+  Re = Ha^2/N
+  if formulation == :cfd # Option 1 (CFD)
+    α = 1.0
+    β = 1.0/Re
+    γ = N
+  elseif formulation == :mhd # Option 2 (MHD) is chosen in the experimental article
+    α = (1.0/N)
+    β = (1.0/Ha^2)
+    γ = 1.0
+  else
+    error("Unknown formulation")
   end
 
-  params = Dict(
-    :ptimer=>t,
-    :debug=>debug,
-    :solve=>true,
-    :res_assemble=>false,
-    :jac_assemble=>false,
-    :model => model,
-    :fluid=>Dict(
-      :domain=>model,
-      :α=>α,
-      :β=>β,
-      :γ=>γ,
-      :f=>VectorValue(0.0,0.0,0.0),
-      :B=>VectorValue(0.0,1.0,0.0),
-    ),
-    :solver=>solver,
-   )
+  params[:fluid] = Dict(
+    :domain => params[:model],
+    :α => α,
+    :β => β,
+    :γ => γ,
+    :f => VectorValue(0.0,0.0,0.0),
+    :B => VectorValue(0.0,1.0,0.0),
+  )
 
+  # Boundary conditions
+  u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0) # This gives mean(u_inlet)=1
   if cw == 0.0
-   params[:bcs] = Dict( 
+    params[:bcs] = Dict( 
       :u => Dict(
         :tags => ["inlet", "wall"],
         :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
@@ -125,9 +120,8 @@ function _expansion(;
         :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
       )
     )
-
   else 
-   params[:bcs] = Dict(
+    params[:bcs] = Dict(
       :u => Dict(
         :tags => ["inlet", "wall"],
         :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
@@ -146,7 +140,7 @@ function _expansion(;
 
   toc!(t,"pre_process")
 
-  # Solve it
+  # Main solve
   if !uses_petsc(params[:solver])
     xh,fullparams,info = main(params;output=info)
   else
@@ -160,8 +154,8 @@ function _expansion(;
   t = fullparams[:ptimer]
   tic!(t,barrier=true)
 
+  # Post-process
   uh,ph,jh,φh = xh
-
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=2,
@@ -182,6 +176,30 @@ function _expansion(;
   info[:Ha] = Ha
   info[:N]  = N
   info[:Re] = Ha^2/N
-  info, t
+  return info, t
+end
 
+function expansion_mesh(mesh::String,ranks,params)
+  # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
+  # after and before the expansion respectively (L=1).
+  msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh*".msh") |> normpath
+  model = GmshDiscreteModel(ranks,msh_file)
+  params[:model] = model
+  return model
+end
+
+function expansion_mesh(mesh::Dict,ranks,params)
+  @assert haskey(mesh,:num_refs_coarse) && haskey(mesh,:ranks_per_level)
+  num_refs_coarse = mesh[:num_refs_coarse]
+  ranks_per_level = mesh[:ranks_per_level]
+  mh = expansion_generate_mesh_hierarchy(ranks,num_refs_coarse,ranks_per_level)
+  params[:multigrid] = Dict{Symbol,Any}(
+    :mh => mh,
+    :num_refs_coarse => num_refs_coarse,
+    :ranks_per_level => ranks_per_level,
+  )
+
+  model = get_model(mh,1)
+  params[:model] = model
+  return model
 end
