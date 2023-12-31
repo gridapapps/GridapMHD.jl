@@ -36,6 +36,22 @@ function Badia2024Solver(op::FEOperator,params)
   return nl_solver
 end
 
-function badia2024_gmg(op::FEOperator,params)
+function badia2024_gmg(params)
+  mh = params[:multigrid][:mh]
+  trials = MultiFieldFESpace(params[:multigrid][:trials][[1,3]])
+  tests  = MultiFieldFESpace(params[:multigrid][:tests][[1,3]])
+  
+  nlevs = num_levels(mh)
+  k = params[:fespaces][:k]
+  qdegree = map(lev -> 2*k,1:nlevs)
+  
+  function jac_uj(x,y,dΩ)
+    u,j = x
+    v_u,v_j = y
+    # TODO: Add thin_wall bcs... how we deal with more than one triangulation?
+    r = a_mhd_u_u(u,v_u,β,dΩ) + a_mhd_u_j(j,v_u,γ,B,dΩ) + a_mhd_j_u(u,v_j,σ,B,dΩ) + a_mhd_j_j(j,v_j,dΩ)
+    return r
+  end
 
+  return gmg_solver(mh,trials,tests,jac_uj,qdegree)
 end
