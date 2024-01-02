@@ -135,7 +135,7 @@ function _expansion(;
       :thin_wall => [Dict(
         :τ=>τ,
         :cw=>cw,
-        :domain => Boundary(model, tags="wall")
+        :domain => ["wall"],
       )]
     )
   end

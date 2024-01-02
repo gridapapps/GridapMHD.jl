@@ -13,21 +13,20 @@ function gmg_solver(::Val{(1,3)},params)
   nlevs = num_levels(mh)
   k = params[:fespaces][:k]
   qdegree = map(lev -> 2*k,1:nlevs)
+
   _, _, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
   
-  function jac_uj(x,y,dΩ)
-    u, j = x
-    v_u, v_j = y
-    # TODO: Add thin_wall bcs... how we deal with more than one triangulation?
-    # TODO: Add nonlinear terms to u-u
-    r = a_mhd_u_u(u,v_u,β,dΩ) + a_mhd_u_j(j,v_u,γ,B,dΩ) + a_mhd_j_u(u,v_j,σf,B,dΩ) + a_mhd_j_j(j,v_j,dΩ)
+  function jacobian_uj(dx,dy,dΩ)
+    du, dj = dx
+    v_u, v_j = dy
+    r = a_mhd_u_u(du,v_u,β,dΩ) + a_mhd_u_j(dj,v_u,γ,B,dΩ) + a_mhd_j_u(du,v_j,σf,B,dΩ) + a_mhd_j_j(dj,v_j,dΩ)
     if abs(ζ) > eps(typeof(ζ))
-      r = r + a_al_u_u(u,v_u,ζ,dΩ) + a_al_j_j(j,v_j,ζ,dΩ)
+      r = r + a_al_u_u(du,v_u,ζ,dΩ) + a_al_j_j(dj,v_j,ζ,dΩ)
     end
     return r
   end
 
-  return gmg_solver(mh,trials,tests,jac_uj,qdegree)
+  return gmg_solver(mh,trials,tests,jacobian_uj,qdegree)
 end
 
 function gmg_solver(mh,trials,tests,biform,qdegree)
@@ -36,7 +35,7 @@ function gmg_solver(mh,trials,tests,biform,qdegree)
   restrictions, prolongations = setup_transfer_operators(trials,
                                                          qdegree;
                                                          mode=:residual,
-                                                         solver=IS_ConjugateGradientSolver(;reltol=1.e-6))
+                                                         solver=CGSolver(JacobiLinearSolver();rtol=1.e-6))
 
   smoothers = gmg_patch_smoothers(mh,tests,biform,qdegree)
 
@@ -47,12 +46,12 @@ function gmg_solver(mh,trials,tests,biform,qdegree)
                         restrictions,
                         pre_smoothers=smoothers,
                         post_smoothers=smoothers,
-                        coarsest_solver=PETScLinearSolver(petsc_mumps_setup),
+                        coarsest_solver=LUSolver(),#PETScLinearSolver(petsc_mumps_setup),
                         maxiter=1,
                         rtol=1.0e-8,
                         verbose=false,
                         mode=:preconditioner)
-  solver = GMRESSolver(5;Pr=gmg,m_add=3,maxiter=15,rtol=1.0e-8,verbose=i_am_main(ranks))
+  solver = FGMRESSolver(10,gmg;m_add=5,maxiter=20,rtol=1.0e-6,verbose=i_am_main(ranks))
   return solver
 end
 
@@ -91,7 +90,7 @@ function gmg_patch_smoothers(mh,tests,biform,qdegree)
       dΩ = Measure(Ω,qdegree[lev])
       local_solver   = LUSolver()
       patch_smoother = PatchBasedLinearSolver(biform,Ph,Vh,dΩ,local_solver)
-      smoothers[lev] = RichardsonSmoother(patch_smoother,5,0.2)
+      smoothers[lev] = RichardsonSmoother(patch_smoother,10,0.1)
     end
   end
   return smoothers

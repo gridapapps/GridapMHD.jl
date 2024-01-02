@@ -30,6 +30,7 @@ using PartitionedArrays: getany
 include("Meshers/meshers.jl")
 
 # Solvers
+include("Solvers/gridap.jl")
 include("Solvers/petsc.jl")
 include("Solvers/gmg.jl")
 include("Solvers/li2019.jl")

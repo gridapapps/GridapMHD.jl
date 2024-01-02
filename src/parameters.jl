@@ -195,7 +195,7 @@ function default_solver_params(::Val{:li2019})
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
-    :block_solvers  => [:mumps,:gmres_schwarz,:cg_jacobi,:cg_jacobi],
+    :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
   )
@@ -208,7 +208,7 @@ function default_solver_params(::Val{:badia2024})
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
-    :block_solvers  => [:mumps,:cg_jacobi,:cg_jacobi],
+    :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
   )

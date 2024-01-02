@@ -295,47 +295,23 @@ end
 
 # Sub-triangulations
 
-function _fluid_mesh(
-  model,domain::Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel})
+const DiscreteModelTypes = Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel}
+const TriangulationTypes = Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation}
+
+function _fluid_mesh(model,domain::DiscreteModelTypes)
   msg = "params[:fluid][:domain] is a discrete model, but params[:fluid][:domain]===params[:model] is not true."
   @assert model === domain msg
-  domain
+  return domain
 end
+_fluid_mesh(model,domain::TriangulationTypes) = domain
+_fluid_mesh(model,domain) = Interior(model,tags=domain)
 
-function _fluid_mesh(
-  model,
-  domain::Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation})
-  domain
-end
+_interior(model,domain::DiscreteModelTypes) = Interior(domain)
+_interior(model,domain::TriangulationTypes) = domain
+_interior(model,domain) = Interior(model,tags=domain)
 
-function _fluid_mesh( model, domain)
-  Interior(model,tags=domain)
-end
-
-function _interior(
-  model,domain::Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel})
-  Interior(domain)
-end
-
-function _interior(
-  model,
-  domain::Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation})
-  domain
-end
-
-function _interior( model, domain)
-  Interior(model,tags=domain)
-end
-
-function _boundary(
-  model,
-  domain::Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation})
-  domain
-end
-
-function _boundary( model, domain)
-  Boundary(model,tags=domain)
-end
+_boundary(model,domain::TriangulationTypes) = domain
+_boundary(model,domain) = Boundary(model,tags=domain)
 
 # Random vector generation
 

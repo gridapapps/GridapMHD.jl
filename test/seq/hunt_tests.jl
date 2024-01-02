@@ -79,7 +79,7 @@ solver = Dict(
   :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type    => Vector{PetscScalar},
   :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
-  :block_solvers  => [:gmres_schwarz,:cg_jacobi,:cg_jacobi],
+  :block_solvers  => [:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
 )
 hunt(
   nc=(4,4),
@@ -98,7 +98,7 @@ solver = Dict(
   :solver        => :li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
-  :block_solvers => [:gmres_schwarz,:gmres_schwarz,:cg_jacobi,:cg_jacobi],
+  :block_solvers => [:petsc_gmres_schwarz,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
   :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
 )
 hunt(
@@ -130,7 +130,7 @@ solver = Dict(
   :solver        => :li2019,
   :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
   :vector_type   => Vector{PetscScalar},
-  :block_solvers => [:from_options,:gmres_schwarz,:cg_jacobi,:cg_jacobi],
+  :block_solvers => [:petsc_from_options,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
   :petsc_options => petsc_options
 )
 hunt(

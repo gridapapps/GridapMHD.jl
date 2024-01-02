@@ -21,7 +21,7 @@ function weak_form(params,k)
       r = r + a_solid(x,dy,σs,dΩs)
     end
     if abs(ζ) > eps(typeof(ζ))
-      r = r + a_augmented_lagragian(x,dy,ζ,dΩf)
+      r = r + a_al(x,dy,ζ,dΩf)
     end
     r
   end
@@ -57,11 +57,13 @@ function weak_form(params,k)
 end
 
 ############################################################################################
-# Parameter retrieval 
+# Parameter retrieval
 
-function retrieve_fluid_params(params,k)
+retrieve_fluid_params(params,k) = retrieve_fluid_params(params[:model],params,k)
+
+function retrieve_fluid_params(model,params,k)
   fluid = params[:fluid]
-  Ωf    = _interior(params[:model],fluid[:domain])
+  Ωf    = _interior(model,fluid[:domain])
   dΩf   = Measure(Ωf,2*k)
 
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
@@ -71,10 +73,12 @@ function retrieve_fluid_params(params,k)
   return Ωf, dΩf, α, β, γ, σf, f, B, ζ
 end
 
-function retrieve_solid_params(params,k)
+retrieve_solid_params(params,k) = retrieve_solid_params(params[:model],params,k)
+
+function retrieve_solid_params(model,params,k)
   solid = params[:solid]
   if solid !== nothing
-    Ωs  = _interior(params[:model],solid[:domain])
+    Ωs  = _interior(model,solid[:domain])
     dΩs = Measure(Ωs,2*k)
     σs  = solid[:σ]
     return Ωs, dΩs, σs
@@ -83,13 +87,15 @@ function retrieve_solid_params(params,k)
   end
 end
 
-function retrieve_bcs_params(params,k)
+retrieve_bcs_params(params,k) = retrieve_bcs_params(params[:model],params,k)
+
+function retrieve_bcs_params(model,params,k)
   bcs = params[:bcs]
 
   params_φ = []
   for i in 1:length(bcs[:φ])
     φ_i = bcs[:φ][i][:value]
-    Γ   = _boundary(params[:model],bcs[:φ][i][:domain])
+    Γ   = _boundary(model,bcs[:φ][i][:domain])
     dΓ  = Measure(Γ,2*k)
     n_Γ = get_normal_vector(Γ)
     push!(params_φ,(φ_i,n_Γ,dΓ))
@@ -100,7 +106,7 @@ function retrieve_bcs_params(params,k)
     τ_i  = bcs[:thin_wall][i][:τ]
     cw_i = bcs[:thin_wall][i][:cw]
     jw_i = bcs[:thin_wall][i][:jw]
-    Γ    = _boundary(params[:model],bcs[:thin_wall][i][:domain])
+    Γ    = _boundary(model,bcs[:thin_wall][i][:domain])
     dΓ   = Measure(Γ,2*k)
     n_Γ  = get_normal_vector(Γ)
     push!(params_thin_wall,(τ_i,cw_i,jw_i,n_Γ,dΓ))
@@ -113,7 +119,7 @@ function retrieve_bcs_params(params,k)
   params_f = []
   for i in 1:length(bcs[:f])
     f_i  = bcs[:f][i][:value]
-    Ω_i  = _interior(params[:model],bcs[:f][i][:domain])
+    Ω_i  = _interior(model,bcs[:f][i][:domain])
     dΩ_i = Measure(Ω_i,2*k)
     push!(params_f,(f_i,dΩ_i))
   end
@@ -121,7 +127,7 @@ function retrieve_bcs_params(params,k)
   params_B = []
   for i in 1:length(bcs[:B])
     B_i  = bcs[:B][i][:value]
-    Ω_i  = _interior(params[:model],bcs[:B][i][:domain])
+    Ω_i  = _interior(model,bcs[:B][i][:domain])
     dΩ_i = Measure(Ω_i,2*k)
     push!(params_f,(γ,B_i,dΩ_i))
   end
