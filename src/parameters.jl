@@ -226,7 +226,7 @@ space_uses_multigrid(solver::Dict) = space_uses_multigrid(Val(solver[:solver]),s
 space_uses_multigrid(::Val{:julia},solver) = fill(false,4)
 space_uses_multigrid(::Val{:petsc},solver) = fill(false,4)
 space_uses_multigrid(::Val{:li2019},solver) = map(s -> s==:gmg, solver[:block_solvers])
-space_uses_multigrid(::Val{:badia2024},solver) = map(s -> s==:gmg, solver[:block_solvers])[[1,1,2,3]]
+space_uses_multigrid(::Val{:badia2024},solver) = map(s -> s==:gmg, solver[:block_solvers])[[1,2,1,3]]
 
 function snes_postpro(cache,info)
   snes = cache.snes[]

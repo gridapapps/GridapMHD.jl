@@ -13,7 +13,7 @@ function Badia2024Solver(op::FEOperator,params)
   V_u, V_p, V_j, V_φ = get_test(op)
 
   NB = 3
-  diag_solvers = map(s -> get_block_solver(Val(s)),params[:solver][:block_solvers])
+  diag_solvers = map(s -> get_block_solver(Val(s),params),params[:solver][:block_solvers])
   diag_blocks  = [NonlinearSystemBlock(),BiformBlock(a_Ip,U_p,V_p),BiformBlock(a_Iφ,U_φ,V_φ)]
   blocks = map(CartesianIndices((NB,NB))) do I
     (I[1] == I[2]) ? diag_blocks[I[1]] : LinearSystemBlock()
@@ -36,22 +36,7 @@ function Badia2024Solver(op::FEOperator,params)
   return nl_solver
 end
 
-function badia2024_gmg(params)
-  mh = params[:multigrid][:mh]
-  trials = MultiFieldFESpace(params[:multigrid][:trials][[1,3]])
-  tests  = MultiFieldFESpace(params[:multigrid][:tests][[1,3]])
-  
-  nlevs = num_levels(mh)
-  k = params[:fespaces][:k]
-  qdegree = map(lev -> 2*k,1:nlevs)
-  
-  function jac_uj(x,y,dΩ)
-    u,j = x
-    v_u,v_j = y
-    # TODO: Add thin_wall bcs... how we deal with more than one triangulation?
-    r = a_mhd_u_u(u,v_u,β,dΩ) + a_mhd_u_j(j,v_u,γ,B,dΩ) + a_mhd_j_u(u,v_j,σ,B,dΩ) + a_mhd_j_j(j,v_j,dΩ)
-    return r
-  end
-
-  return gmg_solver(mh,trials,tests,jac_uj,qdegree)
-end
+# For multiple triangulations, we could pass a function that creates the measures 
+# from the model and q-degree. 
+# For now let's leave it like this... the top level should have everything, the low level corrections will not
+# but it's ok...

@@ -15,6 +15,8 @@ using Gridap.Helpers, Gridap.Algebra, Gridap.CellData, Gridap.ReferenceFEs
 using Gridap.Geometry, Gridap.FESpaces, Gridap.MultiField
 
 using GridapDistributed
+using GridapDistributed: i_am_in, i_am_main
+
 using GridapGmsh
 using GridapPETSc
 
@@ -29,6 +31,7 @@ include("Meshers/meshers.jl")
 
 # Solvers
 include("Solvers/petsc.jl")
+include("Solvers/gmg.jl")
 include("Solvers/li2019.jl")
 include("Solvers/badia2024.jl")
 

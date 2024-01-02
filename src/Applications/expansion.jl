@@ -52,6 +52,7 @@ function _expansion(;
   Ha = 1.0,
   cw = 0.028,
   τ  = 100,
+  ζ  = 0.0,
   )
   
   info   = Dict{Symbol,Any}()
@@ -105,6 +106,7 @@ function _expansion(;
     :γ => γ,
     :f => VectorValue(0.0,0.0,0.0),
     :B => VectorValue(0.0,1.0,0.0),
+    :ζ => ζ,
   )
 
   # Boundary conditions
@@ -192,7 +194,7 @@ function expansion_mesh(mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs_coarse) && haskey(mesh,:ranks_per_level)
   num_refs_coarse = mesh[:num_refs_coarse]
   ranks_per_level = mesh[:ranks_per_level]
-  mh = expansion_generate_mesh_hierarchy(ranks,num_refs_coarse,ranks_per_level)
+  mh = Meshers.expansion_generate_mesh_hierarchy(ranks,num_refs_coarse,ranks_per_level)
   params[:multigrid] = Dict{Symbol,Any}(
     :mh => mh,
     :num_refs_coarse => num_refs_coarse,

@@ -298,9 +298,9 @@ version = "1.9.3"
 
 [[deps.FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "Setfield", "SparseArrays"]
-git-tree-sha1 = "c6e4a1fbe73b31a3dea94b1da449503b8830c306"
+git-tree-sha1 = "73d1214fec245096717847c62d389a5d2ac86504"
 uuid = "6a86dc24-6348-571c-b903-95158fe2bd41"
-version = "2.21.1"
+version = "2.22.0"
 
     [deps.FiniteDiff.extensions]
     FiniteDiffBandedMatricesExt = "BandedMatrices"
@@ -418,7 +418,7 @@ version = "0.5.0"
 
 [[deps.GridapSolvers]]
 deps = ["AbstractTrees", "ArgParse", "BlockArrays", "FillArrays", "Gridap", "GridapDistributed", "GridapP4est", "GridapPETSc", "IterativeSolvers", "LinearAlgebra", "MPI", "P4est_wrapper", "PartitionedArrays", "Printf", "SparseArrays", "SparseMatricesCSR"]
-git-tree-sha1 = "7855d11a9587008972aeb27e705c2cea54260cb0"
+git-tree-sha1 = "c5867b8191d94fbe5789da549a3594f019818f2f"
 repo-rev = "block-solvers"
 repo-url = "https://github.com/gridap/GridapSolvers.jl.git"
 uuid = "6d3209ee-5e3c-4db7-a716-942eb12ed534"
@@ -969,9 +969,9 @@ version = "2.3.1"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "fba11dbe2562eecdfcac49a05246af09ee64d055"
+git-tree-sha1 = "42d5373c10272d14ef49cc68ffc22df3b93c549a"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.8.1"
+version = "1.8.2"
 
     [deps.StaticArrays.extensions]
     StaticArraysChainRulesCoreExt = "ChainRulesCore"

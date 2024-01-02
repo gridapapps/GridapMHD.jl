@@ -228,7 +228,7 @@ function _fe_spaces(::Val{true},params)
   @assert get_model(mh,1) == model
 
   uses_mg = space_uses_multigrid(params[:solver])
-  trians  = map((m,a,b) -> m ? a : b,uses_mg,[mh,mh,mh,mh],[Ωf,model,Ωf,model])
+  trians  = map((m,a,b) -> m ? a : b ,uses_mg ,[mh,mh,mh,mh], [Ωf,Ωf,model,model])
 
   # ReferenceFEs
   D = num_cell_dims(model)
@@ -240,8 +240,8 @@ function _fe_spaces(::Val{true},params)
   # Test spaces
   mfs = _multi_field_style(params)
   V_u = TestFESpace(trians[1],reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  V_j = TestFESpace(trians[2],reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
-  V_p = TestFESpace(trians[3],reffe_p)
+  V_p = TestFESpace(trians[2],reffe_p)
+  V_j = TestFESpace(trians[3],reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
   V_φ = TestFESpace(trians[4],reffe_φ;conformity=:L2)
   
   # Trial spaces
@@ -249,8 +249,8 @@ function _fe_spaces(::Val{true},params)
   u_bc = params[:bcs][:u][:values]
   j_bc = params[:bcs][:j][:values]
   U_u = (u_bc == z) ? V_u : TrialFESpace(V_u,u_bc)
-  U_j = (j_bc == z) ? V_j : TrialFESpace(V_j,j_bc)
   U_p = TrialFESpace(V_p)
+  U_j = (j_bc == z) ? V_j : TrialFESpace(V_j,j_bc)
   U_φ = TrialFESpace(V_φ)
 
   # Sort spaces
@@ -260,12 +260,13 @@ function _fe_spaces(::Val{true},params)
     else
       trial, test, nothing, nothing
     end
-  end
+  end |> tuple_of_arrays
 
+  params[:multigrid][:variables] = findall(uses_mg)
   params[:multigrid][:trials] = sh_trials
   params[:multigrid][:tests]  = sh_tests
-  V = MultiFieldFESpace(tests;style=mfs)
-  U = MultiFieldFESpace(trials;style=mfs)
+  V = MultiFieldFESpace([tests...];style=mfs)
+  U = MultiFieldFESpace([trials...];style=mfs)
   return U, V
 end
 

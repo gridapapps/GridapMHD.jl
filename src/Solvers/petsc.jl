@@ -1,11 +1,11 @@
 
-get_block_solver(::Val{:julia})         = LUSolver()
-get_block_solver(::Val{:mumps})         = PETScLinearSolver(petsc_mumps_setup)
-get_block_solver(::Val{:amg})           = PETScLinearSolver(petsc_amg_setup)
-get_block_solver(::Val{:cg_jacobi})     = PETScLinearSolver(petsc_cg_setup)
-get_block_solver(::Val{:gmres_schwarz}) = PETScLinearSolver(petsc_gmres_schwarz_setup)
-get_block_solver(::Val{:gmres_amg})     = PETScLinearSolver(petsc_gmres_amg_setup)
-get_block_solver(::Val{:from_options})  = PETScLinearSolver()
+get_block_solver(::Val{:julia},params)         = LUSolver()
+get_block_solver(::Val{:mumps},params)         = PETScLinearSolver(petsc_mumps_setup)
+get_block_solver(::Val{:amg},params)           = PETScLinearSolver(petsc_amg_setup)
+get_block_solver(::Val{:cg_jacobi},params)     = PETScLinearSolver(petsc_cg_setup)
+get_block_solver(::Val{:gmres_schwarz},params) = PETScLinearSolver(petsc_gmres_schwarz_setup)
+get_block_solver(::Val{:gmres_amg},params)     = PETScLinearSolver(petsc_gmres_amg_setup)
+get_block_solver(::Val{:from_options},params)  = PETScLinearSolver()
 
 function petsc_mumps_setup(ksp)
   pc       = Ref{GridapPETSc.PETSC.PC}()

@@ -183,9 +183,10 @@ dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( (conv∘(u,∇(du))) + (conv∘(du
 function a_al(x,dy,ζ,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
-  a_al_u_u(u,v_u,ζ,dΩ)
+  a_al_u_u(u,v_u,ζ,dΩ) + a_al_j_j(j,v_j,ζ,dΩ)
 end
 a_al_u_u(u,v_u,ζ,dΩ) = ∫( ζ*(∇⋅u)*(∇⋅v_u) ) * dΩ
+a_al_j_j(j,v_j,ζ,dΩ) = ∫( ζ*(∇⋅j)*(∇⋅v_j) ) * dΩ
 
 # Solid equations
 
