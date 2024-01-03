@@ -410,7 +410,7 @@ version = "0.3.4"
 
 [[deps.GridapPETSc]]
 deps = ["Gridap", "GridapDistributed", "Libdl", "LinearAlgebra", "MPI", "PETSc_jll", "PartitionedArrays", "Random", "SparseArrays", "SparseMatricesCSR"]
-git-tree-sha1 = "fdef4c7834299334044da32dae4003d3020ebf5f"
+git-tree-sha1 = "5fd5ba02abe052dcc0a331c5a617c13c89d85505"
 repo-rev = "add_missing_api"
 repo-url = "https://github.com/gridap/GridapPETSc.jl.git"
 uuid = "bcdc36c2-0c3e-11ea-095a-c9dadae499f1"
@@ -418,7 +418,7 @@ version = "0.5.0"
 
 [[deps.GridapSolvers]]
 deps = ["AbstractTrees", "ArgParse", "BlockArrays", "FillArrays", "Gridap", "GridapDistributed", "GridapP4est", "GridapPETSc", "IterativeSolvers", "LinearAlgebra", "MPI", "P4est_wrapper", "PartitionedArrays", "Printf", "SparseArrays", "SparseMatricesCSR"]
-git-tree-sha1 = "c5867b8191d94fbe5789da549a3594f019818f2f"
+git-tree-sha1 = "83c54b21f5c83325f5eec7d6738397bc532a4ce4"
 repo-rev = "block-solvers"
 repo-url = "https://github.com/gridap/GridapSolvers.jl.git"
 uuid = "6d3209ee-5e3c-4db7-a716-942eb12ed534"
@@ -458,9 +458,9 @@ version = "0.9.3"
 
 [[deps.JLD2]]
 deps = ["FileIO", "MacroTools", "Mmap", "OrderedCollections", "Pkg", "PrecompileTools", "Printf", "Reexport", "Requires", "TranscodingStreams", "UUIDs"]
-git-tree-sha1 = "c2d0f45afcb5f6209155670bffd100c3b4937ea3"
+git-tree-sha1 = "e65d2bd5754885e97407ff686da66a58b1e20df8"
 uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
-version = "0.4.40"
+version = "0.4.41"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]

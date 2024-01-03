@@ -13,4 +13,4 @@ solver = Dict(
   :block_solvers => [:gmg,:cg_jacobi,:cg_jacobi],
   :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
 )
-expansion(np=1,backend=:mpi,mesh=mesh,solver=solver,ζ=0.0,cw=0.0)
+expansion(np=1,backend=:mpi,mesh=mesh,solver=solver,ζ=10.0,cw=0.0)

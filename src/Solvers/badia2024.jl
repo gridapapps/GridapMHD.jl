@@ -6,8 +6,10 @@ function Badia2024Solver(op::FEOperator,params)
   k  = params[:fespaces][:k]
   Ωf = _interior(model,params[:fluid][:domain])
   dΩ = Measure(Ωf,2*k)
-  a_Ip(p,v_p) = ∫(p*v_p)*dΩ
-  a_Iφ(φ,v_φ) = ∫(-φ*v_φ)*dΩ
+  α_p = -(params[:fluid][:β] + params[:fluid][:ζ])
+  α_φ = -(1.0 + params[:fluid][:ζ])
+  a_Ip(p,v_p) = ∫(α_p*p*v_p)*dΩ
+  a_Iφ(φ,v_φ) = ∫(α_φ*φ*v_φ)*dΩ
 
   U_u, U_p, U_j, U_φ = get_trial(op)
   V_u, V_p, V_j, V_φ = get_test(op)

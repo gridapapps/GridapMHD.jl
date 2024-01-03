@@ -15,6 +15,9 @@ function gmg_solver(::Val{(1,3)},params)
   qdegree = map(lev -> 2*k,1:nlevs)
 
   _, _, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
+
+  # TODO: Add nonlinear terms
+  # TODO: Add bcs terms
   
   function jacobian_uj(dx,dy,dΩ)
     du, dj = dx
