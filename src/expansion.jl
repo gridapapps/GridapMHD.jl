@@ -191,7 +191,7 @@ function u_inlet(inlet,Ha,Z)
   u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)  
     
   kp_inlet = GridapMHD.kp_shercliff_cartesian(Z,Ha)
-  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(Z, 0.0, -Z*kp_inlet, Ha,5555500,(z,y,x))[3],0.0,0.0) 
+  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(Z, 0.0, -Z*kp_inlet, Ha,200,(z/Z,y/Z,x))[3],0.0,0.0) 
 
   u_inlet_cte = VectorValue(Z,0.0,0.0)  
 
