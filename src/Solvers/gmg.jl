@@ -19,11 +19,21 @@ function gmg_solver(::Val{(1,3)},params)
 
   # TODO: Add nonlinear terms
   
-  function jacobian_uj(dx,dy,dΩ)
+  function jacobian_uj(x,dx,dy,dΩ)
     dΩf, dΩs, nΓ_tw, dΓ_tw = dΩ
     du, dj = dx
     v_u, v_j = dy
+
+    # TODO: Again, this is VERY BAD
+    _u, _j = x
+    if isa(dΩf,Gridap.Measure)
+      u = getany(local_views(_u))
+    else
+      u = _u
+    end
+
     r = a_mhd_u_u(du,v_u,β,dΩf) + a_mhd_u_j(dj,v_u,γ,B,dΩf) + a_mhd_j_u(du,v_j,σf,B,dΩf) + a_mhd_j_j(dj,v_j,dΩf)
+    r = r + dc_mhd_u_u(u,du,v_u,α,dΩf)
     for (i,p) in enumerate(params_thin_wall)
       τ,cw,jw,_,_ = p
       r = r + a_thin_wall_j_j(dj,v_j,τ,cw,jw,nΓ_tw[i],dΓ_tw[i])
@@ -108,8 +118,9 @@ function compute_gmg_matrices(mh,trials,tests,biform,measures,qdegree)
       model = GridapSolvers.get_model(mh,lev)
       U = GridapSolvers.get_fe_space(trials,lev)
       V = GridapSolvers.get_fe_space(tests,lev)
+      u0 = zero(U)
       dΩ = measures(model)
-      a(u,v) = biform(u,v,dΩ)
+      a(u,v) = biform(u0,u,v,dΩ)
       mats[lev] = assemble_matrix(a,U,V)
     end
   end
@@ -128,9 +139,11 @@ function gmg_patch_smoothers(mh,tests,biform,measures,qdegree)
       PD = patch_decompositions[lev]
       Ph = GridapSolvers.get_fe_space(patch_spaces,lev)
       Vh = GridapSolvers.get_fe_space(tests,lev)
+      u0 = zero(Vh)
       dΩ = measures(PD)
       local_solver   = LUSolver()
-      patch_smoother = PatchBasedLinearSolver(biform,Ph,Vh,dΩ,local_solver)
+      a(u,v,dΩ) = biform(u0,u,v,dΩ)
+      patch_smoother = PatchBasedLinearSolver(a,Ph,Vh,dΩ,local_solver)
       smoothers[lev] = RichardsonSmoother(patch_smoother,10,0.1)
     end
   end
