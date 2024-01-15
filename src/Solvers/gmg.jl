@@ -91,7 +91,7 @@ function gmg_solver(mh,trials,tests,biform,measures,qdegree)
                                                          mode=:residual,
                                                          solver=CGSolver(JacobiLinearSolver();rtol=1.e-6))
 
-  smoothers = gmg_patch_smoothers(mh,tests,biform,measures,qdegree)
+  smoothers = gmg_patch_smoothers(mh,trials,biform,measures,qdegree)
 
   gmg = GMGLinearSolver(mh,
                         smatrices,
