@@ -100,7 +100,7 @@ function _expansion(;
   end
 
   params[:fluid] = Dict(
-    :domain => params[:model],
+    :domain => nothing, # whole domain
     :α => α,
     :β => β,
     :γ => γ,

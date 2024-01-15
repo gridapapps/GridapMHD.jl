@@ -304,10 +304,12 @@ function _fluid_mesh(model,domain::DiscreteModelTypes)
   return domain
 end
 _fluid_mesh(model,domain::TriangulationTypes) = domain
+_fluid_mesh(model,domain::Nothing) = model # This should be removed, but Gridap needs fixes
 _fluid_mesh(model,domain) = Interior(model,tags=domain)
 
 _interior(model,domain::DiscreteModelTypes) = Interior(domain)
 _interior(model,domain::TriangulationTypes) = domain
+_interior(model,domain::Nothing) = Interior(model) # This should be removed, but Gridap needs fixes
 _interior(model,domain) = Interior(model,tags=domain)
 
 _boundary(model,domain::TriangulationTypes) = domain

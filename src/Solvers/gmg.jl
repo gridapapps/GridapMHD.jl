@@ -15,34 +15,74 @@ function gmg_solver(::Val{(1,3)},params)
   qdegree = map(lev -> 2*k,1:nlevs)
 
   _, _, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
+  _, params_thin_wall, _, _ = retrieve_bcs_params(params,k)
 
   # TODO: Add nonlinear terms
-  # TODO: Add bcs terms
   
   function jacobian_uj(dx,dy,dΩ)
+    dΩf, dΩs, nΓ_tw, dΓ_tw = dΩ
     du, dj = dx
     v_u, v_j = dy
-    r = a_mhd_u_u(du,v_u,β,dΩ) + a_mhd_u_j(dj,v_u,γ,B,dΩ) + a_mhd_j_u(du,v_j,σf,B,dΩ) + a_mhd_j_j(dj,v_j,dΩ)
+    r = a_mhd_u_u(du,v_u,β,dΩf) + a_mhd_u_j(dj,v_u,γ,B,dΩf) + a_mhd_j_u(du,v_j,σf,B,dΩf) + a_mhd_j_j(dj,v_j,dΩf)
+    for (i,p) in enumerate(params_thin_wall)
+      τ,cw,jw,_,_ = p
+      r = r + a_thin_wall_j_j(dj,v_j,τ,cw,jw,nΓ_tw[i],dΓ_tw[i])
+    end
+    if !isnothing(dΩs)
+      r = r + a_solid_j_j(dj,v_j,dΩs)
+    end
     if abs(ζ) > eps(typeof(ζ))
-      r = r + a_al_u_u(du,v_u,ζ,dΩ) + a_al_j_j(dj,v_j,ζ,dΩ)
+      r = r + a_al_u_u(du,v_u,ζ,dΩf) + a_al_j_j(dj,v_j,ζ,dΩf)
     end
     return r
   end
 
-  return gmg_solver(mh,trials,tests,jacobian_uj,qdegree)
+  function build_measures_uj(model)
+    _, dΩf, _, _, _, _, _, _, _ = retrieve_fluid_params(model,params,k)
+    _, dΩs, _ = retrieve_solid_params(model,params,k)
+
+    nΓ_tw = GridapDistributed.DistributedCellField[]
+    dΓ_tw = GridapDistributed.DistributedMeasure[]
+    for i in 1:length(params[:bcs][:thin_wall])
+      Γ = _boundary(model,params[:bcs][:thin_wall][i][:domain])
+      push!(dΓ_tw,Measure(Γ,2*k))
+      push!(nΓ_tw,get_normal_vector(Γ))
+    end
+
+    return dΩf, dΩs, nΓ_tw, dΓ_tw
+  end
+
+  return gmg_solver(mh,trials,tests,jacobian_uj,build_measures_uj,qdegree)
 end
 
-function gmg_solver(mh,trials,tests,biform,qdegree)
+# TODO: This is VERY BAD, we need to find a better way to do this
+function GridapDistributed.local_views(a::Tuple{<:GridapDistributed.DistributedMeasure,Nothing,Vector{<:GridapDistributed.DistributedCellField},Vector{<:GridapDistributed.DistributedMeasure}})
+  _dΩf, _dΩs, _nΓ_tw, _dΓ_tw = a
+  dΩf = local_views(_dΩf)
+  #dΩs = local_views(_dΩs)
+  if isempty(_nΓ_tw)
+    map(dΩf) do dΩf
+      (dΩf,nothing,[],[])
+    end
+  else
+    nΓ_tw = map(local_views,_nΓ_tw) |> GridapDistributed.to_parray_of_arrays
+    dΓ_tw = map(local_views,_dΓ_tw) |> GridapDistributed.to_parray_of_arrays
+    map(dΩf,nΓ_tw,dΓ_tw) do dΩf,nΓ_tw,dΓ_tw
+      (dΩf,nothing,nΓ_tw,dΓ_tw)
+    end
+  end
+end
+
+function gmg_solver(mh,trials,tests,biform,measures,qdegree)
   ranks = get_level_parts(mh,1)
-  smatrices = compute_gmg_matrices(mh,trials,tests,biform,qdegree)
+  smatrices = compute_gmg_matrices(mh,trials,tests,biform,measures,qdegree)
   restrictions, prolongations = setup_transfer_operators(trials,
                                                          qdegree;
                                                          mode=:residual,
                                                          solver=CGSolver(JacobiLinearSolver();rtol=1.e-6))
 
-  smoothers = gmg_patch_smoothers(mh,tests,biform,qdegree)
+  smoothers = gmg_patch_smoothers(mh,tests,biform,measures,qdegree)
 
-  # TODO: Reuse top level matrix in gmg. In fact, all matrices should inputed (and modified) by numerical_setup
   gmg = GMGLinearSolver(mh,
                         smatrices,
                         prolongations,
@@ -58,7 +98,7 @@ function gmg_solver(mh,trials,tests,biform,qdegree)
   return solver
 end
 
-function compute_gmg_matrices(mh,trials,tests,biform,qdegree)
+function compute_gmg_matrices(mh,trials,tests,biform,measures,qdegree)
   nlevs = num_levels(trials)
 
   mats = Vector{PSparseMatrix}(undef,nlevs)
@@ -68,8 +108,7 @@ function compute_gmg_matrices(mh,trials,tests,biform,qdegree)
       model = GridapSolvers.get_model(mh,lev)
       U = GridapSolvers.get_fe_space(trials,lev)
       V = GridapSolvers.get_fe_space(tests,lev)
-      Ω = Triangulation(model)
-      dΩ = Measure(Ω,qdegree[lev])
+      dΩ = measures(model)
       a(u,v) = biform(u,v,dΩ)
       mats[lev] = assemble_matrix(a,U,V)
     end
@@ -77,7 +116,7 @@ function compute_gmg_matrices(mh,trials,tests,biform,qdegree)
   return mats
 end
 
-function gmg_patch_smoothers(mh,tests,biform,qdegree)
+function gmg_patch_smoothers(mh,tests,biform,measures,qdegree)
   patch_decompositions = PatchDecomposition(mh)
   patch_spaces = PatchFESpace(tests,patch_decompositions)
 
@@ -89,8 +128,7 @@ function gmg_patch_smoothers(mh,tests,biform,qdegree)
       PD = patch_decompositions[lev]
       Ph = GridapSolvers.get_fe_space(patch_spaces,lev)
       Vh = GridapSolvers.get_fe_space(tests,lev)
-      Ω  = Triangulation(PD)
-      dΩ = Measure(Ω,qdegree[lev])
+      dΩ = measures(PD)
       local_solver   = LUSolver()
       patch_smoother = PatchBasedLinearSolver(biform,Ph,Vh,dΩ,local_solver)
       smoothers[lev] = RichardsonSmoother(patch_smoother,10,0.1)
