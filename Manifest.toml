@@ -418,7 +418,7 @@ version = "0.5.0"
 
 [[deps.GridapSolvers]]
 deps = ["AbstractTrees", "ArgParse", "BlockArrays", "FillArrays", "Gridap", "GridapDistributed", "GridapP4est", "GridapPETSc", "IterativeSolvers", "LinearAlgebra", "MPI", "P4est_wrapper", "PartitionedArrays", "Printf", "SparseArrays", "SparseMatricesCSR"]
-git-tree-sha1 = "88a039c9fddc76a56a1841f529c329a70e6202f2"
+git-tree-sha1 = "b1be0cfda297bef8ece1bf4253eaa4f7bf591e05"
 repo-rev = "develop"
 repo-url = "https://github.com/gridap/GridapSolvers.jl.git"
 uuid = "6d3209ee-5e3c-4db7-a716-942eb12ed534"

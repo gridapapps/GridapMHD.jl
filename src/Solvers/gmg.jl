@@ -33,7 +33,7 @@ function gmg_solver(::Val{(1,3)},params)
     end
 
     r = a_mhd_u_u(du,v_u,β,dΩf) + a_mhd_u_j(dj,v_u,γ,B,dΩf) + a_mhd_j_u(du,v_j,σf,B,dΩf) + a_mhd_j_j(dj,v_j,dΩf)
-    r = r + dc_mhd_u_u(u,du,v_u,α,dΩf)
+    #r = r + dc_mhd_u_u(u,du,v_u,α,dΩf)
     for (i,p) in enumerate(params_thin_wall)
       τ,cw,jw,_,_ = p
       r = r + a_thin_wall_j_j(dj,v_j,τ,cw,jw,nΓ_tw[i],dΓ_tw[i])
@@ -141,7 +141,7 @@ function gmg_patch_smoothers(mh,tests,biform,measures,qdegree)
       Vh = GridapSolvers.get_fe_space(tests,lev)
       u0 = zero(Vh)
       dΩ = measures(PD)
-      local_solver   = LUSolver()
+      local_solver = LUSolver()
       a(u,v,dΩ) = biform(u0,u,v,dΩ)
       patch_smoother = PatchBasedLinearSolver(a,Ph,Vh,dΩ,local_solver)
       smoothers[lev] = RichardsonSmoother(patch_smoother,10,0.1)
