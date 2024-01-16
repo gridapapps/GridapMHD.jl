@@ -289,7 +289,7 @@ function _fe_operator(::BlockMultiFieldStyle,U,V,params)
   res, jac = weak_form(params,k)
   Tm = params[:solver][:matrix_type]
   Tv = params[:solver][:vector_type]
-  assem = SparseMatrixAssembler(Tm,Tv,U,V)
+  assem = SparseMatrixAssembler(Tm,Tv,U,V,FullyAssembledRows())
   return FEOperator(res,jac,U,V,assem)
 end
 

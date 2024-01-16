@@ -149,18 +149,8 @@ function params_solver(params::Dict{Symbol,Any})
     solver = default_solver_params(Val(params[:solver]))
     return solver
   end
+  @assert haskey(params[:solver],:solver)
 
-  mandatory = Dict(
-   :solver=>true,
-   :rtol=>false,
-   :matrix_type=>false,
-   :vector_type=>false,
-   :solver_postpro=>false,
-   :niter=>false,
-   :petsc_options=>false,
-   :block_solvers=>false,
-  )
-  _check_mandatory(params[:solver],mandatory,"[:solver]")
   optional = default_solver_params(Val(params[:solver][:solver]))
   solver   = _add_optional_weak(params[:solver],mandatory,optional,params,"[:solver]")
   return solver
@@ -240,7 +230,7 @@ end
 
 function gridap_postpro(cache,info)
   ls = cache.ns.solver
-  log = ls.inner_log
+  log = ls.log
 
   info[:ls_iters] = log.num_iters
   info[:ls_residuals] = log.residuals[1:log.num_iters+1]
