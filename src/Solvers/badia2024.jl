@@ -34,11 +34,6 @@ function Badia2024Solver(op::FEOperator,params)
   l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=1e-14,verbose=verbose)
 
   # Nonlinear Solver
-  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=10,atol=1e-14,rtol=nl_rtol,verbose=verbose)
+  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=1,atol=1e-14,rtol=nl_rtol,verbose=verbose)
   return nl_solver
 end
-
-# For multiple triangulations, we could pass a function that creates the measures 
-# from the model and q-degree. 
-# For now let's leave it like this... the top level should have everything, the low level corrections will not
-# but it's ok...
