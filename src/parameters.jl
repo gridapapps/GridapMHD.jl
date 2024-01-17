@@ -31,7 +31,7 @@ function _add_optional(_subparams,mandatory,optional,params,p)
   subparams
 end
 
-function _add_optional_weak(_subparams,mandatory,optional,params,p)
+function _add_optional_weak(_subparams,optional,params,p)
   # New dict
   subparams = Dict{Symbol,Any}()
   merge!(subparams,_subparams)
@@ -152,7 +152,7 @@ function params_solver(params::Dict{Symbol,Any})
   @assert haskey(params[:solver],:solver)
 
   optional = default_solver_params(Val(params[:solver][:solver]))
-  solver   = _add_optional_weak(params[:solver],mandatory,optional,params,"[:solver]")
+  solver   = _add_optional_weak(params[:solver],optional,params,"[:solver]")
   return solver
 end
 

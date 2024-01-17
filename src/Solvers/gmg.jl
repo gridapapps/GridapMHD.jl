@@ -16,8 +16,6 @@ function gmg_solver(::Val{(1,3)},params)
 
   _, _, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
   _, params_thin_wall, _, _ = retrieve_bcs_params(params,k)
-
-  # TODO: Add nonlinear terms
   
   function jacobian_uj(x,dx,dy,dΩ)
     dΩf, dΩs, nΓ_tw, dΓ_tw = dΩ
@@ -93,18 +91,16 @@ function gmg_solver(mh,trials,tests,biform,measures,qdegree)
 
   smoothers = gmg_patch_smoothers(mh,trials,biform,measures,qdegree)
 
-  gmg = GMGLinearSolver(mh,
-                        smatrices,
-                        prolongations,
-                        restrictions,
+  cranks = get_level_parts(mh,num_levels(mh))
+  coarsest_solver = (length(cranks) == 1) ? LUSolver() : PETScLinearSolver(petsc_mumps_setup)
+
+  gmg = GMGLinearSolver(mh,smatrices,prolongations,restrictions,
                         pre_smoothers=smoothers,
                         post_smoothers=smoothers,
-                        coarsest_solver=LUSolver(),#PETScLinearSolver(petsc_mumps_setup),
-                        maxiter=1,
-                        rtol=1.0e-8,
-                        verbose=false,
-                        mode=:preconditioner)
-  solver = FGMRESSolver(10,gmg;m_add=5,maxiter=20,rtol=1.0e-6,verbose=i_am_main(ranks))
+                        coarsest_solver=coarsest_solver,
+                        maxiter=1,verbose=false,mode=:preconditioner)
+  solver = GMRESSolver(10;Pr=gmg,m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks))
+  solver.log.depth += 1 # For printing purposes
   return solver
 end
 
