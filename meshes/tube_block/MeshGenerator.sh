@@ -16,10 +16,11 @@ pass=(string("r=",ratio)*";",
 	  string("N_r=",N_r)*";",
 	  string("n=",n)*";",
 	  string("N_a=",N_a)*";",
-	  string("N_L=",N_a)*";",
+	  string("N_L=",N_L)*";",
 	  string("L=",L)*";",
-	  string("p=",p)*";"
-	  )
+	  string("p=",p)*";",
+	  string("q=",q)*";"	  
+)
 
 writedlm("mesh_params",pass)
 
@@ -36,6 +37,7 @@ sed -i '/N_a=/d' $mesh_path/tubeMaPLE-block.geo
 sed -i '/N_L=/d' $mesh_path/tubeMaPLE-block.geo
 sed -i '/L=/d' $mesh_path/tubeMaPLE-block.geo
 sed -i '/p=/d' $mesh_path/tubeMaPLE-block.geo
+sed -i '/q=/d' $mesh_path/tubeMaPLE-block.geo
 
 #Write the new information
 

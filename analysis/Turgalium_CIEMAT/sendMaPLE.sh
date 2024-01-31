@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH -N 1 
-#SBATCH --ntasks-per-node=12
+#SBATCH --ntasks-per-node=8
 #SBATCH -t 90:00:00
 #SBATCH --partition=volta
 
-#SBATCH -o outputMaPLEHa100Re1-block
-#SBATCH -e errorMaPLEHa100Re1-block
-#SBATCH --job-name=MaPLEHa100Re1-block
+#SBATCH -o outputMaPLEHa100Re1-hybrid
+#SBATCH -e errorMaPLEHa100Re1-hybrid
+#SBATCH --job-name=MaPLEHa100Re1-hybrid
 #SBATCH --mem=0
 
 SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
@@ -42,7 +42,7 @@ echo τ= 1e6 	 >>	$PASS_FILE
 #Parameters for the mesh construction
 
 echo R = 1.0    >>      $PASS_FILE	#Radious of the pipe (used for normalization)
-echo p = 0.5    >>      $PASS_FILE	#Edge of the BL region
+echo p = 0.9    >>      $PASS_FILE	#Edge of the BL region
 echo q = 0.5    >>      $PASS_FILE	#Core radious
 echo L = 4.0    >>      $PASS_FILE	#Length of the pipe
 
@@ -54,12 +54,12 @@ echo n_c = 0.2 >>       $PASS_FILE	#Maximum size of the cells edges in the core 
 
 #Generate the mesh
 
-#For a hybrid (block-unstructured) mesh
-#export mesh_path=/ws/blankets/GridapMHD.jl/meshes/tube_hybrid
+#For a hybrid (block BL and unstructured core) mesh
+export mesh_path=/ws/blankets/GridapMHD.jl/meshes/tube_hybrid
 
-#For a block mesh (stil tetra)
+#For a block mesh (but stil tetra)
 
-export mesh_path=/ws/blankets/GridapMHD.jl/meshes/tube_block
+#export mesh_path=/ws/blankets/GridapMHD.jl/meshes/tube_block
 
 source $mesh_path/MeshGenerator.sh
 

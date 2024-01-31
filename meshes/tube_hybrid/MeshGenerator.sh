@@ -16,7 +16,7 @@ pass=(string("r=",ratio)*";",
 	  string("n=",n)*";",
 	  string("n_c=",n_c)*";",
 	  string("N_a=",N_a)*";",
-	  string("N_L=",N_a)*";",
+	  string("N_L=",N_L)*";",
 	  string("L=",L)*";",
 	  string("p=",p)*";",
 	  string("q=",q)*";"
