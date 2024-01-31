@@ -157,6 +157,13 @@ function _tube(;
   div_jh = ∇·jh
   div_uh = ∇·uh
 
+#Compute the dimensionless pressure drop gradient from the outlet value
+
+  Grad_p = ∇·ph[3]
+  Γ = Boundary(model, tags="outlet")
+  dΓ = Measure(Γ,6) 
+  kp = sum(∫(Grad_p)*dΓ)/sum(∫(1.0)*dΓ)
+
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=2,
@@ -179,6 +186,7 @@ function _tube(;
   info[:Re] = Ha^2/N
   info[:cw] = cw
   info[:τ] = τ
+  info[:kp] = kp
   info, t
 
 end
