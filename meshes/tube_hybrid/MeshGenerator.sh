@@ -49,4 +49,4 @@ rm mesh_params
 
 #Generate the mesh using gmsh
 
-gmsh $mesh_path/tubeMaPLE-hybrid.geo -3 -o $mesh_path/../tube_MaPLE.msh
+gmsh $mesh_path/tubeMaPLE-hybrid.geo -3 -o "$1"

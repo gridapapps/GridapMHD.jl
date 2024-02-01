@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH -N 1 
-#SBATCH --ntasks-per-node=8
+#SBATCH --ntasks-per-node=12
 #SBATCH -t 90:00:00
 #SBATCH --partition=volta
 
-#SBATCH -o outputMaPLEHa100Re1-hybrid
-#SBATCH -e errorMaPLEHa100Re1-hybrid
-#SBATCH --job-name=MaPLEHa100Re1-hybrid
+#SBATCH -o outputMaPLEHa369Re1-hybrid
+#SBATCH -e errorMaPLEHa369Re1-hybrid
+#SBATCH --job-name=MaPLEHa369Re1-hybrid
 #SBATCH --mem=0
 
 SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
@@ -34,7 +34,7 @@ echo JOB_NAME=\"$SLURM_JOB_NAME\" >> $PASS_FILE
 
 #Operational parameters defining the problem 
 
-echo Ha= 100.0   >>     $PASS_FILE
+echo Ha= 369.0   >>     $PASS_FILE
 echo Re= 1.0	 >>	$PASS_FILE
 echo cw = 0.0684 >>	$PASS_FILE
 echo τ= 1e6 	 >>	$PASS_FILE
@@ -42,14 +42,14 @@ echo τ= 1e6 	 >>	$PASS_FILE
 #Parameters for the mesh construction
 
 echo R = 1.0    >>      $PASS_FILE	#Radious of the pipe (used for normalization)
-echo p = 0.9    >>      $PASS_FILE	#Edge of the BL region
+echo p = 0.85   >>      $PASS_FILE	#Edge of the BL region
 echo q = 0.5    >>      $PASS_FILE	#Core radious
 echo L = 4.0    >>      $PASS_FILE	#Length of the pipe
 
-echo N_r = 12 >>        $PASS_FILE	#Radial nodes in the BL region
+echo N_r = 14 >>        $PASS_FILE	#Radial nodes in the BL region
 echo n =4 >>            $PASS_FILE	#Radial nodes in the Hartmann BL (1/Ha)
 echo N_a= 40 >>         $PASS_FILE	#Azimutal nodes 
-echo N_L= 12 >>         $PASS_FILE	#Nodes in the axial direction
+echo N_L= 20 >>         $PASS_FILE	#Nodes in the axial direction
 echo n_c = 0.2 >>       $PASS_FILE	#Maximum size of the cells edges in the core region
 
 #Generate the mesh
@@ -61,7 +61,7 @@ export mesh_path=/ws/blankets/GridapMHD.jl/meshes/tube_hybrid
 
 #export mesh_path=/ws/blankets/GridapMHD.jl/meshes/tube_block
 
-source $mesh_path/MeshGenerator.sh
+source $mesh_path/MeshGenerator.sh "$mesh_path/../tube_MaPLE.msh"
 
 #GridapMHD computation
 mpiexec -n ${SLURM_NPROCS} --mca btl_openib_if_include mlx5_0 julia --project=$GRIDAPMHD -O3 --check-bounds=no -e\
@@ -74,7 +74,7 @@ tube(;
   backend=:mpi,
   Ha = Ha,
   N = Ha^2/Re,
-  inlet = :parabolic,
+  inlet = :plane,
   cw = cw,
   τ = τ,
   debug=false,
