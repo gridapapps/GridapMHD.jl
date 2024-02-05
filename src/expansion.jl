@@ -60,7 +60,7 @@ function _expansion(;
 
   # The domain is of size L_out x 2 x 2 and L_in x 2/Z x 2
   # after and before the expansion respectively.
-  msh_file = joinpath(@__FILE__,"..","..","meshes","Expansion_"*mesh*".msh") |> normpath
+  msh_file = joinpath(@__FILE__,"..","..","meshes","expansion","Expansion_"*mesh*".msh") |> normpath
   model = GmshDiscreteModel(parts,msh_file)
   if debug && vtk
     writevtk(model,"expansion_model")
@@ -159,12 +159,13 @@ function _expansion(;
   uh,ph,jh,φh = xh
   div_jh = ∇·jh
   div_uh = ∇·uh
+  Grad_p = ∇·ph
 
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p])
     toc!(t,"vtk")
   end
   if verbose

@@ -159,16 +159,16 @@ function _tube(;
 
 #Compute the dimensionless pressure drop gradient from the outlet value
 
-  Grad_p = ∇·ph[3]
+  Grad_p = ∇·ph
   Γ = Boundary(model, tags="outlet")
   dΓ = Measure(Γ,6) 
-  kp = sum(∫(Grad_p)*dΓ)/sum(∫(1.0)*dΓ)
+  kp = sum(∫(Grad_p)*dΓ)[3]/sum(∫(1.0)*dΓ)
 
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p])
     toc!(t,"vtk")
   end
   if verbose
