@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH -N 2 
-#SBATCH --ntasks-per-node=8
-#SBATCH -t 48:00:00
+#SBATCH -N 4 
+#SBATCH --ntasks-per-node=48 
+#SBATCH -t 56:00:00
 #SBATCH -p xula3
 
-#SBATCH -o outputExp_r4Ha100_N2n8
-#SBATCH -e errorExp_r4Ha100_n2n8
+#SBATCH -o outputExp_r4Ha1000Re50_N4n4
+#SBATCH -e errorExp_r4Ha1000Re50_N4n4
 ###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=r4Ha100
+#SBATCH --job-name=Exp_r4Ha1000Re50_N4n4
 #SBATCH --mem=0
 
 SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
@@ -29,17 +29,18 @@ source env.sh
 PASS_FILE="input_params.jl"
 
 echo NPROCS=$SLURM_NPROCS > $PASS_FILE
+echo JOB_NAME=\"$SLURM_JOB_NAME\" >> $PASS_FILE
 
 #Definition of the problem input paramenters
-echo Ha=100.0 >>	$PASS_FILE 	#Hartmann number defined on the outlet channel
-echo Re=1.0 >>	 	$PASS_FILE 	#Reynolds number defined on the outlet channesl
+echo Ha=1000.0 >>	$PASS_FILE 	#Hartmann number defined on the outlet channel
+echo Re=50.0 >>	 	$PASS_FILE 	#Reynolds number defined on the outlet channesl
 echo r=4.0 >>	 	$PASS_FILE	#Expansion ratio
-echo betta = 0.25 >> 	$PASS_FILE	#Outlet channel aspect ratio
+echo betta = 0.2 >> 	$PASS_FILE	#Outlet channel aspect ratio
 echo L_in=1.0 >>	$PASS_FILE	#Inlet channel normalized lenght
 echo L_out=2.0 >> 	$PASS_FILE      #Outlet channel normalized lenght
 
 #Definition of the mesh parameters
-echo N_Ha=20 >>	 	$PASS_FILE	#Number of cells in the inlet channel along the B-direction
+echo N_Ha=28 >>	 	$PASS_FILE	#Number of cells in the inlet channel along the B-direction
 echo n_Ha=4 >> 		$PASS_FILE	#Number of cells in the Hartmann BL
 echo N_side=20 >> 	$PASS_FILE	#Number of cells in along the direction perpendicular to B
 echo n_side=5 >> 	$PASS_FILE	#Number of cells in side BL
@@ -55,6 +56,14 @@ source $GRIDAPMHD/meshes/expansion/MeshGenerator.sh
 
 srun --mpi=pmix -n ${SLURM_NPROCS} julia --project=$GRIDAPMHD -O3 --check-bounds=no -e\
 '
+# make a local temp directory for the cache
+d = strip(String(read(`mktemp -d`)))
+mkdir(joinpath(d, "compiled"))
+# copy the cache to the temp directory
+# set the temp directory as the first depot so any (re)compilation will happen there and not interfere with other jobs
+run(`rsync -au $(DEPOT_PATH[1])/compiled $d/compiled`)
+pushfirst!(DEPOT_PATH, d)
+
 include("input_params.jl")
 using GridapMHD: expansion
 expansion(;
@@ -62,14 +71,15 @@ expansion(;
   np=NPROCS,
   backend=:mpi,
   Ha = Ha,
-  N = Ha^2/Re, #This is Re = 1
+  N = Ha^2/Re, 
   cw = 0.0,
   Z = r,
+  b = betta,
 #  τ = 1e6,
   inlet=:shercliff,
   debug=false,
   vtk=true,
-  title="expansion"*string("r",r)*string("Ha",Ha)*string("Re",Re),
+  title=JOB_NAME,
   solver=:petsc,
   petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0 -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001"
  )'

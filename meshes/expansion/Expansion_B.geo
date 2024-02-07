@@ -1,9 +1,9 @@
 // Gmsh project created on Tue Jan 16 14:55:13 2023
 
 // (Externally written) Mesh parameters
-R_Ha=1.2972667023986404;
-R_side=1.2432187557741343;
-N_Ha=20;
+R_Ha=1.7904816307782647;
+R_side=1.6340244628142013;
+N_Ha=28;
 n_Ha=4;
 N_side=20;
 n_side=5;
@@ -11,7 +11,7 @@ n_inlet=20;
 n_outlet=40;
 r_exp=1.075;
 r=4.0;
-betta=0.25;
+betta=0.2;
 L_in=1.0;
 L_out=2.0;
 

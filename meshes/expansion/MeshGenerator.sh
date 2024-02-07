@@ -10,7 +10,7 @@ using DelimitedFiles
 
 include("input_params.jl")
 include("../../meshes/expansion/params_calculator.jl")
-params=mesh_params(Ha = Ha, N_Ha = N_Ha, n_Ha=n_Ha, N_side=N_side, n_side=n_side,β=1/r)
+params=mesh_params(Ha = Ha, N_Ha = N_Ha, n_Ha=n_Ha, N_side=N_side, n_side=n_side, Z=r, β=betta)
 
 pass=(string("R_Ha=",params[1])*";",
 	  string("R_side=",params[2])*";",
