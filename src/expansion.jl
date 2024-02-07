@@ -40,6 +40,7 @@ function _expansion(;
   verbose=true,
   solver=:julia,
   Z = 4.0, #Expansion Ratio, it has to be consistent with the mesh
+  b = 0.2, #Outlet channel aspect ratio
   N = 1.0,
   Ha = 1.0,
   cw = 0.028,
@@ -110,7 +111,7 @@ function _expansion(;
    params[:bcs] = Dict( 
       :u => Dict(
         :tags => ["inlet", "wall"],
-        :values => [u_inlet(inlet,Ha,Z), VectorValue(0.0, 0.0, 0.0)]
+        :values => [u_inlet(inlet,Ha,Z,b), VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
 		:tags => ["wall", "inlet", "outlet"], 
@@ -122,7 +123,7 @@ function _expansion(;
    params[:bcs] = Dict(
       :u => Dict(
         :tags => ["inlet", "wall"],
-        :values => [u_inlet(inlet,Ha,Z), VectorValue(0.0, 0.0, 0.0)]
+        :values => [u_inlet(inlet,Ha,Z,b), VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
         :tags => ["inlet", "outlet"], 
@@ -187,12 +188,12 @@ function _expansion(;
 
 end
 
-function u_inlet(inlet,Ha,Z)
+function u_inlet(inlet,Ha,Z,b)
  
-  u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0)  
+  u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/Z)*(y+1/Z)*(z-b*Z)*(z+b*Z),0,0)  
     
-  kp_inlet = GridapMHD.kp_shercliff_cartesian(Z,Ha/Z)
-  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(Z, 0.0, -Z*kp_inlet, Ha/Z,200,(z*Z,y*Z,x))[3],0.0,0.0) 
+  kp_inlet = GridapMHD.kp_shercliff_cartesian(b*Z,Ha/Z)
+  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(b*Z, 0.0, -Z*kp_inlet, Ha/Z,200,(z*Z,y*Z,x))[3],0.0,0.0) 
 
   u_inlet_cte = VectorValue(Z,0.0,0.0)  
 
