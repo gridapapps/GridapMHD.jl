@@ -6,9 +6,10 @@ function rotate(x::VectorValue{3},p)
   return VectorValue{3}(x[p[1]],x[p[2]],x[p[3]])
 end
 function stretch(x::VectorValue{3})
-  offset = VectorValue{3}(0.0,-1.0,-1.0)
-  α = 8.0; β = 2.0/3.0; γ = 2.0;
-  return VectorValue{3}(α⋅x[1],β⋅x[2],γ⋅x[3]) + offset
+  x_stretch(x) = 8.0*x
+  y_stretch(y) = 1.0/12.0*y^3 - 3.0/8.0*y^2 + 25.0/24.0*y - 1.0
+  z_stretch(z) = 2.0*z - 1.0
+  return VectorValue{3}(x_stretch(x[1]),y_stretch(x[2]),z_stretch(x[3]))
 end
 coordinate_transformation(x) = stretch(rotate(VectorValue{3}(x...)))
 
@@ -23,20 +24,20 @@ function expansion_generate_face_labeling()
     [1,2,3,4] # Cells
   ]
   inlet_dfaces = [
-    [17,18,19,20],
-    [29,30,36,35],
+    [],
+    [],
     [19],
     []
   ]
   outlet_dfaces = [
-    [3,4,7,8,11,12,15,16],
-    [2,4,11,12,14,19,20,22,27,28],
+    [],
+    [4,14],
     [4,9,14],
     []
   ]
   wall_dfaces = [
-    [1,2,5,6,9,10,13,14],
-    [1,3,5,6,7,8,9,10,13,15,16,17,18,21,23,24,25,26,31,32,33,34],
+    [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],
+    [1,2,3,5,6,7,8,9,10,11,12,13,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36],
     [1,3,5,6,10,11,12,13,15,16,17,18,20,21],
     []
   ]
@@ -114,43 +115,4 @@ function expansion_generate_base_mesh()
   model  = UnstructuredDiscreteModel(grid,topo,labels)
   asym_model = expansion_asymmetric_refinement(model)
   return asym_model
-end
-
-# Mesh refinement 
-
-"""
-  expansion_generate_mesh(ranks,num_refs)
-
-  ranks    :: Number of processors of the distributed mesh
-  num_refs :: Number of refinements to perform. Final mesh will have 
-                num_cells = 12*2^(3*num_refs)
-"""
-function expansion_generate_mesh(ranks,num_refs)
-  model = GridapP4est.with(ranks) do
-    cmodel = expansion_generate_base_mesh()
-    return OctreeDistributedDiscreteModel(ranks,cmodel,num_refs)
-  end
-  return model
-end
-
-"""
-  expansion_generate_mesh_hierarchy(level_ranks,num_refs)
-
-  ranks           :: Number of processors
-  ranks_per_level :: Number of processors per level
-  num_refs_coarse :: Number of refinements to perform for the coarsest model. 
-                     Finest mesh will have 
-                        num_cells = 12*2^(3*(num_refs_coarse+num_levels))
-                     where 
-                        num_levels = length(ranks_per_level)
-"""
-function expansion_generate_mesh_hierarchy(ranks,num_refs_coarse::Integer,ranks_per_level::Vector{<:Integer})
-  mh = GridapP4est.with(ranks) do
-    num_levels = length(ranks_per_level)
-    cparts     = generate_subparts(ranks,ranks_per_level[num_levels])
-    cmodel     = expansion_generate_base_mesh()
-    model      = OctreeDistributedDiscreteModel(cparts,cmodel,num_refs_coarse)
-    return ModelHierarchy(ranks,model,ranks_per_level)
-  end
-  return mh
 end
