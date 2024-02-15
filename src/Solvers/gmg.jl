@@ -12,7 +12,7 @@ function gmg_solver(::Val{(1,3)},params)
   
   nlevs = num_levels(mh)
   k = params[:fespaces][:k]
-  qdegree = map(lev -> 2*k,1:nlevs)
+  qdegree = map(lev -> 2*k+1,1:nlevs)
 
   _, _, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
   _, params_thin_wall, _, _ = retrieve_bcs_params(params,k)
@@ -46,16 +46,23 @@ function gmg_solver(::Val{(1,3)},params)
   end
 
   function build_measures_uj(model)
-    _, dΩf, _, _, _, _, _, _, _ = retrieve_fluid_params(model,params,k)
+    Ωf, dΩf, _, _, _, _, _, _, _ = retrieve_fluid_params(model,params,k)
     _, dΩs, _ = retrieve_solid_params(model,params,k)
 
     nΓ_tw = GridapDistributed.DistributedCellField[]
     dΓ_tw = GridapDistributed.DistributedMeasure[]
     for i in 1:length(params[:bcs][:thin_wall])
       Γ = _boundary(model,params[:bcs][:thin_wall][i][:domain])
-      push!(dΓ_tw,Measure(Γ,2*k))
+      push!(dΓ_tw,Measure(Γ,2*k+1))
       push!(nΓ_tw,get_normal_vector(Γ))
     end
+
+    println("----------------")
+    println(typeof(model))
+    println(typeof(dΩf))
+    println(typeof(Ωf))
+    println(typeof(nΓ_tw))
+    println(typeof(dΓ_tw))
 
     return dΩf, dΩs, nΓ_tw, dΓ_tw
   end
@@ -84,10 +91,11 @@ end
 function gmg_solver(mh,trials,tests,biform,measures,qdegree)
   ranks = get_level_parts(mh,1)
   smatrices = compute_gmg_matrices(mh,trials,tests,biform,measures,qdegree)
+  projection_solver = LUSolver()#CGSolver(JacobiLinearSolver();rtol=1.e-6)
   restrictions, prolongations = setup_transfer_operators(trials,
                                                          qdegree;
                                                          mode=:residual,
-                                                         solver=CGSolver(JacobiLinearSolver();rtol=1.e-6))
+                                                         solver=projection_solver)
 
   smoothers = gmg_patch_smoothers(mh,trials,biform,measures,qdegree)
 
@@ -98,10 +106,12 @@ function gmg_solver(mh,trials,tests,biform,measures,qdegree)
                         pre_smoothers=smoothers,
                         post_smoothers=smoothers,
                         coarsest_solver=coarsest_solver,
-                        maxiter=1,verbose=false,mode=:preconditioner)
-  solver = GMRESSolver(10;Pr=gmg,m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks))
+                        maxiter=5,verbose=true,mode=:preconditioner)
+  gmg.log.depth += 2
+  #solver = GMRESSolver(10;Pr=gmg,m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - GMRES+GMG")
+  solver = FGMRESSolver(10,gmg;m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - FGMRES+GMG")
   solver.log.depth += 1 # For printing purposes
-  return solver
+  return gmg
 end
 
 function compute_gmg_matrices(mh,trials,tests,biform,measures,qdegree)
@@ -140,7 +150,7 @@ function gmg_patch_smoothers(mh,tests,biform,measures,qdegree)
       local_solver = LUSolver()
       a(u,v,dΩ) = biform(u0,u,v,dΩ)
       patch_smoother = PatchBasedLinearSolver(a,Ph,Vh,dΩ,local_solver)
-      smoothers[lev] = RichardsonSmoother(patch_smoother,10,0.1)
+      smoothers[lev] = RichardsonSmoother(patch_smoother,10,0.2)
     end
   end
   return smoothers

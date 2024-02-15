@@ -200,7 +200,7 @@ function _fe_spaces(::Val{false},params)
   mfs = _multi_field_style(params)
   Ωf  = _fluid_mesh(model,params[:fluid][:domain])
   V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  V_p = TestFESpace(Ωf,reffe_p)
+  V_p = TestFESpace(Ωf,reffe_p;conformity=:L2)
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
   V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
@@ -240,7 +240,7 @@ function _fe_spaces(::Val{true},params)
   # Test spaces
   mfs = _multi_field_style(params)
   V_u = TestFESpace(trians[1],reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  V_p = TestFESpace(trians[2],reffe_p)
+  V_p = TestFESpace(trians[2],reffe_p;conformity=:L2)
   V_j = TestFESpace(trians[3],reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
   V_φ = TestFESpace(trians[4],reffe_φ;conformity=:L2)
   
@@ -309,7 +309,7 @@ _fluid_mesh(model,domain) = Interior(model,tags=domain)
 
 _interior(model,domain::DiscreteModelTypes) = Interior(domain)
 _interior(model,domain::TriangulationTypes) = domain
-_interior(model,domain::Nothing) = Interior(model) # This should be removed, but Gridap needs fixes
+_interior(model,domain::Nothing) = Triangulation(model) # This should be removed, but Gridap needs fixes
 _interior(model,domain) = Interior(model,tags=domain)
 
 _boundary(model,domain::TriangulationTypes) = domain

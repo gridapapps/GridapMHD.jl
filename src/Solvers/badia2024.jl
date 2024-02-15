@@ -6,8 +6,8 @@ function Badia2024Solver(op::FEOperator,params)
   k  = params[:fespaces][:k]
   Ωf = _interior(model,params[:fluid][:domain])
   dΩ = Measure(Ωf,2*k)
-  α_p = -(params[:fluid][:β] + params[:fluid][:ζ])
-  α_φ = -(1.0 + params[:fluid][:ζ])
+  α_p = -1.0/(params[:fluid][:β] + params[:fluid][:ζ])
+  α_φ = -1.0/(1.0 + params[:fluid][:ζ])
   a_Ip(p,v_p) = ∫(α_p*p*v_p)*dΩ
   a_Iφ(φ,v_φ) = ∫(α_φ*φ*v_φ)*dΩ
 
@@ -31,7 +31,7 @@ function Badia2024Solver(op::FEOperator,params)
   l_rtol  = nl_rtol/10.0
   
   m = params[:solver][:niter]
-  l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=1e-14,verbose=verbose)
+  l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=1e-14,verbose=verbose,name="Global System - FGMRES + Badia2024")
 
   # Nonlinear Solver
   nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=1,atol=1e-14,rtol=nl_rtol,verbose=verbose)
