@@ -15,7 +15,7 @@ function hunt(;
       @assert backend ∈ [:sequential,:mpi]
       @assert !isa(np,Nothing)
       if backend === :sequential
-        info,t = with_debug() do distribute
+        info, t = with_debug() do distribute
           _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
         end
       else
@@ -47,6 +47,7 @@ function _hunt(;
   σ=1.0,
   B=(0.0,10.0,0.0),
   f=(0.0,0.0,1.0),
+  ζ=0.0,
   L=1.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
@@ -60,14 +61,21 @@ function _hunt(;
   solve = true,
   solver = :julia,
   verbose = true,
-  mesh = false,
   BL_adapted = true,
   kmap_x = 1,
   kmap_y = 1,
+  ranks_per_level = nothing
   )
 
   info = Dict{Symbol,Any}()
+  params = Dict{Symbol,Any}(
+    :debug=>debug,
+    :solve=>solve,
+    :res_assemble=>res_assemble,
+    :jac_assemble=>jac_assemble,
+  )
 
+  # Communicator
   if isa(distribute,Nothing)
     @assert isa(rank_partition,Nothing)
     rank_partition = Tuple(fill(1,length(nc)))
@@ -76,16 +84,19 @@ function _hunt(;
   @assert length(rank_partition) == length(nc)
   parts = distribute(LinearIndices((prod(rank_partition),)))
   
+  # Timer
   t = PTimer(parts,verbose=verbose)
+  params[:ptimer] = t
   tic!(t,barrier=true)
 
+  # Solver
   if isa(solver,Symbol)
     solver = default_solver_params(Val(solver))
   end
-
-  domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
+  params[:solver] = solver
 
   # Reduced quantities
+
   Re = u0*L/ν
   Ha = B0*L*sqrt(σ/(ρ*ν))
   N = Ha^2/Re
@@ -94,61 +105,30 @@ function _hunt(;
   α = 1.0
   β = 1.0/Re
   γ = N
-  domain = domain_phys ./ L
 
-  # Prepare problem in terms of reduced quantities
+  # DiscreteModel in terms of reduced quantities
 
-  strech_Ha = sqrt(Ha/(Ha-1))
-  strech_side = sqrt(sqrt(Ha)/(sqrt(Ha)-1))
-
-  function map1(coord)
-    ncoord = GridapMHD.strechMHD(coord,domain=(0,-L,0,-L),factor=(strech_side,strech_Ha),dirs=(1,2))
-    ncoord = GridapMHD.strechMHD(ncoord,domain=(0,L,0,L),factor=(strech_side,strech_Ha),dirs=(1,2))
-    ncoord  
-  end
-  layer(x,a) = sign(x)*abs(x)^(1/a)
-  map2((x,y,z)) = VectorValue(layer(x,kmap_x),layer(y,kmap_y),z)
-
-  mesh_partition = (nc[1],nc[2],3)
-  mesh_rank_partition = (rank_partition[1],rank_partition[2],1)
-  if BL_adapted
-    model = CartesianDiscreteModel(
-      parts,mesh_rank_partition,domain,mesh_partition;isperiodic=(false,false,true),map=map1)
-  else
-    model = CartesianDiscreteModel(
-      parts,mesh_rank_partition,domain,mesh_partition;isperiodic=(false,false,true),map=map2)
-  end
+  model = hunt_mesh(parts,params,nc,rank_partition,L,Ha,kmap_x,kmap_y,BL_adapted,ranks_per_level)
   Ω = Interior(model)
-  labels = get_face_labeling(model)
-  tags_u = append!(collect(1:20),[23,24,25,26])
-  tags_j = append!(collect(1:20),[25,26])
-  add_tag_from_tags!(labels,"noslip",tags_u)
-  add_tag_from_tags!(labels,"insulating",tags_j)
-  
-  if mesh
-    writevtk(model,"Mesh")
+  if debug && vtk
+    writevtk(model,"data/hunt_model")
   end
 
-  params = Dict(
-    :ptimer=>t,
-    :debug=>debug,
-    :model=>model,
-    :res_assemble=>res_assemble,
-    :jac_assemble=>jac_assemble,
-    :solve=>solve,
-    :fluid=>Dict(
-      :domain=>model,
-      :α=>α,
-      :β=>β,
-      :γ=>γ,
-      :f=>f̄,
-      :B=>B̄,
-    ),
-    :bcs => Dict(
-      :u=>Dict(:tags=>"noslip"),
-      :j=>Dict(:tags=>"insulating"),
-    ),
-    :solver=>solver,
+  params[:fluid] = Dict(
+    :domain=>nothing,
+    :α=>α,
+    :β=>β,
+    :γ=>γ,
+    :f=>f̄,
+    :B=>B̄,
+    :ζ=>ζ,
+  )
+
+  # Boundary conditions
+
+  params[:bcs] = Dict(
+    :u=>Dict(:tags=>"noslip"),
+    :j=>Dict(:tags=>"insulating"),
   )
 
   toc!(t,"pre_process")
@@ -216,6 +196,8 @@ function _hunt(;
     toc!(t,"vtk")
   end
   if verbose
+    println(" >> H1 error for u = ", eu_ref_h1)
+    println(" >> L2 error for j = ", ej_ref_l2)
     display(t)
   end
 
@@ -241,6 +223,27 @@ function _hunt(;
   info[:kmap] = [kmap_x,kmap_y]
 
   info, t
+end
+
+function hunt_mesh(
+  parts,params,
+  nc::Tuple,np::Tuple,L::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool,
+  ranks_per_level)
+  if isnothing(ranks_per_level) # Single grid
+    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,Ha,kmap_x,kmap_y,BL_adapted)
+    params[:model] = model
+  else # Multigrid
+    base_model = Meshers.hunt_generate_base_mesh(nc,L,Ha,kmap_x,kmap_y,BL_adapted)
+    mh = Meshers.generate_mesh_hierarchy(parts,base_model,0,ranks_per_level)
+    params[:multigrid] = Dict{Symbol,Any}(
+      :mh => mh,
+      :num_refs_coarse => 0,
+      :ranks_per_level => ranks_per_level,
+    )
+    model = get_model(mh,1)
+    params[:model] = model
+  end
+  return model
 end
 
 # This is not very elegant. This needs to be solved by Gridap and GridapDistributed

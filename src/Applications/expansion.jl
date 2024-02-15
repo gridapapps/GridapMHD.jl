@@ -53,6 +53,7 @@ function _expansion(;
   cw = 0.028,
   τ  = 100,
   ζ  = 0.0,
+  order = 2,
   )
   
   info   = Dict{Symbol,Any}()
@@ -61,7 +62,7 @@ function _expansion(;
     :solve=>true,
     :res_assemble=>false,
     :jac_assemble=>false,
-    :solver=>solver,
+    :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver,
   )
 
   if isa(distribute,Nothing)
@@ -76,9 +77,12 @@ function _expansion(;
   tic!(t,barrier=true)
 
   # Mesh
+  if isa(mesh,String)
+    mesh = Dict(:mesher => :gmsh, :base_mesh => mesh)
+  end
   model = expansion_mesh(mesh,parts,params)
   if debug && vtk
-    writevtk(model,"expansion_model")
+    writevtk(model,"data/expansion_model")
   end
   Ω = Interior(model,tags="PbLi")
   toc!(t,"model")
@@ -99,6 +103,10 @@ function _expansion(;
     error("Unknown formulation")
   end
 
+  params[:fespaces] = Dict(
+    :k => order
+  )
+
   params[:fluid] = Dict(
     :domain => nothing, # whole domain
     :α => α,
@@ -111,7 +119,7 @@ function _expansion(;
 
   # Boundary conditions
   u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0) # This gives mean(u_inlet)=1
-  if cw == 0.0
+  if abs(cw) < 1.e-5
     params[:bcs] = Dict( 
       :u => Dict(
         :tags => ["inlet", "wall"],
@@ -160,7 +168,7 @@ function _expansion(;
   uh,ph,jh,φh = xh
   if vtk
     writevtk(Ω,joinpath(path,title),
-      order=2,
+      order=order,
       cellfields=[
         "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
     toc!(t,"vtk")
@@ -181,20 +189,52 @@ function _expansion(;
   return info, t
 end
 
-function expansion_mesh(mesh::String,ranks,params)
+# Mesh
+
+function expansion_mesh(mesh::Dict,ranks,params)
+  expansion_mesh(Val(mesh[:mesher]),mesh,ranks,params)
+end
+
+function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
   # after and before the expansion respectively (L=1).
-  msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh*".msh") |> normpath
+  msh_name = mesh[:base_mesh]
+  msh_file = joinpath(projectdir(),"meshes","Expansion_"*msh_name*".msh") |> normpath
   model = GmshDiscreteModel(ranks,msh_file)
   params[:model] = model
   return model
 end
 
-function expansion_mesh(mesh::Dict,ranks,params)
+function epansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
+  @assert haskey(mesh,:num_refs)
+  num_refs = mesh[:num_refs]
+  if haskey(mesh,:base_mesh)
+    msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
+    base_model = GmshDiscreteModel(msh_file)
+    add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
+    add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
+  else
+    base_model = expansion_generate_base_mesh()
+  end
+  model = Meshers.generate_refined_mesh(ranks,base_model,num_refs)
+  params[:model] = model
+  return model
+end
+
+function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs_coarse) && haskey(mesh,:ranks_per_level)
   num_refs_coarse = mesh[:num_refs_coarse]
   ranks_per_level = mesh[:ranks_per_level]
-  mh = Meshers.expansion_generate_mesh_hierarchy(ranks,num_refs_coarse,ranks_per_level)
+  if haskey(mesh,:base_mesh)
+    msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
+    base_model = GmshDiscreteModel(msh_file)
+    add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
+    add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
+  else
+    base_model = expansion_generate_base_mesh()
+  end
+
+  mh = Meshers.generate_mesh_hierarchy(ranks,base_model,num_refs_coarse,ranks_per_level)
   params[:multigrid] = Dict{Symbol,Any}(
     :mh => mh,
     :num_refs_coarse => num_refs_coarse,
