@@ -14,6 +14,9 @@ using Gridap
 using Gridap.Helpers, Gridap.Algebra, Gridap.CellData, Gridap.ReferenceFEs
 using Gridap.Geometry, Gridap.FESpaces, Gridap.MultiField
 
+using PartitionedArrays
+using PartitionedArrays: getany
+
 using GridapDistributed
 using GridapDistributed: i_am_in, i_am_main
 
@@ -22,9 +25,6 @@ using GridapPETSc
 
 using GridapSolvers
 using GridapSolvers.LinearSolvers, GridapSolvers.NonlinearSolvers, GridapSolvers.BlockSolvers
-
-using PartitionedArrays
-using PartitionedArrays: getany
 
 # Mesh generation
 include("Meshers/meshers.jl")

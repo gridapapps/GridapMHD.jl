@@ -59,18 +59,18 @@ function gmg_solver(mh,trials,tests,weakform,qdegree)
                         pre_smoothers=smoothers,
                         post_smoothers=smoothers,
                         coarsest_solver=coarsest_solver,
-                        maxiter=5,verbose=true,mode=:preconditioner)
-  gmg.log.depth += 2
+                        maxiter=1,verbose=true,mode=:preconditioner)
+  gmg.log.depth += 3
   solver = FGMRESSolver(10,gmg;m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - FGMRES+GMG")
-  solver.log.depth += 1 # For printing purposes
-  return gmg
+  solver.log.depth += 3 # For printing purposes
+  return solver
 end
 
 function compute_gmg_matrices(mh,trials,tests,weakform)
   nlevs = num_levels(trials)
 
   mats = Vector{PSparseMatrix}(undef,nlevs)
-  for lev in 2:nlevs
+  for lev in 1:nlevs
     parts = get_level_parts(mh,lev)
     if i_am_in(parts)
       model = GridapSolvers.get_model(mh,lev)
@@ -104,3 +104,100 @@ function gmg_patch_smoothers(mh,trials,weakform)
   end
   return smoothers
 end
+
+"""
+function Gridap.Algebra.numerical_setup(ss::GridapSolvers.LinearSolvers.GMGSymbolicSetup,mat::AbstractMatrix)
+  mh              = ss.solver.mh
+  pre_smoothers   = ss.solver.pre_smoothers
+  post_smoothers  = ss.solver.post_smoothers
+  smatrices       = ss.solver.smatrices
+  coarsest_solver = ss.solver.coarsest_solver
+
+  A = all(PartitionedArrays.getany(own_values(mat)) .== PartitionedArrays.getany(own_values(smatrices[1])))
+  B = all(PartitionedArrays.getany(partition(mat)) .== PartitionedArrays.getany(partition(smatrices[1])))
+  C = PartitionedArrays.matching_local_indices(axes(mat,1),axes(smatrices[1],1))
+  D = PartitionedArrays.matching_local_indices(axes(mat,2),axes(smatrices[1],2))
+  println(" >>>> GMG checks: ",A,B,C,D)
+
+  finest_level_cache = GridapSolvers.LinearSolvers.gmg_finest_level_cache(mh,smatrices)
+  work_vectors = GridapSolvers.LinearSolvers.gmg_work_vectors(mh,smatrices)
+  pre_smoothers_caches = GridapSolvers.LinearSolvers.gmg_smoothers_caches(mh,pre_smoothers,smatrices)
+  if !(pre_smoothers === post_smoothers)
+    post_smoothers_caches = GridapSolvers.LinearSolvers.gmg_smoothers_caches(mh,post_smoothers,smatrices)
+  else
+    post_smoothers_caches = pre_smoothers_caches
+  end
+  coarsest_solver_cache = GridapSolvers.LinearSolvers.gmg_coarse_solver_caches(mh,coarsest_solver,smatrices,work_vectors)
+
+  return GridapSolvers.LinearSolvers.GMGNumericalSetup(ss.solver,finest_level_cache,pre_smoothers_caches,post_smoothers_caches,coarsest_solver_cache,work_vectors)
+end
+
+function GridapSolvers.LinearSolvers.apply_GMG_level!(lev::Integer,xh::Union{PVector,Nothing},rh::Union{PVector,Nothing},ns::GridapSolvers.LinearSolvers.GMGNumericalSetup)
+  mh = ns.solver.mh
+  parts = get_level_parts(mh,lev)
+  if i_am_in(parts)
+    if (lev == num_levels(mh)) 
+      ## Coarsest level
+      solve!(xh, ns.coarsest_solver_cache, rh)
+    else 
+      ## General case
+      Ah = ns.solver.smatrices[lev]
+      restrict, interp = ns.solver.restrict[lev], ns.solver.interp[lev]
+      dxh, Adxh, dxH, rH = ns.work_vectors[lev]
+
+      println("       >>>> Initial norm : ",norm(rh))
+      # Pre-smooth current solution
+      solve!(xh, ns.pre_smoothers_caches[lev], rh)
+      println("       >>>> Norm after pre-smoothing : ",norm(rh))
+
+      # Restrict the residual
+      mul!(rH,restrict,rh)
+
+      # Apply next_level
+      !isa(dxH,Nothing) && fill!(dxH,0.0)
+      GridapSolvers.LinearSolvers.apply_GMG_level!(lev+1,dxH,rH,ns)
+
+      # Interpolate dxH in finer space
+      mul!(dxh,interp,dxH)
+
+      # Update solution & residual
+      xh .= xh .+ dxh
+      mul!(Adxh, Ah, dxh)
+      rh .= rh .- Adxh
+      println("       >>>> Norm after coarse correction : ",norm(rh))
+
+      # Post-smooth current solution
+      solve!(xh, ns.post_smoothers_caches[lev], rh)
+      println("       >>>> Norm after post-smoothing : ",norm(rh))
+    end
+  end
+end
+
+function Gridap.Algebra.solve!(y::AbstractVector,ns::GridapSolvers.LinearSolvers.GMGNumericalSetup,b::AbstractVector)
+  mode = ns.solver.mode
+  log  = ns.solver.log
+
+  x = similar(y)
+  rh = ns.finest_level_cache
+  if (mode == :preconditioner)
+    fill!(x,0.0)
+    copy!(rh,b)
+  else
+    Ah = ns.solver.smatrices[1]
+    mul!(rh,Ah,x)
+    rh .= b .- rh
+  end
+
+  res  = norm(rh)
+  done = GridapSolvers.SolverInterfaces.init!(log,res)
+  while !done
+    GridapSolvers.LinearSolvers.apply_GMG_level!(1,x,rh,ns)
+    res  = norm(rh)
+    done = GridapSolvers.SolverInterfaces.update!(log,res)
+  end
+
+  GridapSolvers.SolverInterfaces.finalize!(log,res)
+  copy!(y,x)
+  return y
+end
+"""

@@ -398,7 +398,9 @@ version = "0.7.0"
 
 [[deps.GridapP4est]]
 deps = ["ArgParse", "FillArrays", "Gridap", "GridapDistributed", "Libdl", "MPI", "P4est_wrapper", "PartitionedArrays", "Test"]
-git-tree-sha1 = "13ab5b3fef4d4bbab653d9f52c11d731bd74605c"
+git-tree-sha1 = "eb09eee114197061ec095441ba671dd58577d2af"
+repo-rev = "bugfix-periodic-cartesian-meshes"
+repo-url = "https://github.com/gridap/GridapP4est.jl.git"
 uuid = "c2c8e14b-f5fd-423d-9666-1dd9ad120af9"
 version = "0.3.5"
 

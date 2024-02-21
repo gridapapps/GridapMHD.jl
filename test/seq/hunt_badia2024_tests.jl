@@ -1,13 +1,13 @@
 module HuntBadia2024SequentialTests
 
+using SparseArrays
 using GridapMHD: hunt
-using GridapPETSc, SparseMatricesCSR
 
 # Badia2024, with LU factorisation for u-j sub-block
 solver = Dict(
   :solver         => :badia2024,
-  :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
-  :vector_type    => Vector{PetscScalar},
+  :matrix_type    => SparseMatrixCSC{Float64,Int64},
+  :vector_type    => Vector{Float64},
   :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
   :block_solvers  => [:julia,:cg_jacobi,:cg_jacobi],
 )
@@ -27,8 +27,8 @@ hunt(
 # Badia2024, with GMG solver for u-j sub-block
 solver = Dict(
   :solver         => :badia2024,
-  :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
-  :vector_type    => Vector{PetscScalar},
+  :matrix_type    => SparseMatrixCSC{Float64,Int64},
+  :vector_type    => Vector{Float64},
   :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
   :block_solvers  => [:gmg,:cg_jacobi,:cg_jacobi],
 )
@@ -43,7 +43,8 @@ hunt(
   title="hunt",
   solver=solver,
   ζ=10.0,
-  ranks_per_level=[1,1]
+  ranks_per_level=[1,1],
+  BL_adapted=false,
 )
 
 end # module
