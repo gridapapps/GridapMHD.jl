@@ -59,11 +59,11 @@ function gmg_solver(mh,trials,tests,weakform,qdegree)
                         pre_smoothers=smoothers,
                         post_smoothers=smoothers,
                         coarsest_solver=coarsest_solver,
-                        maxiter=1,verbose=true,mode=:preconditioner)
-  gmg.log.depth += 3
+                        maxiter=5,verbose=true,mode=:solver)
+  gmg.log.depth += 4
   solver = FGMRESSolver(10,gmg;m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - FGMRES+GMG")
   solver.log.depth += 3 # For printing purposes
-  return solver
+  return gmg
 end
 
 function compute_gmg_matrices(mh,trials,tests,weakform)
