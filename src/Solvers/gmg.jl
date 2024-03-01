@@ -45,7 +45,7 @@ function gmg_solver(mh,trials,tests,weakform,qdegree)
   ranks = get_level_parts(mh,1)
   smatrices = compute_gmg_matrices(mh,trials,tests,weakform)
   projection_solver = LUSolver()#CGSolver(JacobiLinearSolver();rtol=1.e-6)
-  restrictions, prolongations = setup_transfer_operators(trials,
+  restrictions, prolongations = setup_transfer_operators(tests,
                                                          qdegree;
                                                          mode=:residual,
                                                          solver=projection_solver)
@@ -59,11 +59,11 @@ function gmg_solver(mh,trials,tests,weakform,qdegree)
                         pre_smoothers=smoothers,
                         post_smoothers=smoothers,
                         coarsest_solver=coarsest_solver,
-                        maxiter=5,verbose=true,mode=:solver)
+                        maxiter=3,verbose=true,mode=:preconditioner)
   gmg.log.depth += 4
   solver = FGMRESSolver(10,gmg;m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - FGMRES+GMG")
   solver.log.depth += 3 # For printing purposes
-  return gmg
+  return solver
 end
 
 function compute_gmg_matrices(mh,trials,tests,weakform)
@@ -85,9 +85,9 @@ function compute_gmg_matrices(mh,trials,tests,weakform)
   return mats
 end
 
-function gmg_patch_smoothers(mh,trials,weakform)
+function gmg_patch_smoothers(mh,tests,weakform)
   patch_decompositions = PatchDecomposition(mh)
-  patch_spaces = PatchFESpace(trials,patch_decompositions)
+  patch_spaces = PatchFESpace(tests,patch_decompositions)
 
   nlevs = num_levels(mh)
   smoothers = Vector{RichardsonSmoother}(undef,nlevs-1)
@@ -96,7 +96,7 @@ function gmg_patch_smoothers(mh,trials,weakform)
     if i_am_in(parts)
       PD = patch_decompositions[lev]
       Ph = GridapSolvers.get_fe_space(patch_spaces,lev)
-      Vh = GridapSolvers.get_fe_space(trials,lev)
+      Vh = GridapSolvers.get_fe_space(tests,lev)
       a = weakform(PD)
       patch_smoother = PatchBasedLinearSolver(a,Ph,Vh,is_nonlinear=true)
       smoothers[lev] = RichardsonSmoother(patch_smoother,10,0.2)

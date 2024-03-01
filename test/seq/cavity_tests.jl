@@ -1,12 +1,21 @@
 module CavityTestsSequential
 
 using GridapPETSc
-using SparseMatricesCSR
+using SparseMatricesCSR, SparseArrays
 
 using GridapMHD: cavity
 
 # Serial, LUSolver
-cavity()
+cavity(np=1,backend=:mpi,solver=:julia)
+
+solver = Dict(
+  :solver         => :badia2024,
+  :matrix_type    => SparseMatrixCSC{Float64,Int64},
+  :vector_type    => Vector{Float64},
+  :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+  :block_solvers  => [:gmg,:cg_jacobi,:cg_jacobi],
+)
+cavity(np=1,backend=:mpi,solver=solver,ζ=10.0,ranks_per_level=[1,1])
 
 # Serial, GMRES + block LU solvers
 cavity(solver=:li2019)
@@ -38,8 +47,5 @@ solver = Dict(
   :petsc_options => petsc_options
 )
 cavity(np=2,backend=:sequential,solver=solver)
-
-# Distributed MPI, LUSolver
-# cavity(np=2,backend=:mpi,solver=:petsc)
 
 end # module

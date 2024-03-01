@@ -35,8 +35,9 @@ function get_hierarchy_matrices(
   return mats
 end
 
-function get_patch_smoothers(tests,patch_spaces,patch_decompositions,biform,qdegree)
+function get_patch_smoothers(tests,patch_decompositions,biform,qdegree)
   mh = tests.mh
+  patch_spaces = PatchFESpace(tests,patch_decompositions)
   nlevs = num_levels(mh)
   smoothers = Vector{RichardsonSmoother}(undef,nlevs-1)
   for lev in 1:nlevs-1
@@ -70,7 +71,7 @@ end
 
 np = 1
 Dc = 3
-nc = 2
+nc = 4
 Re = 0.1
 Ha = 10.0
 η_u, η_j = 10.0,10.0
@@ -94,24 +95,22 @@ base_model = CartesianDiscreteModel(domain,mesh_partition)
 mh = GridapMHD.Meshers.generate_mesh_hierarchy(ranks,base_model,0,[np,np])
 model = get_model(mh,1)
 
-
 order = 2
 reffe_u  = ReferenceFE(lagrangian,VectorValue{Dc,Float64},order)
 tests_u  = FESpace(mh,reffe_u;dirichlet_tags="boundary");
-trials_u = TrialFESpace(tests_u);
+trials_u = TrialFESpace(tests_u,u_exact);
 
 reffe_j  = ReferenceFE(raviart_thomas,Float64,order-1)
 tests_j  = FESpace(mh,reffe_j;dirichlet_tags="boundary");
-trials_j = TrialFESpace(tests_j);
+trials_j = TrialFESpace(tests_j,j_exact);
 
 trials = MultiFieldFESpace([trials_u,trials_j]);
 tests  = MultiFieldFESpace([tests_u,tests_j]);
-spaces = tests, trials
 
 
 conv(u,∇u) = (∇u')⋅u
 a_al((u,j),(v_u,v_j),dΩ) = ∫(η_u*(∇⋅u)⋅(∇⋅v_u))*dΩ + ∫(η_j*(∇⋅j)⋅(∇⋅v_j))*dΩ
-a_mhd((u,j),(v_u,v_j),dΩ) = ∫(β*∇(u)⊙∇(v_u) -γ*(j×B)⋅v_u + j⋅v_j - (u×B)⋅v_j)dΩ
+a_mhd((u,j),(v_u,v_j),dΩ) = ∫(β*∇(u)⊙∇(v_u) - γ*(j×B)⋅v_u + j⋅v_j - (u×B)⋅v_j)dΩ
 c_mhd((u,j),(v_u,v_j),dΩ) = ∫( α*v_u⋅(conv∘(u,∇(u))) ) * dΩ
 dc_mhd((u,j),(du,dj),(v_u,v_j),dΩ) = ∫(α*v_u⋅( (conv∘(u,∇(du))) + (conv∘(du,∇(u)))))dΩ
 rhs((u,j),(v_u,v_j),dΩ) = ∫(f⋅v_u)dΩ
@@ -121,8 +120,7 @@ res(x0,y,dΩ) = a_mhd(x0,y,dΩ) + a_al(x0,y,dΩ) + c_mhd(x0,y,dΩ) - rhs(x0,y,d�
 
 qdegree = 2*(order+1)
 patch_decompositions = PatchDecomposition(mh)
-patch_spaces = PatchFESpace(tests,patch_decompositions);
-smoothers = get_patch_smoothers(tests,patch_spaces,patch_decompositions,jac,qdegree)
+smoothers = get_patch_smoothers(trials,patch_decompositions,jac,qdegree)
 
 smatrices = get_hierarchy_matrices(trials,tests,jac,qdegree;is_nonlinear=true);
 A = smatrices[1]
@@ -132,7 +130,7 @@ x0 = zero(GridapSolvers.get_fe_space(trials,1))
 b = assemble_vector(v -> res(x0,v,dΩ), GridapSolvers.get_fe_space(tests,1))
 
 coarse_solver = LUSolver()
-restrictions, prolongations = setup_transfer_operators(trials,
+restrictions, prolongations = setup_transfer_operators(tests,
                                                         qdegree;
                                                         mode=:residual,
                                                         solver=LUSolver());
@@ -156,6 +154,7 @@ gmg_ns = numerical_setup(symbolic_setup(gmg_solver,A),A)
 
 x = pfill(0.0,partition(axes(A,2)))
 r = b - A*x
+r = prandn(partition(axes(A,2)))
 solve!(x,gmg_ns,r)
 
 ############################################

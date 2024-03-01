@@ -398,8 +398,8 @@ version = "0.7.0"
 
 [[deps.GridapP4est]]
 deps = ["ArgParse", "FillArrays", "Gridap", "GridapDistributed", "Libdl", "MPI", "P4est_wrapper", "PartitionedArrays", "Test"]
-git-tree-sha1 = "51aa6485e08a75bb94ced2d659a508743fd6fe6e"
-repo-rev = "bugfix-periodic-cartesian-meshes"
+git-tree-sha1 = "e411871a97bf7a535ebb3640d48cac5d81480c45"
+repo-rev = "main"
 repo-url = "https://github.com/gridap/GridapP4est.jl.git"
 uuid = "c2c8e14b-f5fd-423d-9666-1dd9ad120af9"
 version = "0.3.5"
@@ -412,7 +412,7 @@ version = "0.5.1"
 
 [[deps.GridapSolvers]]
 deps = ["AbstractTrees", "ArgParse", "BlockArrays", "FillArrays", "Gridap", "GridapDistributed", "GridapP4est", "GridapPETSc", "IterativeSolvers", "LinearAlgebra", "MPI", "P4est_wrapper", "PartitionedArrays", "Printf", "SparseArrays", "SparseMatricesCSR"]
-git-tree-sha1 = "353b14a8827f454c3bb04441024d169477d89457"
+git-tree-sha1 = "b0474b23c4a5ef110a2f1b27428a967a3e45879c"
 repo-rev = "develop"
 repo-url = "https://github.com/gridap/GridapSolvers.jl.git"
 uuid = "6d3209ee-5e3c-4db7-a716-942eb12ed534"
@@ -863,9 +863,9 @@ version = "1.2.0"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "00805cd429dcb4870060ff49ef443486c262e38e"
+git-tree-sha1 = "9e8fed0505b0c15b4c1295fd59ea47b411c019cf"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.1"
+version = "1.4.2"
 
 [[deps.Printf]]
 deps = ["Unicode"]

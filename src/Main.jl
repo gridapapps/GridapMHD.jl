@@ -200,7 +200,7 @@ function _fe_spaces(::Val{false},params)
   mfs = _multi_field_style(params)
   Ωf  = _fluid_mesh(model,params[:fluid][:domain])
   V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  V_p = TestFESpace(Ωf,reffe_p;conformity=:L2)
+  V_p = TestFESpace(Ωf,reffe_p;conformity=p_conformity(model,params[:fespaces]))
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
   V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
@@ -228,7 +228,7 @@ function _fe_spaces(::Val{true},params)
   @assert get_model(mh,1) == model
 
   uses_mg = space_uses_multigrid(params[:solver])
-  trians  = map((m,a,b) -> m ? a : b ,uses_mg ,[mh,mh,mh,mh], [Ωf,Ωf,model,model])
+  trians  = map((m,a,b) -> m ? a : b , uses_mg, [mh,mh,mh,mh], [Ωf,Ωf,model,model])
 
   # ReferenceFEs
   D = num_cell_dims(model)
@@ -240,7 +240,7 @@ function _fe_spaces(::Val{true},params)
   # Test spaces
   mfs = _multi_field_style(params)
   V_u = TestFESpace(trians[1],reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  V_p = TestFESpace(trians[2],reffe_p;conformity=:L2)
+  V_p = TestFESpace(trians[2],reffe_p;conformity=p_conformity(model,params[:fespaces]))
   V_j = TestFESpace(trians[3],reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
   V_φ = TestFESpace(trians[4],reffe_φ;conformity=:L2)
   
@@ -265,8 +265,8 @@ function _fe_spaces(::Val{true},params)
   params[:multigrid][:variables] = findall(uses_mg)
   params[:multigrid][:trials] = sh_trials
   params[:multigrid][:tests]  = sh_tests
-  V = MultiFieldFESpace([tests...];style=mfs)
   U = MultiFieldFESpace([trials...];style=mfs)
+  V = MultiFieldFESpace([tests...];style=mfs)
   return U, V
 end
 

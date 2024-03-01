@@ -22,8 +22,8 @@ params = Dict{Symbol,Any}(
   :jac_assemble=>false,
 )
 
-t = PTimer(ranks,verbose=true)
-params[:ptimer] = t
+t = PTimer(ranks,verbose=true);
+params[:ptimer] = t;
 
 L = 1.0
 u0 = 1.0
@@ -56,20 +56,20 @@ params[:bcs] = Dict(
   :j=>Dict(:tags=>"insulating"),
 )
 
-model = GridapMHD.hunt_mesh(ranks,params,(4,4),(1,1),L,Ha,1.0,1.0,true,[1,1])
+model = GridapMHD.hunt_mesh(ranks,params,(2,2),(1,1),L,Ha,1.0,1.0,false,[1,1])
 
-params = GridapMHD.add_default_params(params)
-  
+params = GridapMHD.add_default_params(params);
+
 U, V = GridapMHD._fe_spaces(params)
 
 op = GridapMHD._fe_operator(U,V,params)
 xh = zero(get_trial(op))
 nlsolver = GridapMHD._solver(op,params)
+solve!(xh,nlsolver,op);
 
 A = jacobian(op,xh)
 b = residual(op,xh)
 global_ls = nlsolver.ls
-
 x = get_free_dof_values(xh)
 global_ns = numerical_setup(symbolic_setup(global_ls,A,x),A,x)
 solve!(x,global_ns,b)
@@ -112,8 +112,9 @@ function get_hierarchy_matrices(
   return mats
 end
 
-function get_patch_smoothers(tests,patch_spaces,patch_decompositions,biform,qdegree)
+function get_patch_smoothers(tests,patch_decompositions,biform,qdegree)
   mh = tests.mh
+  patch_spaces = PatchFESpace(tests,patch_decompositions);
   nlevs = num_levels(mh)
   smoothers = Vector{RichardsonSmoother}(undef,nlevs-1)
   for lev in 1:nlevs-1
@@ -172,7 +173,7 @@ if false
   mh = params[:multigrid][:mh]
 else
   domain = (-1.0,1.0,-1.0,1.0,0.0,1.0)
-  cmodel = CartesianDiscreteModel(domain,(4,4,3);isperiodic=(false,false,true))
+  cmodel = CartesianDiscreteModel(domain,(4,4,4);isperiodic=(false,false,true))
   add_hunt_tags!(cmodel)
   mh = get_mesh_hierarchy(ranks,cmodel,0,[1,1]);
 end
@@ -196,19 +197,18 @@ else
 end
 
 patch_decompositions = PatchDecomposition(mh)
-patch_spaces = PatchFESpace(tests,patch_decompositions);
-smoothers = get_patch_smoothers(tests,patch_spaces,patch_decompositions,jac,2*order)
+smoothers = get_patch_smoothers(trials,patch_decompositions,jac,2*order+1)
 
-smatrices = get_hierarchy_matrices(trials,tests,jac,2*order;is_nonlinear=true);
+smatrices = get_hierarchy_matrices(trials,tests,jac,2*order+1;is_nonlinear=true);
 A_uj = smatrices[1]
 
-dΩ = Measure(Triangulation(get_model(mh,1)),2*order)
+dΩ = Measure(Triangulation(get_model(mh,1)),2*order+1)
 x0 = zero(GridapSolvers.get_fe_space(trials,1))
 b_uj = assemble_vector(v -> res(x0,v,dΩ),GridapSolvers.get_fe_space(tests,1))
 
 coarse_solver = LUSolver()
-restrictions, prolongations = setup_transfer_operators(trials,
-                                                        2*order;
+restrictions, prolongations = setup_transfer_operators(tests,
+                                                        2*order+1;
                                                         mode=:residual,
                                                         solver=LUSolver()); 
 
@@ -228,26 +228,26 @@ gmg_ns = numerical_setup(symbolic_setup(gmg_solver,A_uj),A_uj)
 
 x = pfill(0.0,partition(axes(A_uj,2)))
 r = b_uj - A_uj*x
+r = prandn(partition(axes(A_uj,2)))
 solve!(x,gmg_ns,r)
 
 
+using Gridap, Gridap.Geometry
+using GridapMHD
 
-base_model = GridapMHD.Meshers.hunt_generate_base_mesh((4,4),L,Ha,1.0,1.0,true)
-mh = GridapMHD.Meshers.generate_mesh_hierarchy(ranks,base_model,0,[1,1])
+base = CartesianDiscreteModel((-1.0,1.0,-1.0,1.0,0.0,0.1),(4,4,3);isperiodic=(false,false,true))
+writevtk(base,"data/hunt_meshes/base")
 
-writevtk(base_model,"data/hunt_base_model")
-writevtk(PartitionedArrays.getany(local_views(GridapSolvers.get_model(mh,1))),"data/hunt_mh_1")
-writevtk(PartitionedArrays.getany(local_views(GridapSolvers.get_model(mh,2))),"data/hunt_mh_2")
+Ha = 1.0
+base_blt_1 = GridapMHD.Meshers.hunt_generate_base_mesh((4,4),1.0,Ha,1.0,1.0,true)
+writevtk(base_blt_1,"data/hunt_meshes/base_blt_1")
+base_noblt_1 = GridapMHD.Meshers.hunt_generate_base_mesh((4,4),1.0,Ha,1.0,1.0,false)
+writevtk(base_noblt_1,"data/hunt_meshes/base_noblt_1")
 
+Ha = 10.0
+base_blt_10 = GridapMHD.Meshers.hunt_generate_base_mesh((4,4),1.0,Ha,1.0,1.0,true)
+writevtk(base_blt_10,"data/hunt_meshes/base_blt_10")
+base_noblt_10 = GridapMHD.Meshers.hunt_generate_base_mesh((4,4),1.0,Ha,1.0,1.0,false)
+writevtk(base_noblt_10,"data/hunt_meshes/base_noblt_10")
 
-mmodel = CartesianDiscreteModel((0.0,1.0,0.0,1.0),(3,3),isperiodic=(false,true))
-num_faces(mmodel,0)
-
-mmh = GridapMHD.Meshers.generate_mesh_hierarchy(ranks,mmodel,0,[1,1])
-
-mmodel1 = GridapSolvers.get_model(mmh,1)
-num_faces(mmodel1,0)
-
-mmodel2 = GridapSolvers.get_model(mmh,2)
-num_faces(mmodel2,0)
-
+Gridap.Geometry.get_node_coordinates(base_blt_10)

@@ -27,7 +27,7 @@ Dc = 3
 nc = 2
 Re = 0.1
 Ha = 10.0
-ζ = 10.0
+ζ = 100.0
 B = VectorValue(0.0,0.0,1.0)
 
 u_exact(x) = (Dc==2) ? u_exact_2d(x) : u_exact_3d(x)
@@ -49,8 +49,8 @@ params = Dict{Symbol,Any}(
   :jac_assemble=>false,
 )
 
-t = PTimer(ranks,verbose=true)
-params[:ptimer] = t
+t = PTimer(ranks,verbose=true);
+params[:ptimer] = t;
 
 params[:solver] = Dict(
   :solver         => :badia2024,
@@ -76,7 +76,7 @@ params[:bcs] = Dict(
 domain = Tuple(vcat(repeat([0.0,1.0],Dc)))
 mesh_partition = Tuple(fill(nc,Dc))
 base_model = CartesianDiscreteModel(domain,mesh_partition)
-mh = GridapMHD.Meshers.generate_mesh_hierarchy(ranks,base_model,0,[np,np])
+mh = GridapMHD.Meshers.generate_mesh_hierarchy(ranks,base_model,0,[np,np]);
 params[:multigrid] = Dict{Symbol,Any}(
   :mh => mh,
   :num_refs_coarse => 0,
@@ -85,26 +85,26 @@ params[:multigrid] = Dict{Symbol,Any}(
 model = get_model(mh,1)
 params[:model] = model
 
-params = GridapMHD.add_default_params(params)
+params = GridapMHD.add_default_params(params);
 
 U, V = GridapMHD._fe_spaces(params)
 
 op = GridapMHD._fe_operator(U,V,params)
 xh = zero(get_trial(op))
 nlsolver = GridapMHD._solver(op,params)
+solve!(xh,nlsolver,op);
 
 A = jacobian(op,xh)
 b = residual(op,xh)
 global_ls = nlsolver.ls
-
-x = get_free_dof_values(xh)
+x = mortar(map(ax -> pfill(0.0,partition(ax)),blocks(axes(A,2))))
+#b = mortar(map(ax -> prandn(partition(ax)),blocks(axes(A,2))))
 global_ns = numerical_setup(symbolic_setup(global_ls,A,x),A,x)
 solve!(x,global_ns,b)
 
 P_ns = global_ns.Pr_ns
 gmg_ns = P_ns.block_ns[1]
-
 b_uj = copy(blocks(b)[1])
-x_uj = copy(blocks(x)[1])
+b_uj = prand(partition(axes(blocks(A)[1,1],2)))
+x_uj = pfill(0.0,partition(axes(blocks(A)[1,1],2)))
 solve!(x_uj,gmg_ns,b_uj)
-
