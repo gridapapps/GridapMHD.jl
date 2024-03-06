@@ -80,19 +80,12 @@ jobs:
              --with-mpi=1 --with-64-bit-indices
           make
           make install
-      - name: add MPIPreferences
-        shell: julia --color=yes --project=. {0}
-        run: |
-          using Pkg
-          Pkg.add("MPIPreferences")
-      - name: use MPI system binary 
-        shell: julia --color=yes --project=. {0}
-        run: |
-          using MPIPreferences
-          MPIPreferences.use_system_binary()
       - uses: julia-actions/julia-buildpkg@latest
       - run: echo $PWD
-      - run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build(); Pkg.precompile()'
+      - run: julia --project=. -e 'using Pkg; Pkg.instantiate();'
+      - run: julia --project=. -e 'using Pkg; Pkg.add("MPIPreferences")'
+      - run: julia --project=. -e 'using MPIPreferences; MPIPreferences.use_system_binary()'
+      - run: julia --project=. -e 'using Pkg; Pkg.build(); Pkg.precompile()'
       - run: julia --project=. --color=yes --check-bounds=yes test/mpi/runtests.jl
       - uses: codecov/codecov-action@v1
         with:
