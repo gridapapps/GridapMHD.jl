@@ -1,6 +1,8 @@
+module ExpansionBadia2024TestsSequential
 
 using GridapMHD: expansion
 using SparseArrays
+
 cw = 0.028
 Re = 1.0
 Ha = 100.0
@@ -32,3 +34,5 @@ meshbis = Dict(
   :num_refs => 1
 )
 expansion(np=1,backend=:mpi,solver=:julia,order=2,ζ=0.0,N=N,Ha=Ha,cw=cw,title="ExpansionRefBis",mesh=meshbis)
+
+end # module
