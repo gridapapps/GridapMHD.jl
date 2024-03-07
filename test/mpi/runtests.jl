@@ -14,7 +14,7 @@ MPI.mpiexec() do cmd
     path = joinpath(testdir,file)
     _cmd = `$(cmd) -np 4 --allow-run-as-root --oversubscribe $(Base.julia_cmd()) --project=. $path`
     @show cmd
-    run(_cmd)
+    run(cmd)
     @test true
   end
 end
