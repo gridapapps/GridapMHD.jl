@@ -209,7 +209,7 @@ function epansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs)
   num_refs = mesh[:num_refs]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(@__FILE__,"..","..","meshes","Expansion_"*mesh*".msh") |> normpath
+    msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
     base_model = GmshDiscreteModel(msh_file)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
@@ -226,7 +226,7 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   num_refs_coarse = mesh[:num_refs_coarse]
   ranks_per_level = mesh[:ranks_per_level]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(@__FILE__,"..","..","meshes","Expansion_"*mesh*".msh") |> normpath
+    msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
     base_model = GmshDiscreteModel(msh_file)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
