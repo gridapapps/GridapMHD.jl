@@ -2,20 +2,9 @@ module ExpansionLi2019TestsMPI
 
 using GridapPETSc
 using SparseMatricesCSR
+using GridapMHD: expansion
 
-using GridapMHD: cavity
+# GMRES + Li2019 with MUMPS for Dj
+expansion(np=4,backend=:mpi,solver=:li2019)
 
-# GMRES + block LU solvers
-cavity(np=4,nc=(4,4,4),backend=:mpi,solver=:li2019)
-
-# GMRES + block preconditioners
-solver = Dict(
-  :solver        => :li2019,
-  :matrix_type   => SparseMatrixCSR{0,PetscScalar,PetscInt},
-  :vector_type   => Vector{PetscScalar},
-  :block_solvers => [:amg,:gmres_swartz,:amg,:cg_jacobi,:cg_jacobi],
-  :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
-)
-cavity(np=4,nc=(4,4,4),backend=:mpi,solver=solver)
-
-end # module
+end
