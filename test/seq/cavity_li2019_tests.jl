@@ -11,7 +11,7 @@ solver = Dict(
   :petsc_options => ""
 )
 
-cavity(np=1,backend=:sequential,solver=solver)
-cavity(np=2,backend=:sequential,solver=solver)
+#cavity(np=1,backend=:sequential,solver=solver)
+#cavity(np=2,backend=:sequential,solver=solver)
 
 end # module

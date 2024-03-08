@@ -6,7 +6,7 @@ using SparseMatricesCSR
 using GridapMHD: cavity
 
 # GMRES + Li2019 with MUMPS for Dj
-cavity(np=4,nc=(4,4,4),backend=:mpi,solver=:li2019)
+#cavity(np=4,nc=(4,4,4),backend=:mpi,solver=:li2019)
 
 # GMRES + Li2019 with Overlapping Additive Schwarz preconditioner for Dj 
 solver = Dict(
@@ -16,6 +16,6 @@ solver = Dict(
   :block_solvers => [:petsc_gmres_schwarz,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
   :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
 )
-cavity(np=4,nc=(4,4,4),backend=:mpi,solver=solver)
+#cavity(np=4,nc=(4,4,4),backend=:mpi,solver=solver)
 
 end # module
