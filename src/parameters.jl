@@ -119,7 +119,7 @@ function add_default_params(_params)
   params[:bcs] = params_bcs(params)
   params[:fespaces] = params_fespaces(params)
   params[:solver] = params_solver(params)
-  #params[:multigrid] = params_multigrid(params)
+  params[:multigrid] = params_multigrid(params)
   params
 end
 
@@ -186,6 +186,19 @@ function default_solver_params(::Val{:li2019})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
+    :niter          => 80,
+    :rtol           => 1e-5,
+  )
+end
+
+function default_solver_params(::Val{:badia2024})
+  return Dict(
+    :solver => :badia2024,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+    :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
+    :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
   )
