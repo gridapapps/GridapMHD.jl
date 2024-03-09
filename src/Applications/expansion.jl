@@ -11,7 +11,7 @@ function expansion(;
     info, t = _expansion(;title=title,path=path,mesh=mesh,kwargs...)
   else
     @assert backend ∈ [:sequential,:mpi]
-    @assert !isa(np,Nothing)
+    @assert !isnothing(np)
     np = isa(np,Int) ? (np,) : np
     if backend === :sequential
       info,t = with_debug() do distribute

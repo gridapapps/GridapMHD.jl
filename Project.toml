@@ -24,6 +24,7 @@ Profile = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
+gmsh_jll = "630162c2-fc9b-58b3-9910-8442a8a132e6"
 
 [compat]
 BSON = "0.3"

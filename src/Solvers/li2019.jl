@@ -60,7 +60,7 @@ function li2019_Dj(dΩ,params)
     r = a_mhd_j_j(j,v_j,dΩ) + ∫((∇⋅j)⋅(∇⋅v_j))*dΩ 
     for p in params_thin_wall
       τ,cw,jw,n_Γ,dΓ = p
-      r += a_thin_wall(x,dy,τ,cw,jw,n_Γ,dΓ)
+      r += a_thin_wall_j_j(j,v_j,τ,cw,jw,n_Γ,dΓ)
     end
     return r
   end
