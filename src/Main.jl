@@ -170,6 +170,7 @@ _solver(op,params) = _solver(Val(params[:solver][:solver]),op,params)
 _solver(::Val{:julia},op,params) = GridapSolvers.NewtonSolver(LUSolver(),maxiter=10,rtol=1.e-6,verbose=true)
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
 _solver(::Val{:li2019},op,params) = Li2019Solver(op,params)
+_solver(::Val{:badia2024},op,params) = Badia2024Solver(op,params)
 
 # MultiFieldStyle
 
@@ -177,10 +178,13 @@ _multi_field_style(params) = _multi_field_style(Val(params[:solver][:solver]))
 _multi_field_style(::Val{:julia}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:petsc}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:li2019}) = BlockMultiFieldStyle(4,(1,1,1,1),(3,1,2,4)) # (j,u,p,φ)
+_multi_field_style(::Val{:badia2024}) = BlockMultiFieldStyle(3,(2,1,1),(1,3,2,4)) # ([u,j],p,φ)
 
 # FESpaces
 
-function _fe_spaces(params)
+_fe_spaces(params) = _fe_spaces(Val(uses_multigrid(params[:solver])),params)
+
+function _fe_spaces(::Val{false},params)
   k = params[:fespaces][:k]
   T = Float64
   model = params[:model]
@@ -211,6 +215,58 @@ function _fe_spaces(params)
   U_φ = TrialFESpace(V_φ)
   U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
 
+  return U, V
+end
+
+function _fe_spaces(::Val{true},params)
+  # TODO: Add fluid/solid mesh support
+  k = params[:fespaces][:k]
+  T = Float64
+  model = params[:model]
+  mh    = params[:multigrid][:mh]
+  Ωf    = _fluid_mesh(model,params[:fluid][:domain])
+  @assert get_model(mh,1) == model
+
+  uses_mg = space_uses_multigrid(params[:solver])
+  trians  = map((m,a,b) -> m ? a : b , uses_mg, [mh,mh,mh,mh], [Ωf,Ωf,model,model])
+
+  # ReferenceFEs
+  D = num_cell_dims(model)
+  reffe_u = ReferenceFE(lagrangian,VectorValue{D,T},k)
+  reffe_p = ReferenceFE(lagrangian,T,k-1;space=params[:fespaces][:p_space])
+  reffe_j = ReferenceFE(raviart_thomas,T,k-1)
+  reffe_φ = ReferenceFE(lagrangian,T,k-1)
+
+  # Test spaces
+  mfs = _multi_field_style(params)
+  V_u = TestFESpace(trians[1],reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
+  V_p = TestFESpace(trians[2],reffe_p;conformity=p_conformity(model,params[:fespaces]))
+  V_j = TestFESpace(trians[3],reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
+  V_φ = TestFESpace(trians[4],reffe_φ;conformity=:L2)
+  
+  # Trial spaces
+  z = zero(VectorValue{D,Float64})
+  u_bc = params[:bcs][:u][:values]
+  j_bc = params[:bcs][:j][:values]
+  U_u = (u_bc == z) ? V_u : TrialFESpace(V_u,u_bc)
+  U_p = TrialFESpace(V_p)
+  U_j = (j_bc == z) ? V_j : TrialFESpace(V_j,j_bc)
+  U_φ = TrialFESpace(V_φ)
+
+  # Sort spaces
+  trials, tests, sh_trials, sh_tests = map(uses_mg,[U_u,U_p,U_j,U_φ],[V_u,V_p,V_j,V_φ]) do m,trial,test
+    if m
+      GridapSolvers.get_fe_space(trial,1), GridapSolvers.get_fe_space(test,1), trial, test
+    else
+      trial, test, nothing, nothing
+    end
+  end |> tuple_of_arrays
+
+  params[:multigrid][:variables] = findall(uses_mg)
+  params[:multigrid][:trials] = sh_trials
+  params[:multigrid][:tests]  = sh_tests
+  U = MultiFieldFESpace([trials...];style=mfs)
+  V = MultiFieldFESpace([tests...];style=mfs)
   return U, V
 end
 
