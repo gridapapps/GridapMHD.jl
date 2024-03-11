@@ -195,7 +195,7 @@ function _hunt(;
         "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
     toc!(t,"vtk")
   end
-  if verbose
+  if verbose && i_am_main(parts)
     println(" >> H1 error for u = ", eu_ref_h1)
     println(" >> L2 error for j = ", ej_ref_l2)
     display(t)
