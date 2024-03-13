@@ -189,6 +189,12 @@ function _fe_spaces(::Val{false},params)
   T = Float64
   model = params[:model]
 
+  # Projection map onto p_space
+  @assert length(get_polytopes(model)) == 1
+  poly = get_polytopes(model)[1]
+  Π_reffe = ReferenceFE(poly,lagrangian,T,k-1;space=params[:fespaces][:p_space])
+  params[:fespaces][:Πp] = LocalProjectionMap(Π_reffe,2*k)
+
   # ReferenceFEs
   D = num_cell_dims(model)
   reffe_u = ReferenceFE(lagrangian,VectorValue{D,T},k)
@@ -229,6 +235,12 @@ function _fe_spaces(::Val{true},params)
 
   uses_mg = space_uses_multigrid(params[:solver])
   trians  = map((m,a,b) -> m ? a : b , uses_mg, [mh,mh,mh,mh], [Ωf,Ωf,model,model])
+
+  # Projection map onto p_space
+  @assert length(get_polytopes(model)) == 1
+  poly = get_polytopes(model)[1]
+  Π_reffe = ReferenceFE(poly,lagrangian,T,k-1;space=params[:fespaces][:p_space])
+  params[:fespaces][:Πp] = LocalProjectionMap(Π_reffe,2*k)
 
   # ReferenceFEs
   D = num_cell_dims(model)

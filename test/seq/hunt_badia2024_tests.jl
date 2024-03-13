@@ -42,7 +42,7 @@ hunt(
   vtk=true,
   title="hunt",
   solver=solver,
-  ζ=0.0,
+  ζ=10.0,
   ranks_per_level=[1,1],
   BL_adapted=false,
 )

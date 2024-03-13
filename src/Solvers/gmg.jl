@@ -9,6 +9,7 @@ function gmg_solver(::Val{(1,3)},params)
 
   trials = MultiFieldFESpace(map(s -> s, params[:multigrid][:trials][[1,3]]))
   tests  = MultiFieldFESpace(map(s -> s, params[:multigrid][:tests][[1,3]]))
+  tests_u, tests_j = params[:multigrid][:tests][1], params[:multigrid][:tests][3]
   
   nlevs = num_levels(mh)
   k = params[:fespaces][:k]
@@ -18,6 +19,7 @@ function gmg_solver(::Val{(1,3)},params)
     _, dΩf, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(model,params,k)
     _, dΩs, σs = retrieve_solid_params(model,params,k)
     _, params_thin_wall, _, _ = retrieve_bcs_params(model,params,k)
+    Πp = params[:fespaces][:Πp]
     function a(x,dx,y)
       u, j = x
       du, dj = dx
@@ -31,26 +33,49 @@ function gmg_solver(::Val{(1,3)},params)
         r = r + a_solid_j_j(dj,v_j,dΩs)
       end
       if abs(ζ) > eps(typeof(ζ))
-        r = r + a_al_u_u(du,v_u,ζ,dΩf) + a_al_j_j(dj,v_j,ζ,dΩf)
+        r = r + a_al_u_u(du,v_u,ζ,Πp,dΩf) + a_al_j_j(dj,v_j,ζ,dΩf)
       end
       return r
     end
-    return a 
+    return a
   end
 
-  return gmg_solver(mh,trials,tests,jacobian_uj,qdegree)
+  function jacobian_u(model)
+    _, dΩf, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(model,params,k)
+    Πp = params[:fespaces][:Πp]
+    function a(u,du,v_u)
+      r = a_mhd_u_u(du,v_u,β,dΩf) + dc_mhd_u_u(u,du,v_u,α,dΩf)
+      if abs(ζ) > eps(typeof(ζ))
+        r = r + a_al_u_u(du,v_u,ζ,Πp,dΩf)
+      end
+      return r
+    end
+    return a
+  end
+
+  function projection_rhs(model)
+    _, dΩf, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(model,params,k)
+    Πp = params[:fespaces][:Πp]
+    l(du,v_u) = a_al_u_u(du,v_u,ζ,Πp,dΩf)
+    return l
+  end
+
+  patch_decompositions = PatchDecomposition(mh)
+  smatrices = gmg_matrices(mh,trials,tests,jacobian_uj)
+  smoothers = gmg_patch_smoothers(mh,patch_decompositions,trials,jacobian_uj)
+
+  restrictions = setup_restriction_operators(tests,qdegree;mode=:residual,solver=LUSolver())
+  prolongations_u = gmg_patch_prolongations(tests_u,patch_decompositions,jacobian_u,projection_rhs)
+  prolongations_j = setup_prolongation_operators(tests_j,qdegree)
+  prolongations = MultiFieldTransferOperator(tests,[prolongations_u,prolongations_j])
+  transfer_ops = restrictions, prolongations
+
+  return gmg_solver(mh,transfer_ops,smoothers,smatrices)
 end
 
-function gmg_solver(mh,trials,tests,weakform,qdegree)
+function gmg_solver(mh,transfer_ops,smoothers,smatrices)
   ranks = get_level_parts(mh,1)
-  smatrices = compute_gmg_matrices(mh,trials,tests,weakform)
-  projection_solver = LUSolver()#CGSolver(JacobiLinearSolver();rtol=1.e-6)
-  restrictions, prolongations = setup_transfer_operators(tests,
-                                                         qdegree;
-                                                         mode=:residual,
-                                                         solver=projection_solver)
-
-  smoothers = gmg_patch_smoothers(mh,trials,weakform)
+  restrictions, prolongations = transfer_ops
 
   cranks = get_level_parts(mh,num_levels(mh))
   coarsest_solver = (length(cranks) == 1) ? LUSolver() : PETScLinearSolver(petsc_mumps_setup)
@@ -66,7 +91,7 @@ function gmg_solver(mh,trials,tests,weakform,qdegree)
   return solver
 end
 
-function compute_gmg_matrices(mh,trials,tests,weakform)
+function gmg_matrices(mh,trials,tests,weakform)
   nlevs = num_levels(trials)
 
   mats = Vector{PSparseMatrix}(undef,nlevs)
@@ -85,8 +110,7 @@ function compute_gmg_matrices(mh,trials,tests,weakform)
   return mats
 end
 
-function gmg_patch_smoothers(mh,tests,weakform)
-  patch_decompositions = PatchDecomposition(mh)
+function gmg_patch_smoothers(mh,patch_decompositions,tests,weakform)
   patch_spaces = PatchFESpace(tests,patch_decompositions)
 
   nlevs = num_levels(mh)
@@ -103,4 +127,23 @@ function gmg_patch_smoothers(mh,tests,weakform)
     end
   end
   return smoothers
+end
+
+function gmg_patch_prolongations(tests,patch_decompositions,lhs,rhs)
+  mh = tests.mh
+  nlevs = num_levels(mh)
+  prolongations = Vector{PatchProlongationOperator}(undef,nlevs-1)
+  for lev in 1:nlevs-1
+    parts = get_level_parts(mh,lev)
+    if i_am_in(parts)
+      qdegree = 1 # Does not matter, it is not used... TODO
+      Vh = GridapSolvers.get_fe_space(tests,lev)
+      PD = patch_decompositions[lev]
+      u0 = zero(Vh)
+      lhs_i(u,v) = lhs(PD)(u0,u,v)
+      rhs_i = rhs(PD)
+      prolongations[lev] = PatchProlongationOperator(lev,tests,PD,lhs_i,rhs_i,qdegree)
+    end
+  end
+  return prolongations
 end
