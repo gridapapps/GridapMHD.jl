@@ -136,7 +136,7 @@ function gmg_patch_prolongations(tests,patch_decompositions,lhs,rhs)
   for lev in 1:nlevs-1
     parts = get_level_parts(mh,lev)
     if i_am_in(parts)
-      qdegree = 1 # Does not matter, it is not used... TODO
+      qdegree = 10 # Does not matter, it is not used... TODO
       Vh = GridapSolvers.get_fe_space(tests,lev)
       PD = patch_decompositions[lev]
       u0 = zero(Vh)
