@@ -130,7 +130,7 @@ function _hunt(;
   )
 
   if tw > 0.0
-    σ_Ω = solid_conductivity(model)
+    σ_Ω = solid_conductivity(Ω,get_cell_gids(model),get_face_labeling(model))
     params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
   end
 
@@ -264,21 +264,13 @@ function hunt_mesh(
   return model
 end
 
-function solid_conductivity(model::GridapDistributed.DistributedDiscreteModel)
-  D = num_cell_dims(model)
-  cells = get_face_gids(model,D)
-  Ω = Interior(model)
-  fields =  map(local_views(model),local_views(cells),local_views(Ω)) do model,partition,trian
-    labels = get_face_labeling(model)
+function solid_conductivity(Ω::GridapDistributed.DistributedTriangulation,cells,labels)
+  D = num_cell_dims(Ω)
+  fields =  map(local_views(labels),local_views(cells),local_views(Ω)) do labels,partition,trian
     cell_entity = labels.d_to_dface_to_entity[end]
     σ_field(labels,trian,cell_entity[partition.own_to_local])
   end
   GridapDistributed.DistributedCellField(fields)
-end
-
-function solid_conductivity(model)
-  labels = get_face_labeling(model)
-  σ_field(labels,Interior(model),get_cell_entity(labels))
 end
 
 function σ_field(labels,Ω,cell_entity)
