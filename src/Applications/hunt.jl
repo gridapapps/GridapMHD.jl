@@ -51,6 +51,9 @@ function _hunt(;
   L=1.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
+  σw1=0.1,
+  σw2=10.0,
+  tw=0.0,
   nsums = 10,
   vtk=true,
   title = "test",
@@ -105,10 +108,12 @@ function _hunt(;
   α = 1.0
   β = 1.0/Re
   γ = N
+  σ̄1 = σw1/σ
+  σ̄2 = σw2/σ
 
   # DiscreteModel in terms of reduced quantities
 
-  model = hunt_mesh(parts,params,nc,rank_partition,L,Ha,kmap_x,kmap_y,BL_adapted,ranks_per_level)
+  model = hunt_mesh(parts,params,nc,rank_partition,L,tw,Ha,kmap_x,kmap_y,BL_adapted,ranks_per_level)
   Ω = Interior(model)
   if debug && vtk
     writevtk(model,"data/hunt_model")
@@ -123,6 +128,11 @@ function _hunt(;
     :B=>B̄,
     :ζ=>ζ,
   )
+
+  if tw > 0.0
+    σ_Ω = solid_conductivity(model)
+    params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
+  end
 
   # Boundary conditions
 
@@ -188,11 +198,19 @@ function _hunt(;
   toc!(t,"post_process")
 
   if vtk
-    writevtk(Ω_phys,joinpath(path,title),
-      order=2,
-      cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
-        "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
+    if tw > 0.0
+      writevtk(Ω_phys,joinpath(path,title),
+        order=2,
+        cellfields=[
+          "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
+          "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref,"σ"=>σ_Ω])
+    else
+      writevtk(Ω_phys,joinpath(path,title),
+        order=2,
+        cellfields=[
+          "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
+          "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
+    end
     toc!(t,"vtk")
   end
   if verbose
@@ -227,13 +245,13 @@ end
 
 function hunt_mesh(
   parts,params,
-  nc::Tuple,np::Tuple,L::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool,
+  nc::Tuple,np::Tuple,L::Real,tw::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool,
   ranks_per_level)
   if isnothing(ranks_per_level) # Single grid
-    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,Ha,kmap_x,kmap_y,BL_adapted)
+    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
     params[:model] = model
   else # Multigrid
-    base_model = Meshers.hunt_generate_base_mesh(nc,L,Ha,kmap_x,kmap_y,BL_adapted)
+    base_model = Meshers.hunt_generate_base_mesh(nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
     mh = Meshers.generate_mesh_hierarchy(parts,base_model,0,ranks_per_level)
     params[:multigrid] = Dict{Symbol,Any}(
       :mh => mh,
@@ -244,6 +262,38 @@ function hunt_mesh(
     params[:model] = model
   end
   return model
+end
+
+function solid_conductivity(model::GridapDistributed.DistributedDiscreteModel)
+  D = num_cell_dims(model)
+  cells = get_face_gids(model,D)
+  Ω = Interior(model)
+  fields =  map(local_views(model),local_views(cells),local_views(Ω)) do model,partition,trian
+    labels = get_face_labeling(model)
+    cell_entity = labels.d_to_dface_to_entity[end]
+    σ_field(labels,trian,cell_entity[partition.own_to_local])
+  end
+  GridapDistributed.DistributedCellField(fields)
+end
+
+function solid_conductivity(model)
+  labels = get_face_labeling(model)
+  σ_field(labels,Interior(model),get_cell_entity(labels))
+end
+
+function σ_field(labels,Ω,cell_entity)
+  solid_1 = get_tag_entities(labels,"solid_1")
+  solid_2 = get_tag_entities(labels,"solid_2")
+  function entity_to_σ(entity)
+    if entity == solid_1
+      σ̄1
+    elseif entity == solid_2
+      σ̄2
+    else
+      1.0
+    end
+  end
+  σ_field = CellField(map(entity_to_σ,cell_entity),Ω)
 end
 
 # This is not very elegant. This needs to be solved by Gridap and GridapDistributed
