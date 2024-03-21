@@ -43,7 +43,7 @@
 #
 # Some boundary conditions
 # (for simplicity we drop the bars, i.e. ū is simply u)
-# 
+#
 # Velocity bc
 # u = u (imposed strongly)
 #
@@ -142,7 +142,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
       solver = _solver(op,params)
       toc!(t,"solver_setup")
       tic!(t;barrier=true)
-      xh,cache = solve!(xh,solver,op)
+      xh,cache = _solve(xh,solver,op,params)
       solver_postpro = params[:solver][:solver_postpro]
       solver_postpro(cache,output)
       toc!(t,"solve")
@@ -165,11 +165,27 @@ end
 
 # Solver
 
-_solver(op,params) = _solver(Val(params[:solver][:solver]),op,params)
+_solver(op,params) = _solver(Val(params[:solver][:solver]),Val(params[:transient]),op,params)
+_solver(val::Val,::Val{false},op,params) = _solver(val,op,params)
+
 #_solver(::Val{:julia},op,params) = NLSolver(show_trace=true,method=:newton)
 _solver(::Val{:julia},op,params) = GridapSolvers.NewtonSolver(LUSolver(),maxiter=10,rtol=1.e-6,verbose=true)
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
 _solver(::Val{:li2019},op,params) = Li2019Solver(op,params)
+
+function _solver(val::Val,::Val{true},op,params)
+  solver = _solver(val,op,params)
+  _ode_solver(solver,params)
+end
+
+_ode_solver(solver,params) = _ode_solver(Val(params[:ode][:solver]),solver,params)
+_ode_solver(::Val{:theta},solver,params) = _theta_method(solver,params)
+
+function _theta_method(solver,params)
+  Δt = params[:ode][:Δt]
+  θ = params[:ode][:solver_params][:θ]
+  ThetaMethod(solver,Δt,θ)
+end
 
 # MultiFieldStyle
 
@@ -205,10 +221,17 @@ function _fe_spaces(params)
   z = zero(VectorValue{D,Float64})
   u_bc = params[:bcs][:u][:values]
   j_bc = params[:bcs][:j][:values]
-  U_u = u_bc == z ? V_u : TrialFESpace(V_u,u_bc)
-  U_j = j_bc == z ? V_j : TrialFESpace(V_j,j_bc)
-  U_p = TrialFESpace(V_p)
-  U_φ = TrialFESpace(V_φ)
+  if !params[:transient]
+    U_u = u_bc == z ? V_u : TrialFESpace(V_u,u_bc)
+    U_j = j_bc == z ? V_j : TrialFESpace(V_j,j_bc)
+    U_p = TrialFESpace(V_p)
+    U_φ = TrialFESpace(V_φ)
+  else
+    U_u = u_bc == z ? V_u : TransientTrialFESpace(V_u)
+    U_j = j_bc == z ? V_j : TransientTrialFESpace(V_j)
+    U_p = TransientTrialFESpace(V_p)
+    U_φ = TransientTrialFESpace(V_φ)
+  end
   U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
 
   return U, V
@@ -216,7 +239,15 @@ end
 
 # FEOperator
 
-_fe_operator(U,V,params) = _fe_operator(_multi_field_style(params),U,V,params)
+_fe_operator(U,V,params) = __fe_operator(_multi_field_style(params),U,V,params)
+
+function __fe_operator(T,U,V,params)
+  if ! params[:transient]
+    _fe_operator(T,U,V,params)
+  else
+   _ode_fe_operator(T,U,V,params)
+  end
+end
 
 function _fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
   k = params[:fespaces][:k]
@@ -235,6 +266,15 @@ function _fe_operator(::BlockMultiFieldStyle,U,V,params)
   Tv = params[:solver][:vector_type]
   assem = SparseMatrixAssembler(Tm,Tv,U,V)
   return FEOperator(res,jac,U,V,assem)
+end
+
+function _ode_fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
+  k = params[:fespaces][:k]
+  res, jac, jac_t = weak_form(params,k)
+  Tm = params[:solver][:matrix_type]
+  Tv = params[:solver][:vector_type]
+  assem = SparseMatrixAssembler(Tm,Tv,U,V)
+  return TransientFEOperator(res,jac,jac_t,U,V,assem)
 end
 
 # Sub-triangulations
@@ -269,3 +309,23 @@ function _rand(vt::Type{<:PVector{VT,A}},ids::PRange) where {VT,A}
   T = eltype(VT)
   prand(T,partition(ids))
 end
+
+# Solve
+
+_solve(xh,solver,op,params) = _solve(Val(params[:transient]),xh,solver,op,params)
+
+_solve(::Val{false},xh,solver,op,params) = solve!(xh,solver,op)
+
+function _solve(::Val{true},xh,solver,op,params)
+  xh0 = initial_value(op,params)
+  t0,tf = time_interval(params)
+  cache = nothing
+  solve(solver,op,xh0,t0,tf), cache
+end
+
+initial_value(op,params) = initial_value(Val(params[:ode][:X0]),op,params)
+
+initial_value(::Val{:zero},op,params) = zero(get_trial(op))
+initial_value(::Val{:solve},op,params) = @notimplemented
+
+time_interval(params) = ( params[:ode][:t0], params[:ode][:tf] )

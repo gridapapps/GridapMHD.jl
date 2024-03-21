@@ -97,6 +97,8 @@ function add_default_params(_params)
     :solver=>true,
     :multigrid=>false,
     :check_valid=>false,
+    :ode=>false,
+    :transient=>false,
   )
   _check_mandatory(_params,mandatory,"")
   optional = Dict(
@@ -108,6 +110,8 @@ function add_default_params(_params)
     :fespaces=>nothing,
     :multigrid=>nothing,
     :check_valid=>true,
+    :ode=>nothing,
+    :transient=>default_transient(_params),
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
   _check_unused(params,mandatory,params,"")
@@ -125,6 +129,8 @@ end
 
 default_ptimer(model) = PTimer(DebugArray(LinearIndices((1,))))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_parts(model))
+
+default_transient(params) = haskey(params,:ode) && !isnothing(params[:ode])
 
 """
 Valid keys for `params[:solver]` are the following:
