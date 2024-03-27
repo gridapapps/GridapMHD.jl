@@ -116,22 +116,31 @@ function _hunt(;
   model = hunt_mesh(parts,params,nc,rank_partition,L,tw,Ha,kmap_x,kmap_y,BL_adapted,ranks_per_level)
   Ω = Interior(model)
   if debug && vtk
-    writevtk(model,"data/hunt_model")
+    writevtk(model,"hunt_model")
   end
 
-  params[:fluid] = Dict(
-    :domain=>nothing,
-    :α=>α,
-    :β=>β,
-    :γ=>γ,
-    :f=>f̄,
-    :B=>B̄,
-    :ζ=>ζ,
-  )
-
   if tw > 0.0
-    σ_Ω = solid_conductivity(Ω,get_cell_gids(model),get_face_labeling(model))
+    σ_Ω = solid_conductivity(σ̄1,σ̄2,Ω,get_cell_gids(model),get_face_labeling(model))
     params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
+    params[:fluid] = Dict(
+      :domain=>"fluid",
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :B=>B̄,
+      :f=>f̄,
+      :ζ=>ζ,
+     )
+  else
+    params[:fluid] = Dict(
+      :domain=>nothing,
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :f=>f̄,
+      :B=>B̄,
+      :ζ=>ζ,
+    )
   end
 
   # Boundary conditions
@@ -264,18 +273,18 @@ function hunt_mesh(
   return model
 end
 
-function solid_conductivity(Ω::GridapDistributed.DistributedTriangulation,cells,labels)
+function solid_conductivity(σ̄1,σ̄2,Ω::GridapDistributed.DistributedTriangulation,cells,labels)
   D = num_cell_dims(Ω)
   fields =  map(local_views(labels),local_views(cells),local_views(Ω)) do labels,partition,trian
     cell_entity = labels.d_to_dface_to_entity[end]
-    σ_field(labels,trian,cell_entity[partition.own_to_local])
+    σ_field(σ̄1,σ̄2,labels,trian,cell_entity[partition.own_to_local])
   end
   GridapDistributed.DistributedCellField(fields)
 end
 
-function σ_field(labels,Ω,cell_entity)
-  solid_1 = get_tag_entities(labels,"solid_1")
-  solid_2 = get_tag_entities(labels,"solid_2")
+function σ_field(σ̄1,σ̄2,labels,Ω,cell_entity)
+  solid_1 = get_tag_entities(labels,"solid_1")[1]
+  solid_2 = get_tag_entities(labels,"solid_2")[1]
   function entity_to_σ(entity)
     if entity == solid_1
       σ̄1
@@ -322,6 +331,10 @@ function analytical_hunt_u(
   ξ = x[1]/a
   η = x[2]/a
 
+  if ξ > 1.0 || ξ < -1.0 || η > 1.0 || η < -1.0# think about a≠b...
+    return VectorValue(0.0,0.0,0.0)
+  end
+
   V = 0.0; V0=0.0;
   for k in 0:n
     α_k = (k + 0.5)*π/l
@@ -359,6 +372,10 @@ function analytical_hunt_j(
   l = b/a
   ξ = x[1]/a
   η = x[2]/a
+
+  if ξ > 1.0 || ξ < -1.0 || η > 1.0 || η < -1.0# think about a≠b...
+    return VectorValue(0.0,0.0,0.0)
+  end
 
   H_dx = 0.0; H_dy = 0.0
   for k in 0:n

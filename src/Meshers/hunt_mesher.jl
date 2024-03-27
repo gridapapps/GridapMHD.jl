@@ -38,7 +38,7 @@ function hunt_stretch_map(
     return z  
   end
   function map2(x)
-    layer(x,a) = sign(x)*abs(x)^(1/a)
+    layer(x,a) = sign(x)*abs(L*x)^(1/a)
     return VectorValue(layer(x[1],kmap_x),layer(x[2],kmap_y),x[3])
   end
   coord_map = BL_adapted ? map1 : map2
@@ -66,9 +66,9 @@ function hunt_add_tags!(model,L::Real,tw::Real)
     noslip = fluid + 1
     function set_entities(xs)
       tol = 1.0e-9
-      if all(x->(x[1]>0.5*L-tol)||x[1]<-0.5*L+tol,xs)
+      if all(x->(x[1]>L-tol)||x[1]<-L+tol,xs)
         solid_1
-      elseif all(x->(x[2]>0.5*L-tol)||x[2]<-0.5*L+tol,xs)
+      elseif all(x->(x[2]>L-tol)||x[2]<-L+tol,xs)
         solid_2
       else
         fluid
