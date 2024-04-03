@@ -18,7 +18,7 @@ using PartitionedArrays
 using PartitionedArrays: getany
 
 using GridapDistributed
-using GridapDistributed: i_am_in, i_am_main
+using GridapDistributed: i_am_main
 
 using GridapGmsh
 using GridapPETSc
