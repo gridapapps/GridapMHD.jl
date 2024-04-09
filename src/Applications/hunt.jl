@@ -145,7 +145,7 @@ function _hunt(;
     end
   end
   t = fullparams[:ptimer]
-
+   
   # Rescale quantities
 
   tic!(t,barrier=true)

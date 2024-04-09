@@ -60,90 +60,55 @@ function gmg_solver(::Val{(1,3)},params)
     return l
   end
 
-  patch_decompositions = PatchDecomposition(mh)
-  smatrices = gmg_matrices(mh,trials,tests,jacobian_uj)
-  smoothers = gmg_patch_smoothers(mh,patch_decompositions,trials,jacobian_uj)
-
+  weakforms = map(mhl -> jacobian_uj(GridapSolvers.get_model(mhl)),mh)
+  smoothers = gmg_patch_smoothers(mh,tests,jacobian_uj)
   restrictions = setup_restriction_operators(tests,qdegree;mode=:residual,solver=LUSolver())
-  prolongations_u = gmg_patch_prolongations(tests_u,patch_decompositions,jacobian_u,projection_rhs)
+  prolongations_u = gmg_patch_prolongations(tests_u,jacobian_u,projection_rhs)
   prolongations_j = setup_prolongation_operators(tests_j,qdegree)
   prolongations = MultiFieldTransferOperator(tests,[prolongations_u,prolongations_j])
-  transfer_ops = restrictions, prolongations
 
-  return gmg_solver(mh,transfer_ops,smoothers,smatrices)
+  return gmg_solver(mh,trials,tests,weakforms,restrictions, prolongations,smoothers)
 end
 
-function gmg_solver(mh,transfer_ops,smoothers,smatrices)
+function gmg_solver(mh,trials,tests,weakforms,restrictions,prolongations,smoothers)
   ranks = get_level_parts(mh,1)
-  restrictions, prolongations = transfer_ops
 
   cranks = get_level_parts(mh,num_levels(mh))
   coarsest_solver = (length(cranks) == 1) ? LUSolver() : PETScLinearSolver(petsc_mumps_setup)
 
-  gmg = GMGLinearSolver(mh,smatrices,prolongations,restrictions,
-                        pre_smoothers=smoothers,
-                        post_smoothers=smoothers,
-                        coarsest_solver=coarsest_solver,
-                        maxiter=3,verbose=true,mode=:preconditioner)
+  gmg = GMGLinearSolver(
+    mh, trials, tests, weakforms, prolongations, restrictions,
+    pre_smoothers=smoothers, post_smoothers=smoothers, coarsest_solver=coarsest_solver,
+    maxiter=3, verbose=i_am_main(ranks), mode=:preconditioner, is_nonlinear=true
+  )
   gmg.log.depth += 4
-  solver = FGMRESSolver(10,gmg;m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - FGMRES+GMG")
-  solver.log.depth += 3 # For printing purposes
-  return solver
+  #solver = FGMRESSolver(10,gmg;m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - FGMRES+GMG")
+  #solver.log.depth += 3 # For printing purposes
+  return gmg
 end
 
-function gmg_matrices(mh,trials,tests,weakform)
-  nlevs = num_levels(trials)
-
-  mats = Vector{PSparseMatrix}(undef,nlevs)
-  for lev in 1:nlevs
-    parts = get_level_parts(mh,lev)
-    if i_am_in(parts)
-      model = GridapSolvers.get_model(mh,lev)
-      U = GridapSolvers.get_fe_space(trials,lev)
-      V = GridapSolvers.get_fe_space(tests,lev)
-      u0 = zero(U)
-      jac = weakform(model)
-      a(u,v) = jac(u0,u,v)
-      mats[lev] = assemble_matrix(a,U,V)
-    end
-  end
-  return mats
-end
-
-function gmg_patch_smoothers(mh,patch_decompositions,tests,weakform)
+function gmg_patch_smoothers(mh,tests,weakform)
+  patch_decompositions = PatchDecomposition(mh)
+  spaces = view(map(GridapSolvers.get_fe_space,tests),1:num_levels(tests)-1)
   patch_spaces = PatchFESpace(tests,patch_decompositions)
-
-  nlevs = num_levels(mh)
-  smoothers = Vector{RichardsonSmoother}(undef,nlevs-1)
-  for lev in 1:nlevs-1
-    parts = get_level_parts(mh,lev)
-    if i_am_in(parts)
-      PD = patch_decompositions[lev]
-      Ph = GridapSolvers.get_fe_space(patch_spaces,lev)
-      Vh = GridapSolvers.get_fe_space(tests,lev)
-      a = weakform(PD)
-      patch_smoother = PatchBasedLinearSolver(a,Ph,Vh,is_nonlinear=true)
-      smoothers[lev] = RichardsonSmoother(patch_smoother,10,0.2)
-    end
+  smoothers = map(patch_decompositions,patch_spaces,spaces) do PD, Ph, Vh
+    psolver = PatchBasedLinearSolver(weakform(PD),Ph,Vh,is_nonlinear=true)
+    RichardsonSmoother(psolver,10,0.2)
   end
   return smoothers
 end
 
-function gmg_patch_prolongations(tests,patch_decompositions,lhs,rhs)
-  mh = tests.mh
-  nlevs = num_levels(mh)
-  prolongations = Vector{PatchProlongationOperator}(undef,nlevs-1)
-  for lev in 1:nlevs-1
-    parts = get_level_parts(mh,lev)
-    if i_am_in(parts)
-      qdegree = 10 # Does not matter, it is not used... TODO
-      Vh = GridapSolvers.get_fe_space(tests,lev)
-      PD = patch_decompositions[lev]
-      u0 = zero(Vh)
-      lhs_i(u,v) = lhs(PD)(u0,u,v)
+function gmg_patch_prolongations(sh,lhs,rhs)
+  map(view(linear_indices(sh),1:num_levels(sh)-1)) do lev
+    cparts = get_level_parts(sh,lev+1)
+    if i_am_in(cparts)
+      model = get_model_before_redist(sh,lev)
+      PD = PatchDecomposition(model)
+      lhs_i = lhs(PD)
       rhs_i = rhs(PD)
-      prolongations[lev] = PatchProlongationOperator(lev,tests,PD,lhs_i,rhs_i,qdegree)
+    else
+      PD, lhs_i, rhs_i = nothing, nothing, nothing
     end
+    PatchProlongationOperator(lev,sh,PD,lhs_i,rhs_i;is_nonlinear=true)
   end
-  return prolongations
 end
