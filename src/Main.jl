@@ -226,13 +226,15 @@ function _fe_spaces(params)
     U_j = j_bc == z ? V_j : TrialFESpace(V_j,j_bc)
     U_p = TrialFESpace(V_p)
     U_φ = TrialFESpace(V_φ)
+    U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
   else
-    U_u = u_bc == z ? V_u : TransientTrialFESpace(V_u)
-    U_j = j_bc == z ? V_j : TransientTrialFESpace(V_j)
+    U_u = u_bc == z ? V_u : TransientTrialFESpace(V_u,u_bc)
+    U_j = j_bc == z ? V_j : TransientTrialFESpace(V_j,j_bc)
     U_p = TransientTrialFESpace(V_p)
     U_φ = TransientTrialFESpace(V_φ)
+
+    U = TransientMultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
   end
-  U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
 
   return U, V
 end
