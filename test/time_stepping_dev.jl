@@ -49,10 +49,9 @@ solve = true
 solver = :julia
 verbose = true
 
-Δt = 0.1
+Δt = 1e-5
 t0 = 0.0
-tf = 0.1
-
+tf = Δt
 
 info = Dict{Symbol,Any}()
 params = Dict{Symbol,Any}(
@@ -73,15 +72,15 @@ B0 = norm(B)
 u(x,t::Real) = VectorValue(x[2]*exp(-t), x[1]*cos(t),0)
 p(x,t::Real) = sin(t)
 j(x,t::Real) = VectorValue(x[1]*sin(t),x[2]*cos(t),0)
-ϕ(x,t::Real) = 1
+φ(x,t::Real) = 1
 
 u(t::Real) = x -> u(x,t)
 p(t::Real) = x -> p(x,t)
 j(t::Real) = x -> j(x,t)
-ϕ(t::Real) = x -> ϕ(x,t)
+φ(t::Real) = x -> φ(x,t)
 
-# j(x,t::Real) = u(x,t) × B - ∇(ϕ(t))(x)
-# j(t::Real) = x -> j(x,t)
+j(x,t::Real) = u(x,t) × B - ∇(φ(t))(x)
+j(t::Real) = x -> j(x,t)
 
 f(x,t::Real) =
   (∂t(u))(x,t) +
@@ -96,7 +95,7 @@ f(t::Real)  = x -> f(x,t)
 # u(x,t) = VectorValue(x[3]*sin(t),x[1],x[2]*exp(-t))
 # p(x,t) = 0
 # j(x,t) = VectorValue(cos(t),t^2,0)
-# ϕ(x,t) = 0
+# φ(x,t) = 0
 
 # Communicator
 if isa(distribute,Nothing)
@@ -150,6 +149,7 @@ faces = facets .+ get_offset(pt,D-1)
 ids = get_faces(pt)[faces]
 ids = reduce(union,ids) |> sort
 
+
 map(local_views(model)) do model
   labels = get_face_labeling(model)
   add_tag!(labels,"boundary_2D",ids)
@@ -176,15 +176,24 @@ params[:fluid] = Dict(
 
 # Boundary conditions
 
-
 params[:bcs] = Dict(
   :u=>Dict(:tags=>"boundary_2D",:values=>u),
   :j=>Dict(:tags=>"boundary_2D",:values=>j),
+  # :p=>Dict(:tags=>"tag_01",:values=>p),
+  # :φ=>Dict(:domain=>"tag_01",:value=>φ),
 )
 
 toc!(t,"pre_process")
 
 ode_solver_params = Dict(:θ=>0.5)
+
+initial_values = Dict(
+  :u => u(0),
+  :p => p(0),
+  :j => j(0),
+  :φ => φ(0),
+)
+
 
 params[:ode] = Dict(
   :solver => :theta,
@@ -192,7 +201,8 @@ params[:ode] = Dict(
   :tf => tf,
   :Δt => Δt,
   :solver_params => ode_solver_params,
-  :X0 => :zero,
+  :U0 => :value,
+  :initial_values => initial_values,
 )
 
 xh,fullparams,info = main(params;output=info)
@@ -213,12 +223,13 @@ pvd = createpvd(parts,"transient")
 
 dΩ = Measure(Ω_phys,2)
 ℓ2(u,dΩ) = √(∑( ∫(u ⊙ u)dΩ ))
+h1(u,dΩ) = √(∑( ∫( ∇(u) ⊙ ∇(u) + u ⊙ u)dΩ ))
 t0 = 0
 
 pvd[t0] = createvtk(Ω_phys,"transient_0",
   order=2,
   cellfields=[
-    "uh"=>u(t0),"ph"=>p(t0),"jh"=>j(t0),"phi"=>ϕ(t0),
+    "uh"=>u(t0),"ph"=>p(t0),"jh"=>j(t0),"phi"=>φ(t0),
     "u"=>u(t0),"j"=>j(t0)])
 
 for (i,(xht,t)) in enumerate(xh)
@@ -230,14 +241,24 @@ for (i,(xht,t)) in enumerate(xh)
 
   e_uh = uh - u(t)
   e_jh = jh - j(t)
+  e_∇ph = ∇(ph) - ∇(p(t))
+  e_∇φh = ∇(φh) - ∇(φ(t))
 
   e_uh_l2 = ℓ2(e_uh,dΩ)
   e_jh_l2 = ℓ2(e_jh,dΩ)
+  e_∇ph_l2 = ℓ2(e_∇ph,dΩ)
+  e_∇φh_l2 = ℓ2(e_∇φh,dΩ)
   uh_l2 = ℓ2(uh,dΩ)
   jh_l2 = ℓ2(jh,dΩ)
 
+  e_uh_h1 = h1(e_uh,dΩ)
+
+
   @show e_uh_l2/uh_l2
   @show e_jh_l2/jh_l2
+  @show e_∇ph_l2
+  @show e_∇φh_l2
+  @show e_uh_h1
 
   pvd[t] = createvtk(Ω_phys,"transient_$i",
     order=2,
@@ -249,10 +270,7 @@ savepvd(pvd)
 toc!(t,"time_stepping")
 
 # TODO:
-#
-# Setup transient benchmark
-# Setup initial values
-# Plot initial values
+
 # Convergence test
 
 

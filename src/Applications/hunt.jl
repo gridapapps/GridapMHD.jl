@@ -83,7 +83,7 @@ function _hunt(;
   end
   @assert length(rank_partition) == length(nc)
   parts = distribute(LinearIndices((prod(rank_partition),)))
-  
+
   # Timer
   t = PTimer(parts,verbose=verbose)
   params[:ptimer] = t
@@ -141,7 +141,7 @@ function _hunt(;
     xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
       xh,fullparams,info = main(params;output=info)
       GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
-      return xh,fullparams,info 
+      return xh,fullparams,info
     end
   end
   t = fullparams[:ptimer]

@@ -75,7 +75,6 @@ function _ode_weak_form(params,k)
 
   params_φ, params_thin_wall, params_f, params_B = retrieve_bcs_params(params,k)
 
-
   m(t,x,dy) = m_u(x,dy,dΩf)
 
   a_dt(t,x,dy) = a_dut(x,dy,dΩf)
@@ -328,5 +327,6 @@ end
 # Helper functions
 
 time_eval(a::AbstractVector,t::Real) = map(f->time_eval(f,t),a)
+time_eval(a::Tuple,t::Real) = map(f->time_eval(f,t),a)
 time_eval(a::Function,t::Real) = a(t)
 time_eval(a::Any,t::Real) = a

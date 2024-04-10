@@ -275,7 +275,7 @@ function _ode_fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
   res, jac, jac_t = weak_form(params,k)
   Tm = params[:solver][:matrix_type]
   Tv = params[:solver][:vector_type]
-  assem = SparseMatrixAssembler(Tm,Tv,U,V)
+  assem = SparseMatrixAssembler(Tm,Tv,U(0),V(0))
   return TransientFEOperator(res,jac,jac_t,U,V,assem)
 end
 
@@ -325,9 +325,20 @@ function _solve(::Val{true},xh,solver,op,params)
   solve(solver,op,xh0,t0,tf), cache
 end
 
-initial_value(op,params) = initial_value(Val(params[:ode][:X0]),op,params)
+initial_value(op,params) = initial_value(Val(params[:ode][:U0]),op,params)
 
 initial_value(::Val{:zero},op,params) = zero(get_trial(op))
 initial_value(::Val{:solve},op,params) = @notimplemented
 
+function initial_value(::Val{:value},op,params)
+  t0 = params[:ode][:t0]
+  U0 = get_trial(op)(t0)
+  v = params[:ode][:initial_values]
+  interpolate([v[:u],v[:p],v[:j],v[:φ]],U0)
+end
+
 time_interval(params) = ( params[:ode][:t0], params[:ode][:tf] )
+
+function Base.zero(f::Gridap.ODEs.TransientFETools.TransientMultiFieldTrialFESpace)
+  zero(f(0))
+end
