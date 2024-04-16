@@ -245,6 +245,7 @@ function params_fespaces(params::Dict{Symbol,Any})
   optional = Dict(
    :k => 2,
    :p_space => :P,
+   :p_constraint => nothing,
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
   fespaces[:p_conformity] = p_conformity(params[:model],fespaces)

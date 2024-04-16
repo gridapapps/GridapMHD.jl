@@ -212,7 +212,9 @@ function _fe_spaces(params)
   mfs = _multi_field_style(params)
   Ωf  = _fluid_mesh(model,params[:fluid][:domain])
   V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  V_p = TestFESpace(Ωf,reffe_p;conformity=p_conformity(model,params[:fespaces]))
+  V_p = TestFESpace(Ωf,reffe_p;
+    conformity=p_conformity(model,params[:fespaces]),
+    constraint=params[:fespaces][:p_constraint])
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
   V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
