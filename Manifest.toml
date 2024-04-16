@@ -2,7 +2,7 @@
 
 julia_version = "1.9.4"
 manifest_format = "2.0"
-project_hash = "fc9659ee47b41e06c12eedd39c4aa82062d9fc5e"
+project_hash = "c3e81d6aa27d51e72016025b993ce3419d7526fe"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -72,9 +72,9 @@ version = "7.7.1"
 
 [[deps.ArrayLayouts]]
 deps = ["FillArrays", "LinearAlgebra"]
-git-tree-sha1 = "0330bc3e828a05d1073553fb56f9695d73077370"
+git-tree-sha1 = "33207a8be6267bc389d0701e97a9bce6a4de68eb"
 uuid = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
-version = "1.9.1"
+version = "1.9.2"
 weakdeps = ["SparseArrays"]
 
     [deps.ArrayLayouts.extensions]
@@ -186,9 +186,9 @@ version = "1.5.5"
 
 [[deps.DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "0f4b5d62a88d8f59003e43c25a8a90de9eb76317"
+git-tree-sha1 = "97d79461925cdb635ee32116978fc735b9463a39"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.18"
+version = "0.18.19"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -237,9 +237,9 @@ version = "1.6.0"
 
 [[deps.DrWatson]]
 deps = ["Dates", "FileIO", "JLD2", "LibGit2", "MacroTools", "Pkg", "Random", "Requires", "Scratch", "UnPack"]
-git-tree-sha1 = "8a1b165850e0a7967a662be78f4a1b131df84898"
+git-tree-sha1 = "2d6e724fab0c57284b3d1a7473a5a62ce6aba471"
 uuid = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
-version = "2.14.1"
+version = "2.15.0"
 
 [[deps.Expat_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -380,16 +380,16 @@ version = "1.3.1"
 
 [[deps.Gridap]]
 deps = ["AbstractTrees", "BSON", "BlockArrays", "Combinatorics", "DataStructures", "DocStringExtensions", "FastGaussQuadrature", "FileIO", "FillArrays", "ForwardDiff", "JLD2", "JSON", "LineSearches", "LinearAlgebra", "NLsolve", "NearestNeighbors", "PolynomialBases", "QuadGK", "Random", "SparseArrays", "SparseMatricesCSR", "StaticArrays", "Statistics", "Test", "WriteVTK"]
-git-tree-sha1 = "a90554f170bff2ac3b2d360f277a5cc890259670"
-repo-rev = "add-missing-api"
+git-tree-sha1 = "e639d61650b614393287d54c608fa005a4af9c37"
+repo-rev = "master"
 repo-url = "https://github.com/gridap/Gridap.jl.git"
 uuid = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
-version = "0.18.0"
+version = "0.18.1"
 
 [[deps.GridapDistributed]]
 deps = ["BlockArrays", "FillArrays", "Gridap", "LinearAlgebra", "MPI", "PartitionedArrays", "SparseArrays", "SparseMatricesCSR", "WriteVTK"]
-git-tree-sha1 = "8fbf48369dc9001179623c9356231e6883905637"
-repo-rev = "ode-refactor"
+git-tree-sha1 = "53c27134cd80fabb3a845cbc588486444a2f0571"
+repo-rev = "master"
 repo-url = "https://github.com/gridap/GridapDistributed.jl.git"
 uuid = "f9701e48-63b3-45aa-9a63-9bc6c271f355"
 version = "0.4.0"
@@ -397,30 +397,24 @@ version = "0.4.0"
 [[deps.GridapGmsh]]
 deps = ["Gridap", "GridapDistributed", "Libdl", "Metis", "PartitionedArrays", "gmsh_jll"]
 git-tree-sha1 = "d57e69bba40c1e77bcf3a781aadbd846199ea251"
-repo-rev = "ode-refactor"
-repo-url = "https://github.com/gridap/GridapGmsh.jl.git"
 uuid = "3025c34a-b394-11e9-2a55-3fee550c04c8"
 version = "0.7.1"
 
 [[deps.GridapP4est]]
 deps = ["ArgParse", "FillArrays", "Gridap", "GridapDistributed", "Libdl", "MPI", "P4est_wrapper", "PartitionedArrays", "Test"]
-git-tree-sha1 = "7d276d9e0aeb412e03ad4fa55221cda6ff550a3e"
-repo-rev = "ode-refactor"
-repo-url = "https://github.com/gridap/GridapP4est.jl.git"
+git-tree-sha1 = "8837efa7a8c1a96a2f8067a647d25216e72e2541"
 uuid = "c2c8e14b-f5fd-423d-9666-1dd9ad120af9"
 version = "0.3.6"
 
 [[deps.GridapPETSc]]
 deps = ["Gridap", "GridapDistributed", "Libdl", "LinearAlgebra", "MPI", "PETSc_jll", "PartitionedArrays", "Random", "SparseArrays", "SparseMatricesCSR"]
 git-tree-sha1 = "549d0dce1a8051e6cd2c6dc4edcf0422d48ceecb"
-repo-rev = "ode-refactor"
-repo-url = "https://github.com/gridap/GridapPETSc.jl.git"
 uuid = "bcdc36c2-0c3e-11ea-095a-c9dadae499f1"
 version = "0.5.2"
 
 [[deps.GridapSolvers]]
-deps = ["AbstractTrees", "ArgParse", "BlockArrays", "FillArrays", "Gridap", "GridapDistributed", "GridapP4est", "GridapPETSc", "IterativeSolvers", "LinearAlgebra", "MPI", "P4est_wrapper", "PartitionedArrays", "Printf", "SparseArrays", "SparseMatricesCSR"]
-git-tree-sha1 = "d3aa600a73d61e8658bf5af1e758441e8b09b76e"
+deps = ["AbstractTrees", "BlockArrays", "FillArrays", "Gridap", "GridapDistributed", "GridapP4est", "GridapPETSc", "IterativeSolvers", "LinearAlgebra", "MPI", "PartitionedArrays", "Printf", "SparseArrays", "SparseMatricesCSR"]
+git-tree-sha1 = "76621f90bc64e81e8140d1b1af83d54b29b6440a"
 repo-rev = "develop"
 repo-url = "https://github.com/gridap/GridapSolvers.jl.git"
 uuid = "6d3209ee-5e3c-4db7-a716-942eb12ed534"
@@ -744,9 +738,9 @@ uuid = "baad4e97-8daa-5946-aac2-2edac59d34e1"
 version = "7.6.2+2"
 
 [[deps.OffsetArrays]]
-git-tree-sha1 = "6a731f2b5c03157418a20c12195eb4b74c8f8621"
+git-tree-sha1 = "e64b4f5ea6b7389f6f046d13d4896a8f9c1ba71e"
 uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "1.13.0"
+version = "1.14.0"
 weakdeps = ["Adapt"]
 
     [deps.OffsetArrays.extensions]
@@ -800,8 +794,6 @@ version = "2.8.1+2"
 [[deps.P4est_wrapper]]
 deps = ["CEnum", "Libdl", "MPI", "P4est_jll"]
 git-tree-sha1 = "149b5fa81221f2e51498428b688e4510e4a74d79"
-repo-rev = "p4est-2.3+"
-repo-url = "https://github.com/gridap/P4est_wrapper.jl.git"
 uuid = "3743d7c0-8adf-11ea-380b-7d33b0ecc1da"
 version = "0.2.2"
 

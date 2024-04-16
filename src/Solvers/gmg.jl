@@ -56,18 +56,21 @@ function gmg_solver(::Val{(1,3)},params)
   function projection_rhs(model)
     _, dΩf, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(model,params,k)
     Πp = params[:fespaces][:Πp]
-    l(du,v_u) = a_al_u_u(du,v_u,ζ,Πp,dΩf)
+    #l(du,v_u) = a_al_u_u(du,v_u,ζ,Πp,dΩf)
+    l((du,dj),(v_u,v_j)) = a_al_u_u(du,v_u,ζ,Πp,dΩf) + a_al_j_j(dj,v_j,ζ,dΩf)
     return l
   end
 
   weakforms = map(mhl -> jacobian_uj(GridapSolvers.get_model(mhl)),mh)
   smoothers = gmg_patch_smoothers(mh,tests,jacobian_uj)
-  restrictions = setup_restriction_operators(tests,qdegree;mode=:residual,solver=LUSolver())
-  prolongations_u = gmg_patch_prolongations(tests_u,jacobian_u,projection_rhs)
-  prolongations_j = setup_prolongation_operators(tests_j,qdegree)
-  prolongations = MultiFieldTransferOperator(tests,[prolongations_u,prolongations_j])
+  #restrictions = setup_restriction_operators(tests,qdegree;mode=:residual,solver=LUSolver())
+  #prolongations_u = gmg_patch_prolongations(tests_u,jacobian_u,projection_rhs)
+  #prolongations_j = setup_prolongation_operators(tests_j,qdegree)
+  #prolongations = MultiFieldTransferOperator(tests,[prolongations_u,prolongations_j])
+  prolongations = gmg_patch_prolongations(tests,jacobian_uj,projection_rhs)
+  restrictions = gmg_patch_restrictions(tests,prolongations,projection_rhs,qdegree;solver=LUSolver())
 
-  return gmg_solver(mh,trials,tests,weakforms,restrictions, prolongations,smoothers)
+  return gmg_solver(mh,trials,tests,weakforms,restrictions,prolongations,smoothers)
 end
 
 function gmg_solver(mh,trials,tests,weakforms,restrictions,prolongations,smoothers)
@@ -82,9 +85,9 @@ function gmg_solver(mh,trials,tests,weakforms,restrictions,prolongations,smoothe
     maxiter=3, verbose=i_am_main(ranks), mode=:preconditioner, is_nonlinear=true
   )
   gmg.log.depth += 4
-  #solver = FGMRESSolver(10,gmg;m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - FGMRES+GMG")
-  #solver.log.depth += 3 # For printing purposes
-  return gmg
+  solver = FGMRESSolver(10,gmg;m_add=5,maxiter=30,rtol=1.0e-6,verbose=i_am_main(ranks),name="UJ Block - FGMRES+GMG")
+  solver.log.depth += 3 # For printing purposes
+  return solver
 end
 
 function gmg_patch_smoothers(mh,tests,weakform)
@@ -93,7 +96,7 @@ function gmg_patch_smoothers(mh,tests,weakform)
   patch_spaces = PatchFESpace(tests,patch_decompositions)
   smoothers = map(patch_decompositions,patch_spaces,spaces) do PD, Ph, Vh
     psolver = PatchBasedLinearSolver(weakform(PD),Ph,Vh,is_nonlinear=true)
-    RichardsonSmoother(psolver,10,0.2)
+    RichardsonSmoother(psolver,5,0.2)
   end
   return smoothers
 end
@@ -110,5 +113,20 @@ function gmg_patch_prolongations(sh,lhs,rhs)
       PD, lhs_i, rhs_i = nothing, nothing, nothing
     end
     PatchProlongationOperator(lev,sh,PD,lhs_i,rhs_i;is_nonlinear=true)
+  end
+end
+
+function gmg_patch_restrictions(sh,patch_prolongations,rhs,qdegrees;kwargs...)
+  map(view(linear_indices(sh),1:num_levels(sh)-1)) do lev
+    qdegree = qdegrees[lev]
+    cparts = get_level_parts(sh,lev+1)
+    if i_am_in(cparts)
+      model = get_model_before_redist(sh,lev)
+      rhs_i = rhs(model)
+    else
+      rhs_i = nothing
+    end
+    Ip = patch_prolongations[lev]
+    PatchRestrictionOperator(lev,sh,Ip,rhs_i,qdegree;kwargs...)
   end
 end
