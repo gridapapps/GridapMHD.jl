@@ -6,24 +6,27 @@ using DrWatson
 using GridapDistributed
 using PartitionedArrays
 
-
 using GridapMHD
 using GridapMHD: default_solver_params
-using GridapMHD: hunt_mesh
 using GridapMHD: main
 using GridapMHD: add_default_params
 
 using Gridap.FESpaces
 using Gridap.ODEs
-using Gridap.ODEs.TransientFETools: TransientFEOperatorFromWeakForm
-using Gridap.ODEs.TransientFETools: Nonlinear
-using Gridap.ODEs.TransientFETools: rhs_error
-import Gridap.ODEs.TransientFETools: TransientFEOperator
 
-function TransientFEOperator(res::Function,jac::Function,jac_t::Function,
-  trial,test,assem::Assembler)
-  TransientFEOperatorFromWeakForm{Nonlinear}(res,rhs_error,(jac,jac_t),assem,(trial,∂t(trial)),test,1)
-end
+
+# using Gridap.ODEs: TransientFEOperator
+# using Gridap.ODEs: TransientFEOpFromWeakForm
+# using Gridap.ODEs: NonLinearODE
+# using Gridap.ODEs.TransientFETools: TransientFEOperatorFromWeakForm
+# using Gridap.ODEs.TransientFETools: Nonlinear
+# using Gridap.ODEs.TransientFETools: rhs_error
+# import Gridap.ODEs.TransientFETools: TransientFEOperator
+
+# function TransientFEOperator(res::Function,jac::Function,jac_t::Function,
+#   trial,test,assem::Assembler)
+#   TransientFEOperatorFromWeakForm{Nonlinear}(res,rhs_error,(jac,jac_t),assem,(trial,∂t(trial)),test,1)
+# end
 
 # for Δt in exp10.(-1:-1:-6)
 
@@ -74,42 +77,51 @@ Re = κ = 1
 B = VectorValue(0,0,1)
 B0 = norm(B)
 
+
+## Usage TimeSpaceFunction
+# vt(t) = x-> x[1]*t
+# v = TimeSpaceFunction(vt)
+# ∇(v)(t,x)
+# ∂t(v)(t,x)
+
+
+
 # # 2D
-u(x,t::Real) = VectorValue(x[2]*exp(-t), x[1]*cos(t),0)
-# p(x,t::Real) = sin(t)
-# j(x,t::Real) = VectorValue(x[1]*sin(t),x[2]*cos(t),0)
-# φ(x,t::Real) = 1
+u(t::Real,x) = VectorValue(x[2]*exp(-t), x[1]*cos(t),0)
+# p(t::Real,x) = sin(t)
+# j(t::Real,x) = VectorValue(x[1]*sin(t),x[2]*cos(t),0)
+# φ(t::Real,x) = 1
 
-u(x,t::Real) = VectorValue(x[2]*(1-t), x[1]*(1-t),0)
-p(x,t::Real) = 0
-φ(x,t::Real) = 1
+# u(x,t::Real) = VectorValue(x[2]*(1-t), x[1]*(1-t),0)
+p(t::Real,x) = 0
+φ(t::Real,x) = 1
 
-u(t::Real) = x -> u(x,t)
-p(t::Real) = x -> p(x,t)
-# j(t::Real) = x -> j(x,t)
-φ(t::Real) = x -> φ(x,t)
+u(t::Real) = x -> u(t,x)
+p(t::Real) = x -> p(t,x)
+# j(t::Real) = x -> j(t,x)
+φ(t::Real) = x -> φ(t,x)
 
 #TODO: add f_j * v_j
-j(x,t::Real) = u(x,t) × B - ∇(φ(t))(x)
-j(t::Real) = x -> j(x,t)
+j(t::Real,x) = u(t,x) × B - ∇(φ(t))(x)
+j(t::Real) = x -> j(t,x)
 
-f(x,t::Real) =
-  (∂t(u))(x,t) +
-  u(x,t) ⋅ ∇(u(t))(x) +
+f(t::Real,x) =
+  ∂t(u)(t)(x) +
+  u(t,x) ⋅ ∇(u(t))(x) +
   - (1/Re) * Δ(u(t))(x) +
   ∇(p(t))(x) +
-  - κ*( j(x,t) × B )
+  - κ*( j(t,x) × B )
 
-f(t::Real)  = x -> f(x,t)
+f(t::Real)  = x -> f(t,x)
 
 # # 3D
-# u(x,t) = VectorValue(x[3]*sin(t),x[1],x[2]*exp(-t))
-# p(x,t) = 0
-# j(x,t) = VectorValue(cos(t),t^2,0)
-# φ(x,t) = 0
+# u(t,x) = VectorValue(x[3]*sin(t),x[1],x[2]*exp(-t))
+# p(t,x) = 0
+# j(t,x) = VectorValue(cos(t),t^2,0)
+# φ(t,x) = 0
 
 # Communicator
-if isa(distribute,Nothing)
+  if isa(distribute,Nothing)
   @assert isa(rank_partition,Nothing)
   rank_partition = Tuple(fill(1,length(nc)))
   distribute = DebugArray
@@ -157,21 +169,18 @@ pt = HEX
 D = num_dims(pt)
 facets = 2*(D-d)+1:2*(D)
 faces = facets .+ get_offset(pt,D-1)
-ids = get_faces(pt)[faces]
-ids = reduce(union,ids) |> sort
-ids = collect(faces)
-
+faces = collect(faces)
 map(local_views(model)) do model
   labels = get_face_labeling(model)
-  add_tag!(labels,"boundary_2D",ids)
+  add_tag!(labels,"walls",faces)
 end
 
 facets = 1:2
 faces = facets .+ get_offset(pt,D-1)
-ids = collect(faces)
+faces = collect(faces)
 map(local_views(model)) do model
   labels = get_face_labeling(model)
-  add_tag!(labels,"top_bottom",ids)
+  add_tag!(labels,"top_bottom",faces)
 end
 
 
@@ -198,7 +207,7 @@ params[:fluid] = Dict(
 
 params[:bcs] = Dict(
   :u=>Dict(:tags=>"boundary",:values=>u),
-  :j=>Dict(:tags=>"boundary_2D",:values=>j),
+  :j=>Dict(:tags=>"walls",:values=>j),
   :φ=>Dict(:domain=>"top_bottom",:value=>φ),
 )
 
@@ -266,8 +275,9 @@ pvd[t0] = createvtk(Ω_phys,"transient_0",
     "uh"=>u(t0),"ph"=>p(t0),"jh"=>j(t0),"phi"=>φ(t0),
     "u"=>u(t0),"j"=>j(t0)])
 
-for (i,(xht,t)) in enumerate(xh)
+for (i,(t,xht)) in enumerate(xh)
   ūh,p̄h,j̄h,φ̄h = xht
+  @show
   uh = u0*ūh
   ph = (ρ*u0^2)*p̄h
   jh = (σ*u0*B0)*j̄h
@@ -307,6 +317,7 @@ savepvd(pvd)
 toc!(t,"time_stepping")
 
 save("results_$Δt.jld2",tostringdict(results))
+
 
 # TODO:
 

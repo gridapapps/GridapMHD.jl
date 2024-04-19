@@ -137,7 +137,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
     toc!(t,"solve")
   else
     op = _fe_operator(U,V,params)
-    xh = zero(get_trial(op))
+    xh = _allocate_solution(op)
     if params[:solve]
       solver = _solver(op,params)
       toc!(t,"solver_setup")
@@ -278,7 +278,7 @@ function _ode_fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
   Tm = params[:solver][:matrix_type]
   Tv = params[:solver][:vector_type]
   assem = SparseMatrixAssembler(Tm,Tv,U(0),V(0))
-  return TransientFEOperator(res,jac,jac_t,U,V,assem)
+  return TransientFEOperator(res,(jac,jac_t),U,V,assembler=assem)
 end
 
 # Sub-triangulations
@@ -324,7 +324,7 @@ function _solve(::Val{true},xh,solver,op,params)
   xh0 = initial_value(op,params)
   t0,tf = time_interval(params)
   cache = nothing
-  solve(solver,op,xh0,t0,tf), cache
+  solve(solver,op,t0,tf,xh0), cache
 end
 
 initial_value(op,params) = initial_value(Val(params[:ode][:U0]),op,params)
@@ -341,6 +341,10 @@ end
 
 time_interval(params) = ( params[:ode][:t0], params[:ode][:tf] )
 
-function Base.zero(f::Gridap.ODEs.TransientFETools.TransientMultiFieldTrialFESpace)
-  zero(f(0))
+function _allocate_solution(op::FEOperator)
+  zero(get_trial(op))
+end
+
+function _allocate_solution(op::TransientFEOperator)
+  nothing
 end
