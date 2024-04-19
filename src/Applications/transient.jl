@@ -64,6 +64,7 @@ function _transient(;
   verbose = true,
   man_solution = nothing,
   initial_value_type = :zero,
+  max_error = 0.0,
   )
 
   info = Dict{Symbol,Any}()
@@ -223,6 +224,13 @@ function _transient(;
       results[:ph_el2][i] = ph_el2
       results[:φh_el2][i] = φh_el2
       results[:uh_eh1][i] = uh_eh1
+      if max_error > 0
+        @assert uh_el2 < max_error
+        @assert jh_el2 < max_error
+        @assert ph_el2 < max_error
+        @assert φh_el2 < max_error
+        @assert uh_eh1 < max_error
+      end
       _print_timestep_errors(results,i;verbose=verbose)
     end
     if vtk
