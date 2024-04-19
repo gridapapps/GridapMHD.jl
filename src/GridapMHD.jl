@@ -12,7 +12,7 @@ using DrWatson
 
 using Gridap
 using Gridap.Helpers, Gridap.Algebra, Gridap.CellData, Gridap.ReferenceFEs
-using Gridap.Geometry, Gridap.FESpaces, Gridap.MultiField
+using Gridap.Geometry, Gridap.FESpaces, Gridap.MultiField, Gridap.ODEs
 
 using PartitionedArrays
 using PartitionedArrays: getany
@@ -45,6 +45,7 @@ include("Main.jl")
 include("Applications/hunt.jl")
 include("Applications/expansion.jl")
 include("Applications/cavity.jl")
+include("Applications/transient.jl")
 
 export hunt, expansion, cavity
 

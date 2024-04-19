@@ -13,6 +13,8 @@ using GridapMHD: add_default_params
 
 using Gridap.FESpaces
 using Gridap.ODEs
+using Gridap.ReferenceFEs
+using Gridap.Geometry
 
 
 # using Gridap.ODEs: TransientFEOperator
@@ -78,41 +80,27 @@ B = VectorValue(0,0,1)
 B0 = norm(B)
 
 
-## Usage TimeSpaceFunction
-# vt(t) = x-> x[1]*t
-# v = TimeSpaceFunction(vt)
-# ∇(v)(t,x)
-# ∂t(v)(t,x)
 
 
 
 # # 2D
-u(t::Real,x) = VectorValue(x[2]*exp(-t), x[1]*cos(t),0)
+# u = TimeSpaceFunction(t->x-> VectorValue(x[2]*exp(-t), x[1]*cos(t),0))
 # p(t::Real,x) = sin(t)
 # j(t::Real,x) = VectorValue(x[1]*sin(t),x[2]*cos(t),0)
 # φ(t::Real,x) = 1
 
-# u(x,t::Real) = VectorValue(x[2]*(1-t), x[1]*(1-t),0)
-p(t::Real,x) = 0
-φ(t::Real,x) = 1
+u = TimeSpaceFunction(t->x-> VectorValue(x[2]*(1-t), x[1]*(1-t),0))
+p = TimeSpaceFunction(t->x-> 0)
+# φ = TimeSpaceFunction(t->x-> cos(t)*one(x[1]))
+φ = TimeSpaceFunction(t->x-> 1)
+j = TimeSpaceFunction(t->x-> u(t,x)×B - ∇(φ)(t,x))
 
-u(t::Real) = x -> u(t,x)
-p(t::Real) = x -> p(t,x)
-# j(t::Real) = x -> j(t,x)
-φ(t::Real) = x -> φ(t,x)
-
-#TODO: add f_j * v_j
-j(t::Real,x) = u(t,x) × B - ∇(φ(t))(x)
-j(t::Real) = x -> j(t,x)
-
-f(t::Real,x) =
-  ∂t(u)(t)(x) +
-  u(t,x) ⋅ ∇(u(t))(x) +
-  - (1/Re) * Δ(u(t))(x) +
-  ∇(p(t))(x) +
-  - κ*( j(t,x) × B )
-
-f(t::Real)  = x -> f(t,x)
+f = TimeSpaceFunction(t->x->
+  ∂t(u)(t,x) +
+  u(t,x) ⋅ ∇(u)(t,x) +
+  - (1/Re) * Δ(u)(t,x) +
+  ∇(p)(t,x) +
+  - κ*( j(t,x)×B ) )
 
 # # 3D
 # u(t,x) = VectorValue(x[3]*sin(t),x[1],x[2]*exp(-t))
@@ -134,13 +122,13 @@ t = PTimer(parts,verbose=verbose)
 params[:ptimer] = t
 tic!(t,barrier=true)
 
+
 # Solver
 if isa(solver,Symbol)
   solver = default_solver_params(Val(solver))
 end
 params[:solver] = solver
 
-L/(ρ*u0^2)
 # Reduced quantities
 Re = u0*L/ν
 Ha = B0*L*sqrt(σ/(ρ*ν))
@@ -153,6 +141,7 @@ B̄ = B
 β = 1.0/Re
 γ = N
 
+
 # DiscreteModel in terms of reduced quantities
 
 nc
@@ -161,8 +150,7 @@ domain = ( 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 )
 model = CartesianDiscreteModel(parts,np,domain,nc)
 params[:model] = model
 
-using Gridap.ReferenceFEs
-using Gridap.Geometry
+
 D = 3
 d = 2
 pt = HEX
@@ -183,10 +171,8 @@ map(local_views(model)) do model
   add_tag!(labels,"top_bottom",faces)
 end
 
-
 writevtk(model,"model")
 
-Ω = Interior(model)
 if debug && vtk
   writevtk(model,"data/manufactured_model")
 end
@@ -243,6 +229,7 @@ xh,fullparams,info = main(params;output=info)
 
 # Post process
 
+Ω = Interior(model)
 if L == 1.0
   Ω_phys = Ω
 else
@@ -262,14 +249,14 @@ results = Dict(
 )
 
 tic!(t,barrier=true)
+
 pvd = createpvd(parts,"transient")
 
 dΩ = Measure(Ω_phys,2)
 ℓ2(u,dΩ) = √(∑( ∫(u ⊙ u)dΩ ))
 h1(u,dΩ) = √(∑( ∫( ∇(u) ⊙ ∇(u) + u ⊙ u)dΩ ))
-t0 = 0
 
-pvd[t0] = createvtk(Ω_phys,"transient_0",
+pvd[t0] = createvtk(Ω_phys,"transient/transient_0",
   order=2,
   cellfields=[
     "uh"=>u(t0),"ph"=>p(t0),"jh"=>j(t0),"phi"=>φ(t0),
@@ -277,7 +264,7 @@ pvd[t0] = createvtk(Ω_phys,"transient_0",
 
 for (i,(t,xht)) in enumerate(xh)
   ūh,p̄h,j̄h,φ̄h = xht
-  @show
+  @show t
   uh = u0*ūh
   ph = (ρ*u0^2)*p̄h
   jh = (σ*u0*B0)*j̄h
@@ -307,7 +294,7 @@ for (i,(t,xht)) in enumerate(xh)
   push!(results[:el2_ph],e_ph_l2)
   push!(results[:el2_φh],e_φh_l2)
 
-  pvd[t] = createvtk(Ω_phys,"transient_$i",
+  pvd[t] = createvtk(Ω_phys,"transient/transient_$i",
     order=2,
     cellfields=[
     "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
@@ -317,7 +304,6 @@ savepvd(pvd)
 toc!(t,"time_stepping")
 
 save("results_$Δt.jld2",tostringdict(results))
-
 
 # TODO:
 

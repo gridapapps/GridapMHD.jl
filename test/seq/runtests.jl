@@ -8,4 +8,6 @@ using Test
 
 @time @testset "Cavity" begin include("cavity_tests.jl") end
 
+@time @testset "Transient" begin include("transient_tests.jl") end
+
 end # module
