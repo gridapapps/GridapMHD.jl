@@ -42,7 +42,6 @@ function _transient(;
   t0 = 0.0,
   Δt = 1,
   tf = 1,
-  θ = 0.5,
   ν=1.0,
   ρ=1.0,
   σ=1.0,
@@ -65,6 +64,8 @@ function _transient(;
   man_solution = nothing,
   initial_value_type = :zero,
   max_error = 0.0,
+  time_solver = :theta,
+  θ = 0.5,
   )
 
   info = Dict{Symbol,Any}()
@@ -107,7 +108,7 @@ function _transient(;
 
   is_manufactured = !isnothing(man_solution)
   if is_manufactured
-    u,j,p,φ,f̄ = _transient_solution(man_solution;B=B̄,α,β,γ)
+    u,j,p,φ,f̄,g = _transient_solution(man_solution;B=B̄,α,β,γ)
   end
 
   domain = ( 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 )
@@ -132,13 +133,14 @@ function _transient(;
     :f=>f̄,
     :B=>B̄,
     :ζ=>ζ,
+    :g=>g,
   )
 
   # Boundary conditions
   params[:bcs] = Dict(
     :u=>Dict(:tags=>"boundary",:values=>u),
-    :j=>Dict(:tags=>"walls",:values=>j),
-    :φ=>Dict(:domain=>"top_bottom",:value=>φ),
+    :j=>Dict(:tags=>"top_bottom",:values=>j),
+    :φ=>Dict(:domain=>"walls",:value=>φ),
   )
 
   # Setup ODE solver
@@ -157,7 +159,7 @@ function _transient(;
   end
 
   params[:ode] = Dict(
-    :solver => :theta,
+    :solver => time_solver,
     :t0 => t0,
     :tf => tf,
     :Δt => Δt,
@@ -241,7 +243,9 @@ function _transient(;
         "u"=>u(t),"j"=>j(t)])
     end
   end
-  savepvd(pvd)
+  if vtk
+    savepvd(pvd)
+  end
   toc!(t,"time_stepping")
 
   info[:ncells] = num_cells(params[:model])
@@ -253,46 +257,70 @@ function _transient(;
   info[:θ] = θ
 
   merge(info, results), t
-
-  # save("results_$Δt.jld2",tostringdict(results))
 end
 
 _transient_solution(sol;kwargs...) = _trasient_solution(Val(sol);kwargs...)
 
-function _trasient_solution(::Val{:exact};kwargs...)
-  ut = t-> x-> VectorValue( x[2]*(1-t), x[1]*(1-t), 0 )
-  pt = t-> x-> 0
-  φt = t-> x-> 1
-  u = TimeSpaceFunction(ut)
-  p = TimeSpaceFunction(pt)
-  φ = TimeSpaceFunction(φt)
-  j = _transient_solution_j(;u,φ,kwargs...)
+function _trasient_solution(::Val{:stationary_fespace};kwargs...)
+  u = TimeSpaceFunction(t->x-> VectorValue( x[2], x[1], 0 ) )
+  j = TimeSpaceFunction(t->x-> VectorValue( x[2], 1, 0 ) )
+  p = TimeSpaceFunction(t->x-> 0 )
+  φ = TimeSpaceFunction(t->x-> 1 )
   f = _transient_solution_f(;u,j,p,φ,kwargs...)
-  u,j,p,φ,f
+  g = _transient_solution_fj(;u,j,φ,kwargs...)
+  u,j,p,φ,f,g
 end
 
-function _trasient_solution(::Val{:zhang_2d};kwargs...)
-  ut = t-> x-> VectorValue(x[2]*exp(-t), x[1]*cos(t),0)
-  pt = t-> x-> 0
-  φt = t-> x-> cos(t)*one(x[1])
-  u = TimeSpaceFunction(ut)
-  p = TimeSpaceFunction(pt)
-  φ = TimeSpaceFunction(φt)
-  j = _transient_solution_j(;u,φ,kwargs...)
+function _trasient_solution(::Val{:lineartime_fespace};kwargs...)
+  u = TimeSpaceFunction(t->x-> VectorValue( x[2]*(1-t), x[1]*(1-t), 0 ) )
+  j = TimeSpaceFunction(t->x-> VectorValue( x[2]*t, (1-t), 0 ) )
+  p = TimeSpaceFunction(t->x-> 0 )
+  φ = TimeSpaceFunction(t->x-> t*one(x[1]) )
   f = _transient_solution_f(;u,j,p,φ,kwargs...)
-  u,j,p,φ,f
+  g = _transient_solution_fj(;u,j,φ,kwargs...)
+  u,j,p,φ,f,g
 end
 
-function _trasient_solution(::Val{:zhang_3d};kwargs...)
-  ut = t-> x-> VectorValue( x[3]*sin(t), x[1], x[2]*exp(-t) )
-  pt = t-> x-> 0
-  φt = t-> x-> 1
-  u = TimeSpaceFunction(ut)
-  p = TimeSpaceFunction(pt)
-  φ = TimeSpaceFunction(φt)
-  j = _transient_solution_j(;u,φ,kwargs...)
-  f = _transient_solution_f(;u,j,p,kwargs...)
-  u,j,p,φ,f
+function _trasient_solution(::Val{:nonlineartime_fespace};kwargs...)
+  u = TimeSpaceFunction(t->x-> VectorValue( x[2]*exp(-t), x[1]*cos(t),0) )
+  j = TimeSpaceFunction(t->x-> VectorValue( sin(t), cos(t),0) )
+  p = TimeSpaceFunction(t->x-> 0 )
+  φ = TimeSpaceFunction(t->x-> cos(t)*one(x[1]) )
+  f = _transient_solution_f(;u,j,p,φ,kwargs...)
+  g = _transient_solution_fj(;u,j,φ,kwargs...)
+  u,j,p,φ,f,g
+end
+
+function _trasient_solution(::Val{:stationary_nonfespace};kwargs...)
+  u = TimeSpaceFunction(t->x-> VectorValue( cos(x[2]), x[1]^3, 0 ) )
+  j = TimeSpaceFunction(t->x-> VectorValue( x[2]^2, 1, 0 ) )
+  p = TimeSpaceFunction(t->x-> 0 )
+  φ = TimeSpaceFunction(t->x-> 1 )
+  f = _transient_solution_f(;u,j,p,φ,kwargs...)
+  g = _transient_solution_fj(;u,j,φ,kwargs...)
+  u,j,p,φ,f,g
+end
+
+function _trasient_solution(::Val{:lineartime_nonfespace};kwargs...)
+  u = TimeSpaceFunction(t->x-> VectorValue( cos(x[2])*(1-t), x[1]^3*(1-t), 0 ) )
+  j = TimeSpaceFunction(t->x-> VectorValue( x[2]^2*t, (1-t), 0 ) )
+  p = TimeSpaceFunction(t->x-> 0 )
+  φ = TimeSpaceFunction(t->x-> 1 )
+  f = _transient_solution_f(;u,j,p,φ,kwargs...)
+  g = _transient_solution_fj(;u,j,φ,kwargs...)
+  u,j,p,φ,f,g
+end
+
+function _trasient_solution(::Val{:nonlineartime_nonfespace};kwargs...)
+  u = TimeSpaceFunction(
+    t->x-> VectorValue( cos(x[2])*exp(-t), x[1]^3*cos(t), 0 ) )
+  j = TimeSpaceFunction(
+    t->x-> VectorValue( x[2]^2*sin(t), cos(t), 0 ) )
+  p = TimeSpaceFunction(t->x-> 0 )
+  φ = TimeSpaceFunction(t->x-> 1 )
+  f = _transient_solution_f(;u,j,p,φ,kwargs...)
+  g = _transient_solution_fj(;u,j,φ,kwargs...)
+  u,j,p,φ,f,g
 end
 
 function _transient_solution_j(;u,φ,B,σ=1,kwargs...)
@@ -300,7 +328,12 @@ function _transient_solution_j(;u,φ,B,σ=1,kwargs...)
   TimeSpaceFunction(jt)
 end
 
-function _transient_solution_f(;u,j,p,φ,B,α,β,γ,kwargs...)
+function _transient_solution_fj(;u,j,φ,B,σ=1,kwargs...)
+  f = t->x-> j(t,x) + σ*∇(φ)(t,x) - σ*(u(t,x)×B)
+  TimeSpaceFunction(f)
+end
+
+function _transient_solution_f(;u,j,p,B,α,β,γ,kwargs...)
   ft = t-> x->
     ∂t(u)(t,x) +
     α * u(t,x) ⋅ ∇(u)(t,x) +

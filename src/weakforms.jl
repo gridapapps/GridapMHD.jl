@@ -10,7 +10,7 @@ end
 function _weak_form(params,k)
 
   fluid = params[:fluid]
-  Ωf, dΩf, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
+  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
 
   solid = params[:solid]
   Ωs, dΩs, σs = retrieve_solid_params(params,k)
@@ -68,7 +68,7 @@ end
 function _ode_weak_form(params,k)
 
   fluid = params[:fluid]
-  Ωf, dΩf, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
+  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
 
   solid = params[:solid]
   Ωs, dΩs, σs = retrieve_solid_params(params,k)
@@ -97,7 +97,7 @@ function _ode_weak_form(params,k)
   end
 
   function ℓ(t,dy)
-    r = ℓ_mhd(dy,time_eval(f,t),dΩf)
+    r = ℓ_mhd(dy,time_eval(f,t),dΩf) + ℓ_fj(dy,time_eval(g,t),dΩf)
     for p in params_φ
       r = r + ℓ_φ(dy,time_eval(p,t)...)
     end
@@ -141,7 +141,8 @@ function retrieve_fluid_params(model,params,k)
   f = fluid[:f]
   B = fluid[:B]
   ζ = fluid[:ζ]
-  return Ωf, dΩf, α, β, γ, σf, f, B, ζ
+  g = fluid[:g]
+  return Ωf, dΩf, α, β, γ, σf, f, B, ζ, g
 end
 
 retrieve_solid_params(params,k) = retrieve_solid_params(params[:model],params,k)
@@ -289,6 +290,11 @@ function ℓ_f(dy,f,dΩ)
   ∫( v_u⋅f )*dΩ
 end
 ℓ_f_u(f,v_u,dΩ) = ∫( v_u⋅f )*dΩ
+
+function ℓ_fj(dy,f,dΩ)
+  v_u, v_p, v_j, v_φ = dy
+  ∫( v_j⋅f )*dΩ
+end
 
 function ℓ_thin_wall(dy,τ,cw,jw,n_Γ,dΓ)
   v_u, v_p, v_j, v_φ = dy

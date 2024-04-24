@@ -327,8 +327,9 @@ function params_fluid(params::Dict{Symbol,Any})
    :f=>false,
    :σ=>false,
    :ζ=>false,
+   :g=>false,
   )
-  optional = Dict(:σ=>1.0,:f=>VectorValue(0,0,0),:ζ=>0.0)
+  optional = Dict(:σ=>1.0,:f=>VectorValue(0,0,0),:ζ=>0.0,:g=>VectorValue(0,0,0))
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
   fluid
 end

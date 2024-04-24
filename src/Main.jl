@@ -179,12 +179,16 @@ function _solver(val::Val,::Val{true},op,params)
 end
 
 _ode_solver(solver,params) = _ode_solver(Val(params[:ode][:solver]),solver,params)
-_ode_solver(::Val{:theta},solver,params) = _theta_method(solver,params)
 
-function _theta_method(solver,params)
+function _ode_solver(::Val{:theta},solver,params)
   Δt = params[:ode][:Δt]
   θ = params[:ode][:solver_params][:θ]
   ThetaMethod(solver,Δt,θ)
+end
+
+function _ode_solver(::Val{:forward},solver,params)
+  Δt = params[:ode][:Δt]
+  ForwardEuler(solver,Δt)
 end
 
 # MultiFieldStyle
