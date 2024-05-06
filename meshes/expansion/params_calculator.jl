@@ -20,3 +20,17 @@ function mesh_params(;Ha=100.0, #Hartmann number refered to the outlet channel
                     
        params = [sol_Ha.zero[1],sol_side.zero[1]]
 end
+
+function R_calc(;   N=20,   #Total number of nodes along the segment
+                    Dx=0.1, #Distance of the first node 
+		    L=1.0   #Total lenght of the segment
+                     )
+
+#Equation for solving the geometric ratio nessary to have the appropiate first thickness
+
+       f(r;_N,_Dx) =_Dx*(1-r[1]^_N)/(1-r[1])-L
+       fs(r) = f(r;_N=N,_Dx=Dx)
+       sol = nlsolve(fs,[2.0])
+       R= sol.zero[1]
+       R
+end

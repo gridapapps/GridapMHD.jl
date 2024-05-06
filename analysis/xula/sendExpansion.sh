@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH -N 4 
-#SBATCH --ntasks-per-node=48 
-#SBATCH -t 56:00:00
+#SBATCH -N 5 
+#SBATCH --ntasks-per-node=4
+#SBATCH -t 3-00:00:00
 #SBATCH -p xula3
 
-#SBATCH -o outputExp_r4Ha1000Re50_N4n4
-#SBATCH -e errorExp_r4Ha1000Re50_N4n4
+#SBATCH -o outputExp_r4Ha1000Re50_N5n4
+#SBATCH -e errorExp_r4Ha1000Re50_N5n4
 ###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=Exp_r4Ha1000Re50_N4n4
+#SBATCH --job-name=Exp_r4Ha1000Re50_N5n4
 #SBATCH --mem=0
 
 SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
@@ -39,18 +39,28 @@ echo betta = 0.2 >> 	$PASS_FILE	#Outlet channel aspect ratio
 echo L_in=1.0 >>	$PASS_FILE	#Inlet channel normalized lenght
 echo L_out=2.0 >> 	$PASS_FILE      #Outlet channel normalized lenght
 
+: <<'COMMENT' 
 #Definition of the mesh parameters
 echo N_Ha=28 >>	 	$PASS_FILE	#Number of cells in the inlet channel along the B-direction
 echo n_Ha=4 >> 		$PASS_FILE	#Number of cells in the Hartmann BL
 echo N_side=20 >> 	$PASS_FILE	#Number of cells in along the direction perpendicular to B
 echo n_side=5 >> 	$PASS_FILE	#Number of cells in side BL
-echo n_inlet=20 >>	$PASS_FILE	#Number of axial cells in the inlet channel
-echo n_outlet=40 >> 	$PASS_FILE	#Number of outlet cells in the outlet channel
-echo R_exp=1.075 >>	$PASS_FILE	#Ratio of the geometric clustering towards the expansion point (x=0)
+echo n_inlet=30 >>	$PASS_FILE	#Number of axial cells in the inlet channel
+echo n_outlet=60 >> 	$PASS_FILE	#Number of outlet cells in the outlet channel
+echo R_exp=1.0 >>	$PASS_FILE	#Ratio of the geometric clustering towards the expansion point (x=0)
+
+COMMENT
+
+echo N_Ha = 22 >>     $PASS_FILE      #Number of cells in the inlet channel along the B-direction
+echo N_s = 18 >>      $PASS_FILE      #Number of cells in along the direction perpendicular to B
+echo dx = 0.004 >>    $PASS_FILE      #Distante of the first node in the sudden expansion
+echo N_1 = 50 >>      $PASS_FILE      #Number of cells in the outlet channel along the flow direction
+echo N_2 = 80 >>      $PASS_FILE      #Number of cells in the inlet channel along the flow direction
 
 #Mesh computation using gmsh
 
-source $GRIDAPMHD/meshes/expansion/MeshGenerator.sh
+#source $GRIDAPMHD/meshes/expansion/MeshGenerator.sh
+source $GRIDAPMHD/meshes/expansion/MeshGenerator-alt.sh
 
 #Parallel run using GridapMHD
 
@@ -66,6 +76,22 @@ pushfirst!(DEPOT_PATH, d)
 
 include("input_params.jl")
 using GridapMHD: expansion
+
+expansion(;
+  mesh="compile",
+  Ha = 10.0,
+  N = 100.0,
+  cw = 0.0,
+  debug=false,
+  Z = 4.0,
+  b = 0.2,
+  inlet=:shercliff,
+  vtk=false,
+  title="warmup_gmsh_petsc",
+  solver=:petsc,
+  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001"
+)
+
 expansion(;
   mesh="computed", 
   np=NPROCS,
