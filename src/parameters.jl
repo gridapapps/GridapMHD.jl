@@ -383,6 +383,7 @@ function params_bcs(params)
    :thin_wall=>false,
    :f => false,
    :B => false,
+   :stabilization=>false,
   )
   optional = Dict(
    :φ=>[],
@@ -390,6 +391,7 @@ function params_bcs(params)
    :thin_wall=>[],
    :f =>[],
    :B =>[],
+   :stabilization=>[],
   )
   bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")
   # Sub params
@@ -403,6 +405,9 @@ function params_bcs(params)
   end
   if bcs[:thin_wall] !== optional[:thin_wall]
     bcs[:thin_wall] = params_bcs_thin_wall(params)
+  end
+  if bcs[:stabilization] !== optional[:stabilization]
+    bcs[:stabilization] = params_bcs_stabilization(params)
   end
   bcs
 end
@@ -523,4 +528,32 @@ function params_bcs_thin_wall(params::Dict{Symbol,Any})
   )
   optional = Dict(:jw=>0)
   _check_mandatory_and_add_optional_weak(params[:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
+end
+
+"""
+Valid keys for the dictionaries in `params[:bcs][:stabilization]` are the following.
+
+The proposed stabilization is
+
+    (1/2) ∫ μ * h^2 * [ ∇(u) ][ ∇(v) ] dΛ
+
+where `μ` is the stabilization parameter, `h` the cell size,
+`u` the trial function, `v` the test function, `[...]` represents the jump and
+`Λ` is the skeleton triangulation.
+
+# Mandatory keys
+- `:μ`: Value of the parameter `μ`.
+
+# Optional keys
+- `:domain`: Domain where to apply the stabilization. This should coincide with
+the domain of the fluid. The domain is represented either with a `Triangulation`
+or with a `Integer`/`String` tag in the underlying discrete model.
+"""
+function params_bcs_stabilization(params::Dict{Symbol,Any})
+  mandatory = Dict(
+   :domain=>false,
+   :μ=>true,
+  )
+  optional = Dict(:domain=>params[:fluid][:domain])
+  _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:thin_wall]")
 end

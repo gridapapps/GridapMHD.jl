@@ -307,6 +307,10 @@ _interior(model,domain) = Interior(model,tags=domain)
 _boundary(model,domain::TriangulationTypes) = domain
 _boundary(model,domain) = Boundary(model,tags=domain)
 
+_skeleton(model,domain::TriangulationTypes) = SkeletonTriangulation(domain)
+_skeleton(model,domain::Nothing) = SkeletonTriangulation(model)
+_skeleton(model,domain) = _skeleton(model,_interior(model,domain))
+
 # Random vector generation
 
 function _rand(vt::Type{<:Vector{T}},r::AbstractUnitRange) where T
@@ -351,4 +355,14 @@ end
 
 function _allocate_solution(op::TransientFEOperator)
   nothing
+end
+
+function _get_cell_size(t::Triangulation)
+  meas = get_cell_measure(t)
+  d = num_dims(t)
+  map(m->m^(1/d),meas)
+end
+
+function _get_cell_size(t::GridapDistributed.DistributedTriangulation)
+  map(_get_cell_size,local_views(t))
 end

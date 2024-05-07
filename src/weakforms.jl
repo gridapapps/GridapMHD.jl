@@ -15,7 +15,8 @@ function _weak_form(params,k)
   solid = params[:solid]
   Ωs, dΩs, σs = retrieve_solid_params(params,k)
 
-  params_φ, params_thin_wall, params_f, params_B = retrieve_bcs_params(params,k)
+  bcs_params = retrieve_bcs_params(params,k)
+  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
   function a(x,dy)
     r = a_mhd(x,dy,β,γ,B,σf,dΩf)
@@ -24,6 +25,9 @@ function _weak_form(params,k)
     end
     for p in params_B
       r = r + a_B(x,dy,p...)
+    end
+    for p in params_Λ
+      r = r + a_Λ(x,dy,p...)
     end
     if solid !== nothing
       r = r + a_solid(x,dy,σs,dΩs)
@@ -73,7 +77,8 @@ function _ode_weak_form(params,k)
   solid = params[:solid]
   Ωs, dΩs, σs = retrieve_solid_params(params,k)
 
-  params_φ, params_thin_wall, params_f, params_B = retrieve_bcs_params(params,k)
+  bcs_params = retrieve_bcs_params(params,k)
+  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
   m(t,x,dy) = m_u(x,dy,dΩf)
 
@@ -86,6 +91,9 @@ function _ode_weak_form(params,k)
     end
     for p in params_B
       r = r + a_B(x,dy,time_eval(p,t)...)
+    end
+    for p in params_Λ
+      r = r + a_Λ(x,dy,p...)
     end
     if solid !== nothing
       r = r + a_solid(x,dy,σs,dΩs)
@@ -204,7 +212,17 @@ function retrieve_bcs_params(model,params,k)
     push!(params_f,(γ,B_i,dΩ_i))
   end
 
-  return params_φ, params_thin_wall, params_f, params_B
+  params_Λ = []
+  for i in 1:length(params[:bcs][:stabilization])
+    Λ = _skeleton(model,params[:bcs][:stabilization][i][:domain])
+    dΛ = Measure(Λ,2*k)
+    _h = _get_cell_size(Λ)
+    h = CellField(_h,Λ)
+    μ = params[:bcs][:stabilization][i][:μ]
+    push!(params_Λ,(μ,h,dΛ))
+  end
+
+  return params_φ, params_thin_wall, params_f, params_B, params_Λ
 end
 
 ############################################################################################
@@ -233,6 +251,12 @@ a_mhd_j_u(u,v_j,σ,B,dΩ) = ∫( -σ*(u×B)⋅v_j )*dΩ
 a_mhd_j_j(j,v_j,dΩ)     = ∫( j⋅v_j )*dΩ
 a_mhd_j_φ(φ,v_j,σ,dΩ)   = ∫( -σ*φ*(∇⋅v_j) )*dΩ
 a_mhd_φ_j(j,v_φ,dΩ)     = ∫( -(∇⋅j)*v_φ )*dΩ
+
+function a_Λ(x,dy,μ,h,dΛ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫( (1/2) * μ * (h*h) * jump( ∇(u) ) ⊙ jump( ∇(v_u) ))*dΛ
+end
 
 function ℓ_mhd(dy,f,dΩ)
   v_u, v_p, v_j, v_φ = dy

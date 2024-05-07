@@ -37,8 +37,9 @@ end
 function _transient(;
   distribute = nothing,
   np = nothing,
-  nc=(2,2,2),
-  k = 1,
+  n=2,
+  nc=(n,n,n),
+  k = 2,
   t0 = 0.0,
   Δt = 1,
   tf = 1,
@@ -66,6 +67,7 @@ function _transient(;
   max_error = 0.0,
   time_solver = :theta,
   θ = 0.5,
+  μ = 0.0,
   )
 
   info = Dict{Symbol,Any}()
@@ -121,7 +123,7 @@ function _transient(;
 
   # FE Space parameters
   params[:fespaces] = Dict(
-  :k => 2,
+  :k => k,
   :p_constraint => :zeromean)
 
   # Fluid parameters
@@ -142,6 +144,10 @@ function _transient(;
     :j=>Dict(:tags=>"top_bottom",:values=>j),
     :φ=>Dict(:domain=>"walls",:value=>φ),
   )
+
+  if μ > 0
+    params[:bcs][:stabilization] = Dict(:μ=>μ)
+  end
 
   # Setup ODE solver
   ode_solver_params = Dict(:θ=>θ)
@@ -272,8 +278,8 @@ function _trasient_solution(::Val{:stationary_fespace};kwargs...)
 end
 
 function _trasient_solution(::Val{:lineartime_fespace};kwargs...)
-  u = TimeSpaceFunction(t->x-> VectorValue( x[2]*(1-t), x[1]*(1-t), 0 ) )
-  j = TimeSpaceFunction(t->x-> VectorValue( x[2]*t, (1-t), 0 ) )
+  u = TimeSpaceFunction(t->x-> VectorValue( x[2]*(1-t/2), x[1]*(1-t/2), 0 ) )
+  j = TimeSpaceFunction(t->x-> VectorValue( x[2]*t, (1-t/2), 0 ) )
   p = TimeSpaceFunction(t->x-> 0 )
   φ = TimeSpaceFunction(t->x-> t*one(x[1]) )
   f = _transient_solution_f(;u,j,p,φ,kwargs...)
@@ -292,20 +298,22 @@ function _trasient_solution(::Val{:nonlineartime_fespace};kwargs...)
 end
 
 function _trasient_solution(::Val{:stationary_nonfespace};kwargs...)
-  u = TimeSpaceFunction(t->x-> VectorValue( cos(x[2]), x[1]^3, 0 ) )
-  j = TimeSpaceFunction(t->x-> VectorValue( x[2]^2, 1, 0 ) )
+  u = TimeSpaceFunction(t->x-> VectorValue( cos(x[2]), cos(x[1]), 0 ) )
+  j = TimeSpaceFunction(t->x-> VectorValue( cos(x[2]), 1, 0 ) )
   p = TimeSpaceFunction(t->x-> 0 )
-  φ = TimeSpaceFunction(t->x-> 1 )
+  φ = TimeSpaceFunction(t->x-> cos(x[1]) )
   f = _transient_solution_f(;u,j,p,φ,kwargs...)
   g = _transient_solution_fj(;u,j,φ,kwargs...)
   u,j,p,φ,f,g
 end
 
 function _trasient_solution(::Val{:lineartime_nonfespace};kwargs...)
-  u = TimeSpaceFunction(t->x-> VectorValue( cos(x[2])*(1-t), x[1]^3*(1-t), 0 ) )
-  j = TimeSpaceFunction(t->x-> VectorValue( x[2]^2*t, (1-t), 0 ) )
+  u = TimeSpaceFunction(
+    t->x-> VectorValue( cos(x[2])*(1-t/2), cos(x[1])*(1-t/2), 0 ) )
+  j = TimeSpaceFunction(
+    t->x-> VectorValue( cos(x[2])*t, (1-t/2), 0 ) )
   p = TimeSpaceFunction(t->x-> 0 )
-  φ = TimeSpaceFunction(t->x-> 1 )
+  φ = TimeSpaceFunction(t->x-> cos(x[1]) )
   f = _transient_solution_f(;u,j,p,φ,kwargs...)
   g = _transient_solution_fj(;u,j,φ,kwargs...)
   u,j,p,φ,f,g
@@ -313,11 +321,11 @@ end
 
 function _trasient_solution(::Val{:nonlineartime_nonfespace};kwargs...)
   u = TimeSpaceFunction(
-    t->x-> VectorValue( cos(x[2])*exp(-t), x[1]^3*cos(t), 0 ) )
+    t->x-> VectorValue( cos(x[2])*exp(-t), cos(x[1])*cos(t), 0 ) )
   j = TimeSpaceFunction(
-    t->x-> VectorValue( x[2]^2*sin(t), cos(t), 0 ) )
+    t->x-> VectorValue( cos(x[2])*sin(t), cos(t), 0 ) )
   p = TimeSpaceFunction(t->x-> 0 )
-  φ = TimeSpaceFunction(t->x-> 1 )
+  φ = TimeSpaceFunction(t->x-> cos(t)*cos(x[1]) )
   f = _transient_solution_f(;u,j,p,φ,kwargs...)
   g = _transient_solution_fj(;u,j,φ,kwargs...)
   u,j,p,φ,f,g
