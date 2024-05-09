@@ -1,13 +1,22 @@
 #*.geo
 #*.msh
 *.vtu
+*.pvtu
+*.bson
 *.pvd
+*.pvtu
+*.bson
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
 .DS_Store
-/Manifest.toml
+Manifest.toml
+LocalPreferences.toml
 /dev/
 /docs/build/
+<<<<<<< HEAD
 /docs/site/
 *.so
+=======
+/docs/site/
+>>>>>>> 17933287ad5fd80be447856710b664b3cff1be6e
