@@ -1,4 +1,5 @@
 # GridapMHD
+
 [![Run CI](https://github.com/gridapapps/GridapMHD.jl/workflows/Run%20CI/badge.svg?branch=master)](https://github.com/gridapapps/GridapMHD.jl/actions?query=workflow%3A%22Run+CI%22)
 [![codecov](https://codecov.io/gh/gridapapps/GridapMHD.jl/branch/master/graph/badge.svg?token=eSKW5MrXYz)](https://codecov.io/gh/gridapapps/GridapMHD.jl)
 
@@ -6,7 +7,9 @@ This package implements a finite element solver for the steady-state, incompress
 The formulation is taken from [DOI:10.1137/19M1260372](https://doi.org/10.1137/19M1260372) and it is implemented using the tools provided by [Gridap](https://github.com/gridap/Gridap.jl), a free and open-source finite element library fully implemented in the Julia programming language.
 
 ## Installation
+
 Enter Julia package manager (type `]`). Install the master branch of this repository as follows:
+
 ```
 pkg> add https://github.com/gridapapps/GridapMHD.jl.git
 ```
@@ -28,9 +31,10 @@ The returned value is of type `Gridap.MultiField.MultiFieldFEFunction`, which ca
 A demo example is provided in function `GridapMHD.hunt`, which implements a Hunt benchmark. This function prepares the `params` dictionary for this particular case and calls `GridapMHD.main(params)` to solve the problem. Consider function `GridapMHD.hunt` as a starting point for preparing more complex computations.
 
 ## How to cite
+
 If you have used these drivers in a scientific publication, please cite Gridap library as follows:
 
-```
+```bibtex
 @article{Badia2020,
   doi = {10.21105/joss.02520},
   url = {https://doi.org/10.21105/joss.02520},

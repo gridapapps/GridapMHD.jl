@@ -1,6 +1,7 @@
-module HuntTests
+module HuntTestsSequential
 
 using GridapMHD: hunt
+using GridapPETSc, SparseMatricesCSR
 
 hunt(
   nc=(4,4),
@@ -10,17 +11,17 @@ hunt(
   vtk=true,
   title="hunt",
   solver=:julia,
- )
+)
 
 hunt(
-  nc=(4,4),
+  nc=(10,10),
   L=1.0,
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
   title="hunt",
   solver=:julia,
- )
+)
 
 hunt(
   nc=(4,4),
@@ -32,19 +33,18 @@ hunt(
   vtk=true,
   title="hunt",
   solver=:julia,
- )
+)
 
 hunt(
   nc=(4,4),
   np=(2,2),
   backend=:sequential,
-  L=2.0,
+  L=1.0,
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
   title="hunt",
   solver=:julia,
- )
+)
 
 end # module
-

@@ -9,7 +9,7 @@
 #PBS -o {{{o}}}
 #PBS -e {{{e}}} 
 
-source /home/552/jp3650/GridapMHD.jl/analysis/scripts/env.sh
+source ${HOME}/GridapMHD.jl/analysis/gadi/scripts/env.sh
 
 mpiexec -n {{n}} julia --project=$GRIDAPMHD -J $GRIDAPMHD/GridapMHD.so -O3 --check-bounds=no -e\
 '
@@ -23,17 +23,18 @@ hunt(
   backend=:mpi,
   L=1.0,
   B={{B}},
-  debug={{debug}},
   vtk={{vtk}},
   title="{{{title}}}",
   path="{{{path}}}",
   nruns={{nruns}},
   nsums={{nsums}},
-  kmap={{kmap}},
+  kmap_x=1,
+  kmap_y=1,
+  BL_adapted = true,
   solver=:petsc,
   petsc_options="{{{petsc_options}}}",
-  res_assemble=true,
-  jac_assemble=true,
+  res_assemble=false,
+  jac_assemble=false,
   solve=true
  )
 #  Profile.clear()

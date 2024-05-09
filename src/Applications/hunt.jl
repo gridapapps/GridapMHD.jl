@@ -1,31 +1,28 @@
 function hunt(;
-  backend=nothing,
-  np=nothing,
-  parts=nothing,
-  title = "hunt",
-  nruns=1,
-  path=".",
+  backend = nothing,
+  np      = nothing,
+  title   = "hunt",
+  nruns   = 1,
+  path    = datadir(),
   kwargs...)
 
   for ir in 1:nruns
     _title = title*"_r$ir"
-    @assert parts === nothing
-    if backend === nothing
-      @assert np === nothing
+    if isa(backend,Nothing)
+      @assert isa(np,Nothing)
       info, t = _hunt(;title=_title,path=path,kwargs...)
     else
-      @assert backend !== nothing
-      info, t = with_backend(_find_backend(backend),(np...,1)) do _parts
-        _hunt(;parts=_parts,title=_title,path=path,kwargs...)
+      @assert backend ∈ [:sequential,:mpi]
+      @assert !isa(np,Nothing)
+      if backend === :sequential
+        info, t = with_debug() do distribute
+          _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
+        end
+      else
+        info,t = with_mpi() do distribute
+          _hunt(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
+        end
       end
-      # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
-      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
-      # end
-      # Profile.clear()
-      # @profile info, t = prun(_find_backend(backend),(np...,1)) do _parts
-      #   _hunt(;parts=_parts,title=_title,path=path,kwargs...)
-      # end
-      # save("test_$(MPI.Comm_rank(MPI.COMM_WORLD)).jlprof", Profile.retrieve()...)
     end
     info[:np] = np
     info[:backend] = backend
@@ -41,58 +38,65 @@ function hunt(;
   nothing
 end
 
-function _find_backend(s)
-  if s === :sequential
-    backend = SequentialBackend()
-  elseif s === :mpi
-    backend = MPIBackend() 
-  else
-    error()
-  end
-  backend
-end
-
 function _hunt(;
-  parts=nothing,
-  nc=(3,3),
+  distribute=nothing,
+  rank_partition=nothing,
+  nc=(4,4),
   ν=1.0,
   ρ=1.0,
   σ=1.0,
-  B=(0.0,1.0,0.0),
+  B=(0.0,10.0,0.0),
   f=(0.0,0.0,1.0),
+  ζ=0.0,
   L=1.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
   nsums = 10,
   vtk=true,
-  title="test",
-  path=".",
-  debug=false,
-  res_assemble=false,
-  jac_assemble=false,
-  solve=true,
-  solver=:julia,
-  verbose=true,
-  mesh = false,
+  title = "test",
+  path  = datadir(),
+  debug = false,
+  res_assemble = false,
+  jac_assemble = false,
+  solve = true,
+  solver = :julia,
+  verbose = true,
   BL_adapted = true,
-  kmap_x = 1.0,
-  kmap_y = 1.0,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  kmap_x = 1,
+  kmap_y = 1,
+  ranks_per_level = nothing
   )
 
   info = Dict{Symbol,Any}()
+  params = Dict{Symbol,Any}(
+    :debug=>debug,
+    :solve=>solve,
+    :res_assemble=>res_assemble,
+    :jac_assemble=>jac_assemble,
+  )
 
-  if parts === nothing
-    t_parts = get_part_ids(SequentialBackend(),1)
-  else
-    t_parts = parts
+  # Communicator
+  if isa(distribute,Nothing)
+    @assert isa(rank_partition,Nothing)
+    rank_partition = Tuple(fill(1,length(nc)))
+    distribute = DebugArray
   end
-  t = PTimer(t_parts,verbose=verbose)
+  @assert length(rank_partition) == length(nc)
+  parts = distribute(LinearIndices((prod(rank_partition),)))
+  
+  # Timer
+  t = PTimer(parts,verbose=verbose)
+  params[:ptimer] = t
   tic!(t,barrier=true)
 
-  domain_phys = (-L,L,-L,L,0.0*L,0.1*L)
+  # Solver
+  if isa(solver,Symbol)
+    solver = default_solver_params(Val(solver))
+  end
+  params[:solver] = solver
 
   # Reduced quantities
+
   Re = u0*L/ν
   Ha = B0*L*sqrt(σ/(ρ*ν))
   N = Ha^2/Re
@@ -101,79 +105,44 @@ function _hunt(;
   α = 1.0
   β = 1.0/Re
   γ = N
-  domain = domain_phys ./ L
 
-  # Prepare problem in terms of reduced quantities
+  # DiscreteModel in terms of reduced quantities
 
-   strech_Ha = sqrt(Ha/(Ha-1))
-   strech_side = sqrt(sqrt(Ha)/(sqrt(Ha)-1))
-
-  function map1(coord)
-     ncoord = GridapMHD.strechMHD(coord,domain=(0,-L,0,-L),factor=(strech_side,strech_Ha),dirs=(1,2))
-     ncoord = GridapMHD.strechMHD(ncoord,domain=(0,L,0,L),factor=(strech_side,strech_Ha),dirs=(1,2))
-     ncoord  
-   end
-
-   layer(x,a) = sign(x)*abs(x)^(1/a)
-   map2((x,y,z)) = VectorValue(layer(x,kmap_x),layer(y,kmap_y),z)
-
-
- partition=(nc[1],nc[2],3)
- if BL_adapted
-  model = CartesianDiscreteModel(
-     parts,domain,partition;isperiodic=(false,false,true),map=map1)
- else
-  model = CartesianDiscreteModel(
-     parts,domain,partition;isperiodic=(false,false,true),map=map2)
- end
+  model = hunt_mesh(parts,params,nc,rank_partition,L,Ha,kmap_x,kmap_y,BL_adapted,ranks_per_level)
   Ω = Interior(model)
-  labels = get_face_labeling(model)
-  tags_u = append!(collect(1:20),[23,24,25,26])
-  tags_j = append!(collect(1:20),[25,26])
-  add_tag_from_tags!(labels,"noslip",tags_u)
-  add_tag_from_tags!(labels,"insulating",tags_j)
-  
-  if mesh
-    writevtk(model,"Mesh")
+  if debug && vtk
+    writevtk(model,"data/hunt_model")
   end
 
-  params = Dict(
-    :ptimer=>t,
-    :debug=>debug,
-    :model=>model,
-    :res_assemble=>res_assemble,
-    :jac_assemble=>jac_assemble,
-    :solve=>solve,
-    :fluid=>Dict(
-      :domain=>model,
-      :α=>α,
-      :β=>β,
-      :γ=>γ,
-      :f=>f̄,
-      :B=>B̄,
-    ),
-    :bcs => Dict(
-      :u=>Dict(:tags=>"noslip"),
-      :j=>Dict(:tags=>"insulating"),
-    )
+  params[:fluid] = Dict(
+    :domain=>nothing,
+    :α=>α,
+    :β=>β,
+    :γ=>γ,
+    :f=>f̄,
+    :B=>B̄,
+    :ζ=>ζ,
+  )
+
+  # Boundary conditions
+
+  params[:bcs] = Dict(
+    :u=>Dict(:tags=>"noslip"),
+    :j=>Dict(:tags=>"insulating"),
   )
 
   toc!(t,"pre_process")
 
   # Solve it
-  if solver == :julia
-    params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh,fullparams = main(params)
-  elseif solver == :petsc
-    xh,fullparams = GridapPETSc.with(args=split(petsc_options)) do
-      params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-      params[:vector_type] = Vector{PetscScalar}
-      params[:solver] = PETScNonlinearSolver()
-      params[:solver_postpro] = cache -> snes_postpro(cache,info)
-      main(params)
-    end
+  if !uses_petsc(params[:solver])
+    xh,fullparams,info = main(params;output=info)
   else
-    error()
+    petsc_options = params[:solver][:petsc_options]
+    xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
+      xh,fullparams,info = main(params;output=info)
+      GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
+      return xh,fullparams,info 
+    end
   end
   t = fullparams[:ptimer]
 
@@ -230,6 +199,8 @@ function _hunt(;
     toc!(t,"vtk")
   end
   if verbose
+    println(" >> H1 error for u = ", eu_ref_h1)
+    println(" >> L2 error for j = ", ej_ref_l2)
     display(t)
   end
 
@@ -255,6 +226,27 @@ function _hunt(;
   info[:kmap] = [kmap_x,kmap_y]
 
   info, t
+end
+
+function hunt_mesh(
+  parts,params,
+  nc::Tuple,np::Tuple,L::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool,
+  ranks_per_level)
+  if isnothing(ranks_per_level) # Single grid
+    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,Ha,kmap_x,kmap_y,BL_adapted)
+    params[:model] = model
+  else # Multigrid
+    base_model = Meshers.hunt_generate_base_mesh(nc,L,Ha,kmap_x,kmap_y,BL_adapted)
+    mh = Meshers.generate_mesh_hierarchy(parts,base_model,0,ranks_per_level)
+    params[:multigrid] = Dict{Symbol,Any}(
+      :mh => mh,
+      :num_refs_coarse => 0,
+      :ranks_per_level => ranks_per_level,
+    )
+    model = get_model(mh,1)
+    params[:model] = model
+  end
+  return model
 end
 
 # This is not very elegant. This needs to be solved by Gridap and GridapDistributed
@@ -356,14 +348,3 @@ function analytical_hunt_j(
 
   VectorValue(j_x,j_y,0.0)
 end
-
-function snes_postpro(cache,info)
-  snes = cache.snes[]
-  i_petsc = Ref{PetscInt}()
-  @check_error_code PETSC.SNESGetIterationNumber(snes,i_petsc)
-  info[:nls_iters] = Int(i_petsc[])
-  @check_error_code PETSC.SNESGetLinearSolveIterations(snes,i_petsc)
-  info[:ls_iters] = Int(i_petsc[])
-  nothing
-end
-
