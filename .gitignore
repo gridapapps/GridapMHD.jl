@@ -14,9 +14,5 @@ Manifest.toml
 LocalPreferences.toml
 /dev/
 /docs/build/
-<<<<<<< HEAD
 /docs/site/
 *.so
-=======
-/docs/site/
->>>>>>> 17933287ad5fd80be447856710b664b3cff1be6e

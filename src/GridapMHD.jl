@@ -45,11 +45,9 @@ include("Main.jl")
 include("Applications/hunt.jl")
 include("Applications/expansion.jl")
 include("Applications/cavity.jl")
+include("Applications/FullyDevelopedFlow.jl")
+include("Applications/Tube.jl")
 
-export hunt, expansion, cavity
-
-include("FullyDevelopedFlow.jl")
-
-include("Tube.jl")
+export hunt, expansion, cavity, tube, FullyDeveloped
 
 end # module

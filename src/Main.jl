@@ -159,10 +159,6 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
       toc!(t,"jacobian")
     end
   end
-<<<<<<< HEAD
-#  toc!(t,"solve")
-=======
->>>>>>> 17933287ad5fd80be447856710b664b3cff1be6e
 
   xh, params, output
 end
