@@ -60,6 +60,7 @@ function _hunt(;
   jac_assemble = false,
   solve = true,
   solver = :julia,
+  petsc_options = nothing,  #Added to have access to non-default petsc options
   verbose = true,
   BL_adapted = true,
   kmap_x = 1,
@@ -74,6 +75,10 @@ function _hunt(;
     :res_assemble=>res_assemble,
     :jac_assemble=>jac_assemble,
   )
+
+  if isa(petsc_options,Nothing)
+    params[:solver][:petsc_options] = petsc_options
+  end
 
   # Communicator
   if isa(distribute,Nothing)
