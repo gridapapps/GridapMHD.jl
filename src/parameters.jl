@@ -168,7 +168,9 @@ function default_solver_params(::Val{:julia})
     :matrix_type    => SparseMatrixCSC{Float64,Int64},
     :vector_type    => Vector{Float64},
     :solver_postpro => ((cache,info) -> nothing),
+    :niter          => 10,
     :rtol           => 1e-5,
+    :initial_values => nothing,
   )
 end
 
@@ -181,6 +183,7 @@ function default_solver_params(::Val{:petsc})
     :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0",
     :niter          => 100,
     :rtol           => 1e-5,
+    :initial_values => nothing,
   )
 end
 
@@ -194,6 +197,7 @@ function default_solver_params(::Val{:li2019})
     :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
+    :initial_values => nothing,
   )
 end
 

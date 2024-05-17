@@ -46,6 +46,7 @@ include("Applications/hunt.jl")
 include("Applications/expansion.jl")
 include("Applications/cavity.jl")
 include("Applications/transient.jl")
+include("Applications/pipe.jl")
 
 export hunt, expansion, cavity
 

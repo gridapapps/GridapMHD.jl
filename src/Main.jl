@@ -137,7 +137,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
     toc!(t,"solve")
   else
     op = _fe_operator(U,V,params)
-    xh = _allocate_solution(op)
+    xh = _allocate_solution(op,params)
     if params[:solve]
       solver = _solver(op,params)
       toc!(t,"solver_setup")
@@ -169,7 +169,7 @@ _solver(op,params) = _solver(Val(params[:solver][:solver]),Val(params[:transient
 _solver(val::Val,::Val{false},op,params) = _solver(val,op,params)
 
 #_solver(::Val{:julia},op,params) = NLSolver(show_trace=true,method=:newton)
-_solver(::Val{:julia},op,params) = GridapSolvers.NewtonSolver(LUSolver(),maxiter=10,rtol=1.e-6,verbose=true)
+_solver(::Val{:julia},op,params) = GridapSolvers.NewtonSolver(LUSolver(),maxiter=params[:solver][:niter],rtol=1.e-6,verbose=true)
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
 _solver(::Val{:li2019},op,params) = Li2019Solver(op,params)
 
@@ -349,11 +349,19 @@ end
 
 time_interval(params) = ( params[:ode][:t0], params[:ode][:tf] )
 
-function _allocate_solution(op::FEOperator)
+_allocate_solution(op,params) = _allocate_solution(op,params,params[:solver][:initial_values])
+
+function _allocate_solution(op::FEOperator,params,x0::Dict)
+  x0 = [x0[:u],x0[:p],x0[:j],x0[:φ]]
+  U = get_trial(op)
+  interpolate(x0,U)
+end
+
+function _allocate_solution(op::FEOperator,params,::Nothing)
   zero(get_trial(op))
 end
 
-function _allocate_solution(op::TransientFEOperator)
+function _allocate_solution(op::TransientFEOperator,args...)
   nothing
 end
 
