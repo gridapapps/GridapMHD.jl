@@ -32,35 +32,22 @@ echo NPROCS=$SLURM_NPROCS > $PASS_FILE
 echo JOB_NAME=\"$SLURM_JOB_NAME\" >> $PASS_FILE
 
 #Definition of the problem input paramenters
-echo Ha=1000.0 >>	$PASS_FILE 	#Hartmann number defined on the outlet channel
-echo Re=50.0 >>	 	$PASS_FILE 	#Reynolds number defined on the outlet channesl
-echo r=4.0 >>	 	$PASS_FILE	#Expansion ratio
+echo Ha=1000.0 >>		$PASS_FILE 	#Hartmann number defined on the outlet channel
+echo Re=50.0 >>	 		$PASS_FILE 	#Reynolds number defined on the outlet channesl
+echo r=4.0 >>	 		$PASS_FILE	#Expansion ratio
 echo betta = 0.2 >> 	$PASS_FILE	#Outlet channel aspect ratio
-echo L_in=1.0 >>	$PASS_FILE	#Inlet channel normalized lenght
-echo L_out=2.0 >> 	$PASS_FILE      #Outlet channel normalized lenght
+echo L_in=1.0 >>		$PASS_FILE	#Inlet channel normalized lenght
+echo L_out=2.0 >> 		$PASS_FILE      #Outlet channel normalized lenght
 
-: <<'COMMENT' 
-#Definition of the mesh parameters
-echo N_Ha=28 >>	 	$PASS_FILE	#Number of cells in the inlet channel along the B-direction
-echo n_Ha=4 >> 		$PASS_FILE	#Number of cells in the Hartmann BL
-echo N_side=20 >> 	$PASS_FILE	#Number of cells in along the direction perpendicular to B
-echo n_side=5 >> 	$PASS_FILE	#Number of cells in side BL
-echo n_inlet=30 >>	$PASS_FILE	#Number of axial cells in the inlet channel
-echo n_outlet=60 >> 	$PASS_FILE	#Number of outlet cells in the outlet channel
-echo R_exp=1.0 >>	$PASS_FILE	#Ratio of the geometric clustering towards the expansion point (x=0)
-
-COMMENT
-
-echo N_Ha = 22 >>     $PASS_FILE      #Number of cells in the inlet channel along the B-direction
-echo N_s = 18 >>      $PASS_FILE      #Number of cells in along the direction perpendicular to B
+echo N_Ha = 26 >>     $PASS_FILE      #Number of cells in the inlet channel along the B-direction
+echo N_s = 20 >>      $PASS_FILE      #Number of cells in the inlet channel along the direction perpendicular to B
 echo dx = 0.004 >>    $PASS_FILE      #Distante of the first node in the sudden expansion
-echo N_1 = 50 >>      $PASS_FILE      #Number of cells in the outlet channel along the flow direction
-echo N_2 = 80 >>      $PASS_FILE      #Number of cells in the inlet channel along the flow direction
+echo N_1 = 30 >>      $PASS_FILE      #Number of cells in the outlet channel along the flow direction
+echo N_2 = 30 >>      $PASS_FILE      #Number of cells in the inlet channel along the flow direction
 
 #Mesh computation using gmsh
 
-#source $GRIDAPMHD/meshes/expansion/MeshGenerator.sh
-source $GRIDAPMHD/meshes/expansion/MeshGenerator-alt.sh
+source $GRIDAPMHD/meshes/expansion/MeshGenerator.sh
 
 #Parallel run using GridapMHD
 
@@ -77,6 +64,17 @@ pushfirst!(DEPOT_PATH, d)
 include("input_params.jl")
 using GridapMHD: expansion
 
+#Monolithic MUMPS
+solver = Dict(
+    :solver => :petsc,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :solver_postpro => ((cache,info) -> snes_postpro(cache,info)),
+    :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001",
+    :niter          => 100,
+    :rtol           => 1e-5,
+  )
+
 expansion(;
   mesh="compile",
   Ha = 10.0,
@@ -88,8 +86,7 @@ expansion(;
   inlet=:shercliff,
   vtk=false,
   title="warmup_gmsh_petsc",
-  solver=:petsc,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001"
+  solver=solver,
 )
 
 expansion(;
@@ -106,8 +103,7 @@ expansion(;
   debug=false,
   vtk=true,
   title=JOB_NAME,
-  solver=:petsc,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0 -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001"
+  solver=solver,
  )'
 
 

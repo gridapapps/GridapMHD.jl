@@ -1,165 +1,172 @@
 // Gmsh project created on Tue Jan 16 14:55:13 2023
 
 // (Externally written) Mesh parameters
-R_Ha=1.7904816307782647;
-R_side=1.6340244628142013;
-N_Ha=28;
-n_Ha=4;
-N_side=20;
-n_side=5;
-n_inlet=20;
-n_outlet=40;
-r_exp=1.075;
+Ha=1000.0;
+N_Ha=22;
+N_s=18;
 r=4.0;
 betta=0.2;
 L_in=1.0;
 L_out=2.0;
+N_1=50;
+N_2=80;
+R_1=1.0760308637925087;
+R_2=1.0251281583778045;
+dx=0.05;
 
 
+// Points to generate the channel source edge (y = -1 and z = -betta)
+
+//Outlet channel 
+Point(1) = {0, -1, -betta, 1.0};
+Point(2) = {L_out, -1, -betta, 1.0};
+
+Line(1) = {1,2};
+
+//Inlet channel (for the moment the expansion takes place only in the field direction)
+
+Point(3) = {-L_in, -1/r, -betta, 1.0};
+Point(4) = {0, -1/r, -betta, 1.0};
+
+Line(2) = {3,4};
+
+//Uniform mesh along the flow direction
+
+Transfinite Curve {1} = N_1 Using Progression R_1; 
+Transfinite Curve {-2} = N_2 Using Progression R_2;
 
 
-//2D points in z=-betta and then strude
+//Start saving the physical points in list for the tags
+wall_lines[] = {1,2};
+wall_points[] = {1, 2, 3, 4};
 
-//+
-Point(1) = {-L_in, 0, -betta, 1.0};
-//+
-Point(2) = {-L_in, 1/r, -betta, 1.0};
-//+
-Point(3) = {0, 1/r, -betta, 1.0};
-//+
-Point(4) = {0, (1+1/r)*0.5, -betta, 1.0};
-//+
-Point(5) = {0, 1.0, -betta, 1.0};
-//+
-Point(6) = {L_out, 1.0, -betta, 1.0};
-//+
-Point(7) = {L_out, (1+1/r)*0.5, -betta, 1.0};
-//+
-Point(8) = {L_out, 1/r, -betta, 1.0};
-//+
-Point(9) = {L_out, 0, -betta, 1.0};
-//+
-Point(10) = {L_out, -1/r, -betta, 1.0};
-//+
-Point(11) = {L_out, -(1+1/r)*0.5, -betta, 1.0};
-//+
-Point(12) = {L_out, -1.0, -betta, 1.0};
-//+
-Point(13) = {0, -1.0, -betta, 1.0};
-//+
-Point(14) = {0, -(1+1/r)*0.5, -betta, 1.0};
-//+
-Point(15) = {0, -1/r, -betta, 1.0};
-//+
-Point(16) = {-L_in, -1/r, -betta, 1.0};
+//------------------------------------------------------------------
+//Extrusion in the direction perpendicular to B according to Smolentsev formula
 
-//Extra point in the center of the domain
-//+
-Point(17) = {0, 0, -betta, 1.0};
-
-//Lines joining points
-
-//+
-Line(1) = {1, 2};
-//+
-Line(2) = {2,3};
-//+
-Line(3) = {3, 4};
-//+
-Line(4) = {4, 5};
-//+
-Line(5) = {5, 6};
-//+
-Line(6) = {6, 7};
-//+
-Line(7) = {7, 8};
-//+
-Line(8) = {8, 9};
-//+
-Line(9) = {9, 10};
-//+
-Line(10) = {10, 11};
-//+
-Line(11) = {11, 12};
-//+
-Line(12) = {12, 13};
-//+
-Line(13) = {13, 14};
-//+
-Line(14) = {14, 15};
-//+
-Line(15) = {15, 16};
-//+
-Line(16) = {16, 1};
-//+
-Line(17) = {3, 17};
-//+
-Line(18) = {17, 15};
-
-
-//2D mesh in the z = -betta plane
-
-//+
-Transfinite Curve {-2, 15} = n_inlet Using Progression r_exp; //Axial cells in the inlet channel
-//+
-Transfinite Curve {5, -12} = n_outlet Using Progression r_exp; //Axial cells in the outlet channel
-//+
-Transfinite Curve {-1, 17, 8, 16, -18, -9} = N_Ha/2 Using Progression R_Ha; //Cells along the B direction in the inlet channel (x2)
-//+
-Transfinite Curve {3, -7, 13, -11, -14, 10, -4, 6} = N_Ha/2 Using Progression R_Ha; //Cells along the B direction in the outle channel (x4)
-
-//Surface definition
-
-//+
-Curve Loop(1) = {1, 2, 17, 18, 15, 16};
-//+
-Plane Surface(1) = {1};
-//+
-Curve Loop(2) = {-17, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, -18};
-//+
-Plane Surface(2) = {2};
-//+
-Transfinite Surface {1} = {2, 3, 15, 16};
-//+
-Transfinite Surface {2} = {5, 6, 12, 13};
-//+
-Recombine Surface {1,2}; //This recombines the triangles into rectangles
-//+
-
-//Extrude using also a geometric progression along the direction perpendicular to B
-
-N = N_side/2;
 one[0] = 1;
-layer[0] = 0.5*(1 - R_side) / (1-R_side^N);
+uniform[0] = 1/N_s;
+a = (Ha^0.5/(Ha^0.5-1))^0.5;
+c = (a + 1)/(a - 1);
 
-For i In {1:N-1}
+s[0] = c^(2*(uniform[0]-0.5)); 
+layer[0] = ((a+1)*s[0] - a + 1)/(2*(1+s[0]));
+
+For i In {1:N_s-1}
    one[i] = 1;
-   layer[i] = layer[i-1] + layer[0] * R_side^i;
+   uniform[i] = uniform[i-1]+1/N_s;
+   s[i] = c^(2*(uniform[i]-0.5)); 
+   layer[i] = ((a+1)*s[i] - a + 1)/(2*(1+s[i]));
 EndFor
 
-For i In {0:N-1}
-   one[i+N] = 1;
-   layer[i+N] = layer[i+N-1] + layer[0]*R_side^(N-i-1);
+extruded_entities_side[] = Extrude {0.0,0.0,2*betta} {Line{1,2};Layers{one[],layer[]}; Recombine;};
+//-----------------------------------------------------------------------------
+
+//Physical tags from the extruded list
+wall_surfaces[] = {extruded_entities_side[1],extruded_entities_side[5]};
+
+wall_lines[2] = extruded_entities_side[0];
+wall_lines[3] = extruded_entities_side[2];
+wall_lines[4] = -extruded_entities_side[3];
+wall_lines[5] = extruded_entities_side[4];
+wall_lines[6] = extruded_entities_side[6];
+wall_lines[7] = -extruded_entities_side[7];
+
+// From the GUI
+For i In {5:8}
+wall_points[i-1] = i;
 EndFor
 
-Extrude {0.0,0.0,2*betta} {
-    Surface{1,2}; Layers{one[],layer[]}; Recombine; 
-}
+//----------------------------------------------------------------
+//Frist extrusion along the direction of the B field (right part);
+
+one[0] = 1;
+uniform[0] = 1/N_Ha;
+a = (Ha/(Ha-1))^0.5;
+c = (a + 1)/(a - 1);
+
+s[0] = c^(2*(uniform[0]-0.5)); 
+layer[0] = ((a+1)*s[0] - a + 1)/(2*(1+s[0]));
+
+For i In {1:N_Ha-1}
+   one[i] = 1;
+   uniform[i] = uniform[i-1]+1/N_Ha;
+   s[i] = c^(2*(uniform[i]-0.5)); 
+   layer[i] = ((a+1)*s[i] - a + 1)/(2*(1+s[i]));
+EndFor
 
 
-//Tag definition for gridap
+extruded_entities_Ha[] = Extrude {0.0,(r-1)/r,0.0} {Surface{extruded_entities_side[1]};Layers{one[],layer[]}; Recombine;};
 
-//+
-Physical Surface("inlet") = {29, 49};
-//+
-Physical Surface("outlet") = {85, 89, 93, 97, 101, 105};
-//+
-Physical Surface("wall") = {1, 2, 33, 45, 109, 81, 50, 122, 77, 73, 117, 113};
-//+
-Physical Volume("PbLi") = {1, 2};
-//+
-Physical Line("inlet") = {27};
-Physical Line("outlet") = {84,88,92,96,100};
-Physical Line("wall") = {1,16,20,25,28,44,2,15,21,24,3,4,17,18,13,14,53,54,22,23,63,64,76,72,32,40,112,108,5,12,55,62,6,7,8,9,10,11,56,57,58,59,60,61,80,104};
-//+
-Physical Point("wall") = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,23,27,31,35,41,45,49,53,57,61,65,69,73,77,81};
+//----------------------------------------------------------------
+
+//Physical tags from the extruded list
+volumes[] = extruded_entities_Ha[1]; 
+
+wall_surfaces[2] = extruded_entities_Ha[2]; 
+wall_surfaces[3] = extruded_entities_Ha[4]; 
+wall_surfaces[4] = extruded_entities_Ha[5]; 
+
+outlet_surfaces[0] = extruded_entities_Ha[3]; 
+
+// From the GUI
+wall_lines_2[] = {12, 14, 17, 18, 22, 26};
+wall_points_2[] = {10, 14};
+
+outlet_lines[0] = 13;
+
+//-----------------------------------------------------------------------------
+//Second extrusion along the direction of the B field (central part and inlet channel);
+
+extruded_entities_Ha[] = Extrude {0.0,2/r,0.0} {Surface{extruded_entities_Ha[0],extruded_entities_side[5]};Layers{one[],layer[]}; Recombine;};
+//--------------------------------------------------------------
+
+//Physical tags from the extruded list
+volumes[1] = extruded_entities_Ha[1];
+volumes[2] = extruded_entities_Ha[7];
+
+wall_surfaces[6] = extruded_entities_Ha[2];
+wall_surfaces[7] = extruded_entities_Ha[4];
+outlet_surfaces[1] = extruded_entities_Ha[3];
+
+wall_surfaces[8] = extruded_entities_Ha[6];
+wall_surfaces[9] = extruded_entities_Ha[8];
+wall_surfaces[10] = extruded_entities_Ha[10];
+inlet_surfaces[0] = extruded_entities_Ha[11];
+
+// From the GUI
+wall_lines_3[] = {34, 36, 37, 39, 40, 44, 48, 56, 58, 59, 61, 70};
+wall_points_3[] = {15, 16, 20, 25, 24, 34};
+
+outlet_lines[1] = 35;
+
+//-----------------------------------------------------------------------------
+//Third extrusion along the direction of the B field (left part and inlet channel);
+
+extruded_entities_Ha[] = Extrude {0.0,(r-1)/r,0.0} {Surface{extruded_entities_Ha[0]};Layers{one[],layer[]}; Recombine;};
+//-----------------------------------------------------------------------------
+
+//Physical tags from the extruded list
+volumes[3] = extruded_entities_Ha[1];
+
+wall_surfaces[11] = extruded_entities_Ha[0];
+wall_surfaces[12] = extruded_entities_Ha[2];
+wall_surfaces[13] = extruded_entities_Ha[4];
+wall_surfaces[14] = extruded_entities_Ha[5];
+
+outlet_surfaces[2] = extruded_entities_Ha[3];
+
+wall_lines_4[] = {78, 79, 80, 81, 83, 84, 88, 92};
+wall_points_4[] = {35, 36, 40, 44};
+
+//-------------Definition of physical tags from the lists---------------
+
+Physical Point ("wall") = {wall_points[], wall_points_2[], wall_points_3[], wall_points_4[]};
+Physical Line ("wall") = {wall_lines[], wall_lines_2[], wall_lines_3[], wall_lines_4[]};
+Physical Surface ("wall") = {wall_surfaces[]};
+
+Physical Line ("outlet") = {outlet_lines[]};
+Physical Surface ("outlet") = {outlet_surfaces[]};
+
+Physical Surface ("inlet") = {inlet_surfaces[]};
+
+Physical Volume("PbLi") = {volumes[]};
