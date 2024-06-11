@@ -41,21 +41,20 @@ function _expansion(;
   distribute=nothing,
   rank_partition=nothing,
   title = "Expansion",
-  mesh  = "720",            #Either a string (for pure gmsh) or, a dictionary for p4est?
+  mesh  = "720",            #Either a string or a dictionary
   vtk   = true,
   path  = datadir(),
   debug = false,
   verbose = true,
   solver  = :julia,
-  petsc_options = nothing,  #Added to have access to non-default petsc options
-  formulation = :cfd,
+  formulation = :mhd,
   Z = 4.0,                  #Expansion Ratio, it has to be consistent with the mesh
-  β = 0.2,                  #Outlet channel aspect ratio, , it has to be consistent with the mesh
+  β = 0.2,                  #Outlet channel aspect ratio, it has to be consistent with the mesh
   N  = 1.0,
   Ha = 1.0,
   cw = 0.028,
   τ  = 100,
-  ζ  = 0.0, #What is this?
+  ζ  = 0.0, 
   order = 2,
   inlet = :parabolic
   )
@@ -69,10 +68,6 @@ function _expansion(;
        :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver
     )
     
-  if isa(petsc_options,Nothing)
-    params[:solver][:petsc_options] = petsc_options
-  end
-
   if isa(distribute,Nothing)
     @assert isa(rank_partition,Nothing)
     rank_partition = (1,)
@@ -151,7 +146,7 @@ function _expansion(;
       :thin_wall => [Dict(
         :τ=>τ,
         :cw=>cw,
-        :domain => ["wall"], #No necessary to specify that "wall" is a gridap boundary
+        :domain => ["wall"]
       )]
     )
   end
@@ -180,7 +175,7 @@ function _expansion(;
 
   if vtk
     writevtk(Ω,joinpath(path,title),
-      order=2,
+      order=order,
       cellfields=[
         "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p])
     toc!(t,"vtk")
