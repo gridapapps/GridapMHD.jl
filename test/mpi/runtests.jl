@@ -19,6 +19,6 @@ function run_test(n, file)
 end
 
 run_test(1,"runtests_body.jl")
-# run_test(4,"runtests_body.jl")
+run_test(4,"runtests_body.jl")
 
 end
