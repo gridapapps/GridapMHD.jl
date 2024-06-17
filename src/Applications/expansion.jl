@@ -54,8 +54,9 @@ function _expansion(;
   τ  = 100,
   ζ  = 0.0,
   order = 2,
+  inlet = :parabolic,
   )
-  
+
   info   = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
     :debug=>debug,
@@ -118,26 +119,26 @@ function _expansion(;
   )
 
   # Boundary conditions
-  u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0) # This gives mean(u_inlet)=1
+  u_in = u_inlet(inlet,Ha,1.0,0.0)
   if abs(cw) < 1.e-5
-    params[:bcs] = Dict( 
-      :u => Dict(
-        :tags => ["inlet", "wall"],
-        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
-      ),
-      :j => Dict(
-		    :tags => ["wall", "inlet", "outlet"], 
-        :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
-      )
-    )
-  else 
     params[:bcs] = Dict(
       :u => Dict(
         :tags => ["inlet", "wall"],
-        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+        :values => [u_in, VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
-        :tags => ["inlet", "outlet"], 
+		    :tags => ["wall", "inlet", "outlet"],
+        :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
+      )
+    )
+  else
+    params[:bcs] = Dict(
+      :u => Dict(
+        :tags => ["inlet", "wall"],
+        :values => [u_in, VectorValue(0.0, 0.0, 0.0)]
+      ),
+      :j => Dict(
+        :tags => ["inlet", "outlet"],
         :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
       ),
       :thin_wall => [Dict(
@@ -158,7 +159,7 @@ function _expansion(;
     xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
       xh,fullparams,info = main(params;output=info)
       GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
-      return xh,fullparams,info 
+      return xh,fullparams,info
     end
   end
   t = fullparams[:ptimer]
@@ -199,7 +200,7 @@ function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
   # after and before the expansion respectively (L=1).
   msh_name = mesh[:base_mesh]
-  msh_file = joinpath(projectdir(),"meshes","Expansion_"*msh_name*".msh") |> normpath
+  msh_file = joinpath(@__DIR__,"..","..","meshes","Expansion_"*msh_name*".msh") |> normpath
   model = GmshDiscreteModel(ranks,msh_file)
   params[:model] = model
   return model
@@ -209,7 +210,7 @@ function epansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs)
   num_refs = mesh[:num_refs]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
+    msh_file = joinpath(@__DIR__,"..","..","meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
     base_model = GmshDiscreteModel(msh_file)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
@@ -226,7 +227,7 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   num_refs_coarse = mesh[:num_refs_coarse]
   ranks_per_level = mesh[:ranks_per_level]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
+    msh_file = joinpath(@__DIR__,"..","..","meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
     base_model = GmshDiscreteModel(msh_file)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
@@ -244,4 +245,23 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   model = get_model(mh,1)
   params[:model] = model
   return model
+end
+
+function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in every case
+
+  u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/Z)*(y+1/Z)*(z-β*Z)*(z+β*Z),0,0)
+
+  kp_inlet = GridapMHD.kp_shercliff_cartesian(β*Z,Ha/Z)
+  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(β*Z, 0.0, -Z*kp_inlet, Ha/Z,200,(z*Z,y*Z,x))[3],0.0,0.0)
+
+  u_inlet_cte = VectorValue(Z,0.0,0.0)
+
+  if inlet == :parabolic
+	U = u_inlet_parabolic
+  elseif inlet == :shercliff
+    U = u_inlet_shercliff
+  else
+    U = u_inlet_cte
+  end
+ U
 end

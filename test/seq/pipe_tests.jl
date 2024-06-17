@@ -6,6 +6,10 @@ using GridapPETSc, SparseMatricesCSR
 
 pipe(vtk=true)
 
+
+pipe(backend=:mpi,np=(1,1,1),solver=:petsc,
+  sizes=(4,1,1),nc=(4,4,4),ν=1e-1,vtk=true)
+
 pipe(sizes=(4,1,1),nc=(16,4,4),ν=1e-1,vtk=true)
 
 pipe(sizes=(4,1,1),nc=(16,4,4),ν=1e-3,vtk=true)

@@ -95,12 +95,15 @@ function _pipe(;
   if isa(solver,Symbol)
     solver = default_solver_params(Val(solver))
   end
+
   params[:solver] = solver
 
 
 
+
   # Reduced quantities
-  L,ay,az = sizes
+  ax,ay,az = sizes
+  L = ay
   Re = u0*L/ν
   Ha = B0*L*sqrt(σ/(ρ*ν))
   N = Ha^2/Re
@@ -110,15 +113,20 @@ function _pipe(;
   f̄ = VectorValue(f)
 
   if nonuniform_B
-    B̄ = magnetic_field(;γ=γB,Ha,Re,d=ay,c=L/2)
+    B̄ = magnetic_field(;γ=γB,Ha,Re,d=ay,c=ax/2)
   else
     B̄ = (1/norm(B))*VectorValue(B)
   end
+  h = ax/nc[1]
 
-  Reh = Re/nc[1]
+  Reh = Re*h/L
+  Hah = Ha*h/L
   @show Re
-  @show Reh
   @show Ha
+  @show Reh
+  @show Hah
+
+
 
   ū = inlet_profile(sizes)
 
@@ -171,6 +179,9 @@ function _pipe(;
   params[:solver][:niter] = niter
   params[:solver][:initial_values] = Dict(
     :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0)
+  if params[:solver][:solver] == :petsc
+    params[:solver][:petsc_options] *= " -snes_max_funcs $(niter+1)"
+  end
 
   # Solve it
   if !uses_petsc(params[:solver])
