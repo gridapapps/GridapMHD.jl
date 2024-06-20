@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 20:00:00
-#SBATCH --partition=volta
+#SBATCH -t 02:00:00
+#SBATCH --partition=xula3
 
-#SBATCH -o outputCompile36c
-#SBATCH -e errorCompile36c
+#SBATCH -o outputCompile
+#SBATCH -e errorCompile
 ###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=compileGridapMHD36c
+#SBATCH --job-name=compileGridapMHD
 #SBATCH --mem=0
 
 
@@ -24,10 +24,9 @@ echo ""
 SECONDS=0
 
 
-source /ws/blankets/GridapMHD.jl/analysis/Turgalium_CIEMAT/env.sh
+source /mnt/lustre/home/u6678/work/GridapMHD.jl/analysis/xula/env.sh
 
-#julia --project=$GRIDAPMHD -e 'using Pkg; Pkg.precompile()'
-julia --project=$GRIDAPMHD -O3 --check-bounds=no --color=yes $GRIDAPMHD/compile/Turgalium_CIEMAT/compile36c.jl
+julia --project=$GRIDAPMHD -O3 --check-bounds=no --color=yes $GRIDAPMHD/compile/xula/compile.jl
 
 duration=$SECONDS
 rm -f hosts.$SLURM_JOB_ID
