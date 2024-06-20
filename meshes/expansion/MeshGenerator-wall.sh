@@ -62,6 +62,6 @@ rm input_params.jl
 
 #Generate the mesh
 
-gmsh $path/Expansion_B-wall.geo -3 -o $path/Expansion_computed.msh
+gmsh $path/Expansion_B-wall.geo -3 -o $path/../Expansion-wall_computed.msh
 
 
