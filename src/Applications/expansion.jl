@@ -206,7 +206,7 @@ function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   # The domain is of size L_out x 2 x 2/β and L_in x 2/Z x 2/β
   # after and before the expansion respectively.
   msh_name = mesh[:base_mesh]
-  msh_file = joinpath(projectdir(),"meshes","expansion","Expansion_"*msh_name*".msh") |> normpath
+  msh_file = joinpath(projectdir(),"meshes","Expansion_"*msh_name*".msh") |> normpath
   model = GmshDiscreteModel(ranks,msh_file)
   params[:model] = model
   return model
@@ -216,7 +216,7 @@ function epansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs)
   num_refs = mesh[:num_refs]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(projectdir(),"meshes","expansion","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
+    msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
     base_model = GmshDiscreteModel(msh_file)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
@@ -233,7 +233,7 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   num_refs_coarse = mesh[:num_refs_coarse]
   ranks_per_level = mesh[:ranks_per_level]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(projectdir(),"meshes","expansion","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
+    msh_file = joinpath(projectdir(),"meshes","Expansion_"*mesh[:base_mesh]*".msh") |> normpath
     base_model = GmshDiscreteModel(msh_file)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
