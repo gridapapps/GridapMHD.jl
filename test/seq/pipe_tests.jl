@@ -8,7 +8,11 @@ pipe(vtk=true)
 
 
 pipe(backend=:mpi,np=(1,1,1),solver=:petsc,
-  sizes=(4,1,1),nc=(4,4,4),ν=1e-1,vtk=true)
+  sizes=(4,2,2),nc=(4,4,4),ν=1e-1,vtk=true)
+
+
+pipe(backend=:mpi,np=(1,1,1),solver=:petsc,
+  sizes=(8,2,2),nc=(4,8,8),ν=1e-1,vtk=true,inlet=:shercliff)
 
 pipe(sizes=(4,1,1),nc=(16,4,4),ν=1e-1,vtk=true)
 
@@ -19,6 +23,18 @@ pipe(sizes=(4,1,1),nc=(16,4,4),ν=5e-3,μ=1e-1,vtk=true)
 pipe(sizes=(4,1,1),nc=(16,8,8,),debug=true,vtk=true,
   bl_orders=(1,2,2),nonuniform_B=true)
 
+
+
+pipe(
+  backend=:mpi,np=(1,1,1),solver=:petsc,
+  sizes=(8,2,2),nc=(10,10,10),vtk=true,inlet=:shercliff,bl_orders=(1,2,2),
+  B0=100/2,u0=10/2)
+
+pipe(
+  title="osc_1",
+  backend=:mpi,np=(1,1,1),solver=:petsc,
+  sizes=(8,2,2),nc=(15,15,15),vtk=true,inlet=:shercliff,bl_orders=(1,2,2),
+  B0=50/2,u0=10/2,niter=1)
 
 # pipe(backend=:mpi,np=(1,1,1),sizes=(4,1,1),nc=(8,8,8),ν=1,vtk=true,
 # B0=10/4,bl_orders=(1,2,2),μ=1e-2)

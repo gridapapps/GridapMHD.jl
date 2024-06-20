@@ -251,12 +251,15 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   return model
 end
 
-function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in every case
+function u_inlet(inlet,Ha,Z,β;flip=false) # It ensures avg(u) = 1 in the outlet channel in every case
 
   u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/Z)*(y+1/Z)*(z-β*Z)*(z+β*Z),0,0)
 
   kp_inlet = GridapMHD.kp_shercliff_cartesian(β*Z,Ha/Z)
-  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(β*Z, 0.0, -Z*kp_inlet, Ha/Z,200,(z*Z,y*Z,x))[3],0.0,0.0)
+  function u_inlet_shercliff((x,y,z))
+    x,y,z = !flip ? (z*Z,y*Z,x) : (y*Z,z*Z,z)
+    VectorValue(GridapMHD.analytical_GeneralHunt_u(β*Z, 0.0, -Z*kp_inlet, Ha/Z,200,(x,y,z))[3],0.0,0.0)
+  end
 
   u_inlet_cte = VectorValue(Z,0.0,0.0)
 
