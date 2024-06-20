@@ -54,6 +54,7 @@ function _expansion(;
   cw = 0.028,
   τ  = 100,
   ζ  = 0.0,
+  b  = 0.2,
   order = 2,
   inlet = :parabolic,
   )
@@ -120,7 +121,7 @@ function _expansion(;
   )
 
   # Boundary conditions
-  u_in = u_inlet(inlet,Ha,Z,β)
+  u_in = u_inlet(inlet,Ha,Z,b)
   if abs(cw) < 1.e-5
     params[:bcs] = Dict(
       :u => Dict(
