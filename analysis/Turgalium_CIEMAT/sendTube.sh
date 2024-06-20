@@ -66,7 +66,20 @@ source $mesh_path/MeshGenerator.sh "$mesh_path/../tube_computed.msh"
 mpiexec -n ${SLURM_NPROCS} --mca btl_openib_if_include mlx5_0 julia --project=$GRIDAPMHD -O3 --check-bounds=no -e\
 '
 include("pass_params.jl")
+using GridapPETSc
+using SparseMatricesCSR
 using GridapMHD: tube
+
+#Monolithic MUMPS
+solver = Dict(
+    :solver => :petsc,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001",
+    :niter          => 100,
+    :rtol           => 1e-5,
+  )
+
 tube(;
   mesh="computed", 
   np=NPROCS,
@@ -79,8 +92,8 @@ tube(;
   debug=false,
   vtk=true,
   title=JOB_NAME,
-  solver=:petsc,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0 -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001"
+  solver=solver
+#  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0 -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001"
  )'
 
 duration=$SECONDS

@@ -9,16 +9,23 @@ function FullyDeveloped(;
 
   for ir in 1:nruns
     _title = title*"_r$ir"
-    @assert parts === nothing
-    if backend === nothing
-      @assert np === nothing
+    if isa(backend,Nothing)
+      @assert isa(np,Nothing)
       info, t = _FullyDeveloped(;title=_title,path=path,kwargs...)
     else
-      @assert backend !== nothing
-      info, t = with_backend(_find_backend(backend),(np...,1)) do _parts
-        _FullyDeveloped(;parts=_parts,title=_title,path=path,kwargs...)
+      @assert backend ∈ [:sequential,:mpi]
+      @assert !isa(np,Nothing)
+      if backend === :sequential
+        info, t = with_debug() do distribute
+          _FullyDeveloped(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
+        end
+      else
+        info,t = with_mpi() do distribute
+          _FullyDeveloped(;distribute=distribute,rank_partition=np,title=_title,path=path,kwargs...)
+        end
       end
     end
+
     info[:np] = np
     info[:backend] = backend
     info[:title] = title
@@ -34,7 +41,8 @@ function FullyDeveloped(;
 end
 
 function _FullyDeveloped(;
-  parts=nothing,
+  distribute=nothing,
+  rank_partition=nothing,
   nc=(3,3),
   Ha = 10.0,
   dir_B=(0.0,1.0,0.0),
@@ -54,19 +62,36 @@ function _FullyDeveloped(;
   cw_s = 0.0,
   τ_Ha = 100.0,
   τ_s = 100.0,
-  nsums = 10,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
+  nsums = 10
+#  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps"
   )
 
   info = Dict{Symbol,Any}()
 
-  if parts === nothing
-    t_parts = get_part_ids(SequentialBackend(),1)
-  else
-    t_parts = parts
+  params = Dict{Symbol,Any}(
+    :debug=>debug,
+    :solve=>solve,
+    :res_assemble=>res_assemble,
+    :jac_assemble=>jac_assemble,
+  )
+
+  # Communicator
+  if isa(distribute,Nothing)
+    @assert isa(rank_partition,Nothing)
+    rank_partition = Tuple(fill(1,length(nc)))
+    distribute = DebugArray
   end
-  t = PTimer(t_parts,verbose=verbose)
+  @assert length(rank_partition) == length(nc)
+  parts = distribute(LinearIndices((prod(rank_partition),)))
+  
+  t = PTimer(parts,verbose=verbose)
+  params[:ptimer] = t
   tic!(t,barrier=true)
+
+  if isa(solver,Symbol)
+    solver = default_solver_params(Val(solver))
+  end
+  params[:solver] = solver
 
   domain = (-b,b,-1.0,1.0,0.0,0.1)
 
@@ -84,27 +109,29 @@ function _FullyDeveloped(;
    strech_side = sqrt(sqrt(Ha)/(sqrt(Ha)-1))
 
   function map1(coord)
-     ncoord = GridapMHD.strechMHD(coord,domain=(0,-b,0,-1.0),factor=(strech_side,strech_Ha),dirs=(1,2))
-     ncoord = GridapMHD.strechMHD(ncoord,domain=(0,b,0,1.0),factor=(strech_side,strech_Ha),dirs=(1,2))
+     ncoord = strechMHD(coord,domain=(0,-b,0,-1.0),factor=(strech_side,strech_Ha),dirs=(1,2))
+     ncoord = strechMHD(ncoord,domain=(0,b,0,1.0),factor=(strech_side,strech_Ha),dirs=(1,2))
      ncoord  
    end
 
   function map_fine(coord)
-     ncoord = GridapMHD.strechMHD(coord,domain=(0,-b,0,-1.0),factor=(strech_Ha,strech_Ha),dirs=(1,2))
-     ncoord = GridapMHD.strechMHD(ncoord,domain=(0,b,0,1.0),factor=(strech_Ha,strech_Ha),dirs=(1,2))
+     ncoord = strechMHD(coord,domain=(0,-b,0,-1.0),factor=(strech_Ha,strech_Ha),dirs=(1,2))
+     ncoord = strechMHD(ncoord,domain=(0,b,0,1.0),factor=(strech_Ha,strech_Ha),dirs=(1,2))
      ncoord
   end
 
  partition=(nc[1],nc[2],3)
+ ranks = (rank_partition[1],rank_partition[2],1)
  if strech_fine
  model = CartesianDiscreteModel(
-     parts,domain,partition;isperiodic=(false,false,true),map=map_fine)
+     parts,ranks,domain,partition;isperiodic=(false,false,true),map=map_fine)
  else
  model = CartesianDiscreteModel(
-     parts,domain,partition;isperiodic=(false,false,true),map=map1)
+     parts,ranks,domain,partition;isperiodic=(false,false,true),map=map1)
  end
   Ω = Interior(model)
- 
+  params[:model] = model
+
   labels = get_face_labeling(model)
   tags_j_Ha = append!(collect(1:20),[23,24])
   tags_j_side = append!(collect(1:20),[25,26])
@@ -118,27 +145,22 @@ function _FullyDeveloped(;
     writevtk(model,"Mesh")
   end
 
-  params = Dict(
-    :ptimer=>t,
-    :debug=>debug,
-    :model=>model,
-    :res_assemble=>res_assemble,
-    :jac_assemble=>jac_assemble,
-    :solve=>solve,
-    :fluid=>Dict(
-      :domain=>model,
-      :α=>α,
-      :β=>β,
-      :γ=>γ,
-      :f=>VectorValue(0.0,0.0,1.0),
-      :B=>dirB,
-    ),
-    :bcs => Dict(
+   params[:fluid] = Dict(
+    :domain=>nothing,
+    :α=>α,
+    :β=>β,
+    :γ=>γ,
+    :f=>VectorValue(0.0,0.0,1.0),
+    :B=>dirB,
+    :ζ=>0.0,
+  )
+
+    params[:bcs] =  Dict(
       :u=>Dict(:tags=>["Ha_walls","side_walls"]),
       :j=>Dict{Symbol,Vector{String}}(),
       :thin_wall=>Vector{Dict{Symbol,Any}}() 
     )
-  )
+  
 
   insulated_tags = Vector{String}()
   thinWall_options = Vector{Dict{Symbol,Any}}() 
@@ -164,10 +186,8 @@ function _FullyDeveloped(;
         )
       )
   end
-  
-#  if insulated_tags != [] 
-    params[:bcs][:j] = Dict(:tags=>insulated_tags)  
-#  end
+ 
+  params[:bcs][:j] = Dict(:tags=>insulated_tags)
 
   if thinWall_options != []
     params[:bcs][:thin_wall] = thinWall_options
@@ -176,23 +196,20 @@ function _FullyDeveloped(;
   toc!(t,"pre_process")
 
   # Solve it
-  if solver == :julia
-    params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh,fullparams = main(params)
-  elseif solver == :petsc
-    xh,fullparams = GridapPETSc.with(args=split(petsc_options)) do
-      params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-      params[:vector_type] = Vector{PetscScalar}
-      params[:solver] = PETScNonlinearSolver()
-      params[:solver_postpro] = cache -> snes_postpro(cache,info)
-      main(params)
-    end
+  if !uses_petsc(params[:solver])
+    xh,fullparams,info = main(params;output=info)
   else
-    error()
+    petsc_options = params[:solver][:petsc_options]
+    xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
+      xh,fullparams,info = main(params;output=info)
+      GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
+      return xh,fullparams,info
+    end
   end
+  
   t = fullparams[:ptimer]
 
-  # Rescale quantities
+  # Compute quantities
 
   tic!(t,barrier=true)
   uh,ph,jh,φh = xh
@@ -296,4 +313,29 @@ function analytical_GeneralHunt_u(
   u_z = V*Ha^2*(-grad_pz) 
 
   VectorValue(0.0*u_z,0.0*u_z,u_z)
+end
+
+function strechMHD(coord;domain=(0.0,1.0,0.0,1.0,0.0,1.0),factor=(1.0,1.0,1.0),dirs=(1,2,3))
+  ncoord = collect(coord.data)
+  for (i,dir) in enumerate(dirs)
+    ξ0 = domain[i*2-1]
+    ξ1 = domain[i*2]
+    l =  ξ1 - ξ0
+    c = (factor[i] + 1)/(factor[i] - 1)
+
+    if l > 0
+      if ξ0 <= coord[dir] <= ξ1
+        ξx = (coord[dir] - ξ0)/l                     # ξx from 0 to 1 uniformly distributed
+        ξx_streched = factor[i]*(c^ξx-1)/(1+c^ξx)    # ξx streched from 0 to 1 towards 1
+        ncoord[dir] =  ξx_streched*l + ξ0            # coords streched towards ξ1
+      end
+    else
+      if ξ1 <= coord[dir] <= ξ0
+        ξx = (coord[dir] - ξ0)/l                     # ξx from 0 to 1 uniformly distributed
+        ξx_streched = factor[i]*(c^ξx-1)/(1+c^ξx)    # ξx streched from 0 to 1 towards 1
+        ncoord[dir] =  ξx_streched*l + ξ0            # coords streched towards ξ1
+      end
+    end
+  end
+  return VectorValue(ncoord)
 end

@@ -2,20 +2,28 @@ function tube(;
   backend=nothing,
   np=nothing,
   title = "tube",
-  mesh = "710",
+  mesh = "hybrid",
   path=".",
   kwargs...)
 
-    if backend === nothing
-      @assert np === nothing
-      info, t = _tube(;title=title,path=path,mesh=mesh,kwargs...)
+  if isa(backend,Nothing)
+    @assert isa(np,Nothing)
+    info, t = _tube(;title=title,path=path,mesh=mesh,kwargs...)
+  else
+    @assert backend ∈ [:sequential,:mpi]
+    @assert !isnothing(np)
+    np = isa(np,Int) ? (np,) : np
+    if backend === :sequential
+      info,t = with_debug() do distribute
+        _tube(;distribute=distribute,rank_partition=np,title=title,path=path,mesh=mesh,kwargs...)
+      end
     else
-      @assert backend !== nothing
-      @assert np !== nothing
-      info, t = with_backend(_find_backend(backend),np) do _parts
-        _tube(;parts=_parts,title=title,path=path,mesh=mesh,kwargs...)
+      info,t = with_mpi() do distribute
+        _tube(;distribute=distribute,rank_partition=np,title=title,path=path,mesh=mesh,kwargs...)
       end
     end
+  end  
+
     info[:np] = np
     info[:backend] = backend
     info[:title] = title
@@ -31,8 +39,9 @@ function tube(;
 end
 
 function _tube(;
-  parts=nothing,
-  title = "tube",
+  distribute=nothing,
+  rank_partition=nothing,
+  title = "hybrid",
   mesh = "720",
   vtk=true,
   path=".",
@@ -43,18 +52,29 @@ function _tube(;
   Ha = 1.0,
   inlet = :parabolic,
   cw = 0.028,
-  τ = 1000,
-  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
+  τ = 1000
+#  petsc_options="-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0"
 )
   
   info = Dict{Symbol,Any}()
 
-  if parts === nothing
-    t_parts = get_part_ids(SequentialBackend(),1)
-  else
-    t_parts = parts
+  params = Dict{Symbol,Any}(
+       :debug=>debug,
+       :solve=>true,
+       :res_assemble=>false,
+       :jac_assemble=>false,
+       :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver
+    )
+
+  if isa(distribute,Nothing)
+    @assert isa(rank_partition,Nothing)
+    rank_partition = (1,)
+    distribute = DebugArray
   end
-  t = PTimer(t_parts,verbose=verbose)
+  parts = distribute(LinearIndices((prod(rank_partition),)))
+  
+  t = PTimer(parts,verbose=verbose)
+  params[:ptimer] = t
   tic!(t,barrier=true)
 
   #Read the mesh and create the model
@@ -79,6 +99,10 @@ function _tube(;
   β = (1.0/Ha^2)
   γ = 1.0
 
+  params[:fespaces] = Dict(
+    :k => 2
+  )
+
   # This gives mean(u_inlet)=1
   if inlet == :parabolic
      u_inlet((x,y,z)) = VectorValue(0,0,2*(1-x^2-y^2))
@@ -86,22 +110,15 @@ function _tube(;
      u_inlet = VectorValue(0,0,1)  
   end
 
-  params = Dict(
-    :ptimer=>t,
-    :debug=>debug,
-    :solve=>true,
-    :res_assemble=>false,
-    :jac_assemble=>false,
-    :model => model,
-    :fluid=>Dict(
-      :domain=>model,
-      :α=>α,
-      :β=>β,
-      :γ=>γ,
-      :f=>VectorValue(0.0,0.0,0.0),
-      :B=>VectorValue(0.0,1.0,0.0),
-    )
-   )
+  params[:fluid] = Dict(
+    :domain => nothing, # whole domain
+    :α => α,
+    :β => β,
+    :γ => γ,
+    :f => VectorValue(0.0,0.0,0.0),
+    :B => VectorValue(0.0,1.0,0.0),
+    :ζ => 0.0
+  )
 
   if cw == 0.0
    params[:bcs] = Dict( 
@@ -128,7 +145,7 @@ function _tube(;
       :thin_wall => [Dict(
 	:τ=>τ,
 	:cw=>cw,
-	:domain => Boundary(model, tags="wall")
+	:domain => ["wall"]
       )]
     )
   end
@@ -136,20 +153,17 @@ function _tube(;
   toc!(t,"pre_process")
 
   # Solve it
-  if solver == :julia
-    params[:solver] = NLSolver(show_trace=true,method=:newton)
-    xh,fullparams = main(params)
-  elseif solver == :petsc
-    xh,fullparams = GridapPETSc.with(args=split(petsc_options)) do
-    params[:matrix_type] = SparseMatrixCSR{0,PetscScalar,PetscInt}
-    params[:vector_type] = Vector{PetscScalar}
-    params[:solver] = PETScNonlinearSolver()
-    params[:solver_postpro] = cache -> snes_postpro(cache,info)
-    xh = main(params)
-    end
+   if !uses_petsc(params[:solver])
+    xh,fullparams,info = main(params;output=info)
   else
-    error()
+    petsc_options = params[:solver][:petsc_options]
+    xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
+      xh,fullparams,info = main(params;output=info)
+      GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
+      return xh,fullparams,info
+    end
   end
+
   t = fullparams[:ptimer]
   tic!(t,barrier=true)
 
