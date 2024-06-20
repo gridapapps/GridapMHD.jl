@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH -N 5 
-#SBATCH --ntasks-per-node=4
+#SBATCH -N 4 
+#SBATCH --ntasks-per-node=5
 #SBATCH -t 3-00:00:00
 #SBATCH -p xula3
 
-#SBATCH -o outputExp_r4Ha1000Re50_N5n4
-#SBATCH -e errorExp_r4Ha1000Re50_N5n4
+#SBATCH -o outputExp_r4Ha1000Re50_N4n5
+#SBATCH -e errorExp_r4Ha1000Re50_N4n5
 ###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=Exp_r4Ha1000Re50_N5n4
+#SBATCH --job-name=Exp_r4Ha1000Re50_N4n5
 #SBATCH --mem=0
 
 SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
@@ -41,7 +41,7 @@ echo L_out=2.0 >> 		$PASS_FILE      #Outlet channel normalized lenght
 
 echo N_Ha = 26 >>     $PASS_FILE      #Number of cells in the inlet channel along the B-direction
 echo N_s = 20 >>      $PASS_FILE      #Number of cells in the inlet channel along the direction perpendicular to B
-echo dx = 0.004 >>    $PASS_FILE      #Distante of the first node in the sudden expansion
+echo dx = 0.003 >>    $PASS_FILE      #Distante of the first node in the sudden expansion
 echo N_1 = 30 >>      $PASS_FILE      #Number of cells in the outlet channel along the flow direction
 echo N_2 = 30 >>      $PASS_FILE      #Number of cells in the inlet channel along the flow direction
 
@@ -62,6 +62,8 @@ run(`rsync -au $(DEPOT_PATH[1])/compiled $d/compiled`)
 pushfirst!(DEPOT_PATH, d)
 
 include("input_params.jl")
+using GridapPETSc
+using SparseMatricesCSR
 using GridapMHD: expansion
 
 #Monolithic MUMPS
@@ -69,7 +71,6 @@ solver = Dict(
     :solver => :petsc,
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
-    :solver_postpro => ((cache,info) -> snes_postpro(cache,info)),
     :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_28 1 -mat_mumps_icntl_29 2 -mat_mumps_icntl_4 3 -mat_mumps_cntl_1 0.001",
     :niter          => 100,
     :rtol           => 1e-5,
@@ -93,6 +94,7 @@ expansion(;
   mesh="computed", 
   np=NPROCS,
   backend=:mpi,
+  path =".",
   Ha = Ha,
   N = Ha^2/Re, 
   cw = 0.0,
@@ -103,7 +105,7 @@ expansion(;
   debug=false,
   vtk=true,
   title=JOB_NAME,
-  solver=solver,
+  solver=solver
  )'
 
 
