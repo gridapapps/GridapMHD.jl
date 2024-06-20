@@ -48,6 +48,6 @@ mv $path/Expansion_B-2.geo  $path/Expansion_B.geo
 
 #Generate the mesh
 
-gmsh $path/Expansion_B.geo -3 -o $path/Expansion_computed.msh
+gmsh $path/Expansion_B.geo -3 -o $path/../Expansion_computed.msh
 
 
