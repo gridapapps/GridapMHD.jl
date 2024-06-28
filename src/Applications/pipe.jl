@@ -63,10 +63,13 @@ function _pipe(;
   verbose = true,
   man_solution = nothing,
   nonuniform_B = false,
+  inlet=:parabolic,
   γB = 0.45,
   μ = 0.0,
   niter=10,
   bl_orders=(1,1,1),
+  initial_value=:zero,
+  convection=true,
   )
 
   info = Dict{Symbol,Any}()
@@ -127,8 +130,11 @@ function _pipe(;
   @show Hah
 
 
+  Z_u = 2/ay
+  β_u = az/2
+  ū = u_inlet(inlet,Ha,Z_u,β_u,flip=true)
 
-  ū = inlet_profile(sizes)
+  # ū = inlet_profile(sizes)
 
 
   if nonuniform_B
@@ -160,6 +166,7 @@ function _pipe(;
     :f=>f̄,
     :B=>B̄,
     :ζ=>ζ,
+    :convection => convection,
   )
 
   # Boundary conditions
@@ -177,8 +184,10 @@ function _pipe(;
 
 
   params[:solver][:niter] = niter
-  params[:solver][:initial_values] = Dict(
-    :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0)
+  if initial_value == :inlet
+    params[:solver][:initial_values] = Dict(
+      :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0)
+  end
   if params[:solver][:solver] == :petsc
     params[:solver][:petsc_options] *= " -snes_max_funcs $(niter+1)"
   end
@@ -243,7 +252,7 @@ function _pipe_model(parts,np,sizes,nc;
   bl_orders=(1,2,2),disc_dirs=1,disc_factor=1)
   D = length(nc)
   domain = ntuple(Val{D*2}()) do i
-    isodd(i) ? 0.0 : sizes[i÷2]
+    isodd(i) ? -0.5*sizes[(i+1)÷2] : 0.5*sizes[(i+1)÷2]
   end
   map1 = boundary_layer_map(domain,bl_orders)
   map2 = discontinuity_map(domain,disc_dirs,disc_factor)

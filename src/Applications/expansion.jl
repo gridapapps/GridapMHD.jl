@@ -57,6 +57,11 @@ function _expansion(;
   b  = 0.2,
   order = 2,
   inlet = :parabolic,
+  μ=0,
+  initial_value=:zero,
+  niter=nothing,
+  convection=:true,
+  savelines=false,
   )
 
   info   = Dict{Symbol,Any}()
@@ -118,37 +123,50 @@ function _expansion(;
     :f => VectorValue(0.0,0.0,0.0),
     :B => VectorValue(0.0,1.0,0.0),
     :ζ => ζ,
+    :convection => convection,
   )
 
   # Boundary conditions
   u_in = u_inlet(inlet,Ha,Z,b)
+
+  params[:bcs] = Dict{Symbol,Any}()
+  params[:bcs][:u] = Dict(
+    :tags => ["inlet", "wall"],
+    :values => [u_in, VectorValue(0.0, 0.0, 0.0)]
+  )
+
   if abs(cw) < 1.e-5
-    params[:bcs] = Dict(
-      :u => Dict(
-        :tags => ["inlet", "wall"],
-        :values => [u_in, VectorValue(0.0, 0.0, 0.0)]
-      ),
-      :j => Dict(
-		    :tags => ["wall", "inlet", "outlet"],
-        :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
-      )
+    params[:bcs][:j] = Dict(
+      :tags => ["wall", "inlet", "outlet"],
+      :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
     )
+
   else
-    params[:bcs] = Dict(
-      :u => Dict(
-        :tags => ["inlet", "wall"],
-        :values => [u_in, VectorValue(0.0, 0.0, 0.0)]
-      ),
-      :j => Dict(
-        :tags => ["inlet", "outlet"],
-        :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
-      ),
-      :thin_wall => [Dict(
-        :τ=>τ,
-        :cw=>cw,
-        :domain => ["wall"],
-      )]
+    params[:bcs][:j] = Dict(
+      :tags => ["inlet", "outlet"],
+      :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
     )
+    params[:bcs][:thin_wall] = Dict(
+      :τ=>τ,
+      :cw=>cw,
+      :domain => ["wall"],
+    )
+  end
+
+  if μ > 0
+    params[:bcs][:stabilization] = Dict(:μ=>μ)
+  end
+
+  j_zero = VectorValue(0.0,0.0,0.0)
+  if initial_value == :inlet
+    params[:solver][:initial_values] = Dict(
+      :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0)
+  end
+  if !isnothing(niter)
+    params[:solver][:niter] = niter
+    if params[:solver][:solver] == :petsc
+      params[:solver][:petsc_options] *= " -snes_max_funcs $(niter+1)"
+    end
   end
 
   toc!(t,"pre_process")
@@ -175,6 +193,15 @@ function _expansion(;
       cellfields=[
         "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
     toc!(t,"vtk")
+  end
+  if savelines
+    xline,yline,zline = evaluation_lines(model,Z)
+    info[:xline] = xline
+    info[:yline] = yline
+    info[:zline] = zline
+    info[:uh_xline] = uh(xline)
+    info[:uh_yline] = uh(yline)
+    info[:uh_zline] = uh(zline)
   end
   if verbose
     display(t)
@@ -252,12 +279,19 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   return model
 end
 
-function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in every case
+function u_inlet(inlet,Ha,Z,β;flip=false) # It ensures avg(u) = 1 in the outlet channel in every case
 
   u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/Z)*(y+1/Z)*(z-β*Z)*(z+β*Z),0,0)
 
   kp_inlet = GridapMHD.kp_shercliff_cartesian(β*Z,Ha/Z)
-  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(β*Z, 0.0, -Z*kp_inlet, Ha/Z,200,(z*Z,y*Z,x))[3],0.0,0.0)
+  function u_inlet_shercliff((x,y,z))
+    x,y,z = !flip ? (z*Z,y*Z,x) : (y*Z,z*Z,z)
+    u_x = GridapMHD.analytical_GeneralHunt_u(β*Z, 0.0, -Z*kp_inlet, Ha/Z,200,(x,y,z))[3]
+    if abs(x) > β*Z || abs(y) > 1.0
+      u_x = 0.0
+    end
+    VectorValue(u_x,0.0,0.0)
+  end
 
   u_inlet_cte = VectorValue(Z,0.0,0.0)
 
@@ -303,4 +337,48 @@ function analytical_GeneralHunt_u(
   u_z = V*Ha^2*(-grad_pz)
 
   VectorValue(0.0*u_z,0.0*u_z,u_z)
+end
+
+function evaluation_lines(model,Z,n=100)
+  pmin,pmax = _get_bounding_box(model)
+  xmin,xmax = pmin[1],pmax[1]
+  ymin,ymax = pmin[2]/Z,pmax[2]/Z
+  zmin,zmax = pmin[3],pmax[3]
+  pmin,pmax = Point(xmin,ymin,zmin),Point(xmax,ymax,zmax)
+
+  xline = map(x->Point(x,0.0,0.0), range(xmin,xmax,n+1))
+  yline = map(y->Point(xmin,y,0.0), range(ymin,ymax,n+1))
+  zline = map(z->Point(xmin,0.0,z), range(zmin,zmax,n+1))
+  xline,yline,zline
+end
+
+function _get_bounding_box(x::AbstractVector{<:Point})
+  pmin,pmax = x[1],x[1]
+  for p in x
+    pmin = min.(pmin,p)
+    pmax = max.(pmax,p)
+  end
+  pmin,pmax
+end
+
+function _get_bounding_box(model::DiscreteModel)
+  _get_bounding_box(get_node_coordinates(model))
+end
+
+function _get_bounding_box(model::GridapDistributed.DistributedDiscreteModel)
+  boxes = map(_get_bounding_box,local_views(model))
+  boxes = gather(boxes)
+  boxes = map(boxes) do boxes
+    if ! isempty(boxes)
+      pmin,pmax = boxes[1]
+      for (bmin,bmax) in boxes
+        pmin = min.(pmin,bmin)
+        pmax = max.(pmax,bmax)
+      end
+      pmin,pmax
+    end
+  end
+  boxes = emit(boxes)
+  pmin,pmax = PartitionedArrays.getany(boxes)
+  pmin,pmax
 end
