@@ -62,9 +62,20 @@ function _weak_form(params,k)
     r
   end
 
-  res(x,dy) = c(x,dy) + a(x,dy) - ℓ(dy)
-  jac(x,dx,dy) = dc(x,dx,dy) + a(dx,dy)
-
+  function res(x,dy)
+    r = a(x,dy) - ℓ(dy)
+    if fluid[:convection]
+      r = r + c(x,dy)
+    end
+    r
+  end
+  function jac(x,dx,dy)
+    r = a(dx,dy)
+    if fluid[:convection]
+      r = r + dc(x,dx,dy)
+    end
+    r
+  end
   return res, jac
 end
 

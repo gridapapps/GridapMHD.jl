@@ -68,6 +68,8 @@ function _pipe(;
   μ = 0.0,
   niter=10,
   bl_orders=(1,1,1),
+  initial_value=:zero,
+  convection=true,
   )
 
   info = Dict{Symbol,Any}()
@@ -164,6 +166,7 @@ function _pipe(;
     :f=>f̄,
     :B=>B̄,
     :ζ=>ζ,
+    :convection => convection,
   )
 
   # Boundary conditions
@@ -181,8 +184,10 @@ function _pipe(;
 
 
   params[:solver][:niter] = niter
-  params[:solver][:initial_values] = Dict(
-    :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0)
+  if initial_value == :inlet
+    params[:solver][:initial_values] = Dict(
+      :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0)
+  end
   if params[:solver][:solver] == :petsc
     params[:solver][:petsc_options] *= " -snes_max_funcs $(niter+1)"
   end
