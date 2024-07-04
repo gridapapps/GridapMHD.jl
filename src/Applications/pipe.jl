@@ -46,8 +46,8 @@ function _pipe(;
   ν=1.0,
   ρ=1.0,
   σ=1.0,
-  B=(0.0,0.0,1.0),
-  f=(0.0,0.0,1.0),
+  B=(0.0,1.0,0.0),
+  f=(0.0,0.0,0.0),
   ζ=0.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
@@ -101,9 +101,6 @@ function _pipe(;
 
   params[:solver] = solver
 
-
-
-
   # Reduced quantities
   ax,ay,az = sizes
   L = ay
@@ -129,10 +126,9 @@ function _pipe(;
   @show Reh
   @show Hah
 
-
   Z_u = 2/ay
   β_u = az/2
-  ū = u_inlet(inlet,Ha,Z_u,β_u,flip=true)
+  ū = u_inlet(inlet,Ha,Z_u,β_u)
 
   # ū = inlet_profile(sizes)
 
@@ -154,8 +150,7 @@ function _pipe(;
 
   # FE Space parameters
   params[:fespaces] = Dict(
-  :k => k,
-  :p_constraint => :zeromean)
+  :k => k)
 
   # Fluid parameters
   params[:fluid] = Dict(
@@ -174,7 +169,7 @@ function _pipe(;
   j_zero = VectorValue(0.0,0.0,0.0)
   params[:bcs] = Dict{Symbol,Any}()
   params[:bcs][:u] = Dict(:tags=>["inlet","walls"],:values=>[ ū, u_zero ] )
-  params[:bcs][:j] = Dict(:tags=>["inlet","outlet","insulating"])
+  params[:bcs][:j] = Dict(:tags=>["inlet","outlet","walls"])
 
   if μ > 0
     params[:bcs][:stabilization] = Dict(:μ=>μ)
@@ -266,8 +261,8 @@ function _pipe_model(parts,np,sizes,nc;
   faces_o = facets_o .+ get_offset(p,D-1)
   faces_w = facets_w .+ get_offset(p,D-1)
   faces_ins = facets_ins .+ get_offset(p,D-1)
-  faces_w = reduce(union, get_faces(p)[faces_w] )
-  faces_ins = reduce(union, get_faces(p)[faces_ins] )
+  faces_w = reduce(union, get_faces(p)[faces_w] ) |> sort
+  faces_ins = reduce(union, get_faces(p)[faces_ins] ) |> sort
   map(local_views(model)) do model
     labels = get_face_labeling(model)
     add_tag!(labels,"inlet",faces_i)
@@ -279,13 +274,30 @@ function _pipe_model(parts,np,sizes,nc;
 end
 
 
-function magnetic_field(;γ=0.45,Ha=1,Re=0,d=1,c=0)
+function magnetic_field(;kwargs...)
+  B = magnetic_field_1d(;kwargs...)
+  dB(x) = ForwardDiff.derivative(B,x)
+  d²B(x) = ForwardDiff.derivative(dB,x)
+  d³B(x) = ForwardDiff.derivative(d²B,x)
+  d⁴B(x) = ForwardDiff.derivative(d³B,x)
+
+  function magnetic_field_fun(X)
+    x = X[1]
+    y = X[2]
+    Bx = dB(x)*y - d³B(x)*y^3/6
+    By = B(x) - d²B(x)*y^2/2 + d⁴B(x)*y^4/24
+    Bz = 0.0
+    VectorValue(Bx,By,Bz)
+  end
+end
+
+
+function magnetic_field_1d(;γ=0.45,Ha=1,Re=0,d=1,c=0)
   Ha_Re_crit = 1/200
   bmin = Ha_Re_crit * Re / Ha
   b0 = 1-bmin
-  function magnetic_field_fun(x)
-    by = b0*(( 1 - tanh(γ*(x[1]/d -c)) ) / 2) + bmin
-    VectorValue(0.0,by,0.0)
+  function magnetic_field_1d_fun(x)
+    b0*(( 1 - tanh(γ*(x/d -c)) ) / 2) + bmin
   end
 end
 

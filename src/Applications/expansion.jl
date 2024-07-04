@@ -41,7 +41,7 @@ function _expansion(;
   distribute=nothing,
   rank_partition=nothing,
   title = "Expansion",
-  mesh  = "720",
+  mesh  = "710",
   vtk   = true,
   path  = datadir(),
   debug = false,
@@ -62,6 +62,7 @@ function _expansion(;
   niter=nothing,
   convection=:true,
   savelines=false,
+  petsc_options="",
   )
 
   info   = Dict{Symbol,Any}()
@@ -168,6 +169,9 @@ function _expansion(;
       params[:solver][:petsc_options] *= " -snes_max_funcs $(niter+1)"
     end
   end
+  if params[:solver][:solver] == :petsc && petsc_options != ""
+    params[:solver][:petsc_options] = petsc_options
+  end
 
   toc!(t,"pre_process")
 
@@ -199,9 +203,9 @@ function _expansion(;
     info[:xline] = xline
     info[:yline] = yline
     info[:zline] = zline
-    info[:uh_xline] = uh(xline)
-    info[:uh_yline] = uh(yline)
-    info[:uh_zline] = uh(zline)
+    info[:uh_xline] = vector_field_eval(uh,xline)
+    info[:uh_yline] = vector_field_eval(uh,yline)
+    info[:uh_zline] = vector_field_eval(uh,zline)
   end
   if verbose
     display(t)
@@ -279,13 +283,13 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   return model
 end
 
-function u_inlet(inlet,Ha,Z,β;flip=false) # It ensures avg(u) = 1 in the outlet channel in every case
+function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in every case
 
   u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/Z)*(y+1/Z)*(z-β*Z)*(z+β*Z),0,0)
 
   kp_inlet = GridapMHD.kp_shercliff_cartesian(β*Z,Ha/Z)
   function u_inlet_shercliff((x,y,z))
-    x,y,z = !flip ? (z*Z,y*Z,x) : (y*Z,z*Z,z)
+    x,y,z = (z*Z,y*Z,x)
     u_x = GridapMHD.analytical_GeneralHunt_u(β*Z, 0.0, -Z*kp_inlet, Ha/Z,200,(x,y,z))[3]
     if abs(x) > β*Z || abs(y) > 1.0
       u_x = 0.0
@@ -367,7 +371,7 @@ end
 
 function _get_bounding_box(model::GridapDistributed.DistributedDiscreteModel)
   boxes = map(_get_bounding_box,local_views(model))
-  boxes = gather(boxes)
+  boxes = gather(boxes,destination=:all)
   boxes = map(boxes) do boxes
     if ! isempty(boxes)
       pmin,pmax = boxes[1]
@@ -376,9 +380,32 @@ function _get_bounding_box(model::GridapDistributed.DistributedDiscreteModel)
         pmax = max.(pmax,bmax)
       end
       pmin,pmax
+    else
+      @unreachable
     end
   end
-  boxes = emit(boxes)
   pmin,pmax = PartitionedArrays.getany(boxes)
   pmin,pmax
+end
+
+# CellField evaluations until comments in
+# https://github.com/gridap/GridapDistributed.jl/pull/146 are fixed
+
+function vector_field_eval(f,x)
+  fx = scalar_field_eval(f,x,1)
+  fy = scalar_field_eval(f,x,2)
+  fz = scalar_field_eval(f,x,3)
+  map(VectorValue,fx,fy,fz)
+end
+
+function scalar_field_eval(f,x,comp)
+  fx = (x->x[comp])∘f
+  fx = emit(fx(x))
+  PartitionedArrays.getany(fx)
+end
+
+function scalar_field_eval(f,x)
+  fx = f(x)
+  fx = emit(fx(x))
+  PartitionedArrays.getany(fx)
 end
