@@ -1,17 +1,16 @@
 #!/bin/bash
-#SBATCH -N 4 
+#SBATCH -N 2 
 #SBATCH --ntasks-per-node=4
 #SBATCH -t 48:00:00
 #SBATCH --partition=cpu36c
 
-#SBATCH -o outputExp_Ha100_tau5000_N4n4
-#SBATCH -e errorExp_Ha100_tau5000_N4n4
+#SBATCH -o outputTube_Ha500_Ins_N2n4
+#SBATCH -e errorTube_Ha500_Ins_N2n4
 ###SBATCH --mail-user=fernando.roca@ciemat.es
-#SBATCH --job-name=Exp_Ha100_tau5000_N4n4
+#SBATCH --job-name=Tube_Ha500_Ins_N2n4
 #SBATCH --mem=0
 
 SLURM_NPROCS=`expr $SLURM_JOB_NUM_NODES \* $SLURM_NTASKS_PER_NODE`
-#SLURM_NPROCS = '16'
 
 srun hostname -s > hosts.$SLURM_JOB_ID
 echo "================================================================"
@@ -34,26 +33,28 @@ PASS_FILE="pass_params.jl"
 echo NPROCS=$SLURM_NPROCS > $PASS_FILE
 echo JOB_NAME=\"$SLURM_JOB_NAME\" >> $PASS_FILE
 Ha=${SLURM_JOB_NAME##*Ha}
-Ha=${Ha%_tau*}
+#Ha=${Ha%_tau*}
+Ha=${Ha%_Ins*}
 echo Hartmann=${Ha}.0 >> $PASS_FILE
-tau=${SLURM_JOB_NAME##*tau}
-tau=${tau%_*}
-echo Tau=${tau}.0 >> $PASS_FILE
+#tau=${SLURM_JOB_NAME##*tau}
+#tau=${tau%_*}
+#echo Tau=${tau}.0 >> $PASS_FILE
 
 
-mpiexec -n ${SLURM_NPROCS}  julia --project=$GRIDAPMHD -J $GRIDAPMHD/compile/Turgalium_CIEMAT/GridapMHD36c.so -O3 --check-bounds=no -e\
+#mpiexec -n ${SLURM_NPROCS}  julia --project=$GRIDAPMHD -J $GRIDAPMHD/compile/Turgalium_CIEMAT/GridapMHD36c.so -O3 --check-bounds=no -e\
+srun-n ${SLURM_NPROCS}  julia --project=$GRIDAPMHD -O3 --check-bounds=no -e\
 '
 include("pass_params.jl")
-using GridapMHD: expansion
-expansion(;
-  mesh="68k", 
+using GridapMHD: tube
+tube(;
+  mesh="64k", 
   np=NPROCS,
   backend=:mpi,
   Ha = Hartmann,
-  N = 3740.0,
-  cw = 0.028,
-  τ = Tau,
-  inlet = :parabolic,
+  N = 10000.0,
+  inlet = :plane,
+  cw = 0.0,
+#  τ = Tau,
   debug=false,
   vtk=true,
   title=JOB_NAME,

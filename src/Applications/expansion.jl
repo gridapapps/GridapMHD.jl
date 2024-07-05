@@ -41,30 +41,33 @@ function _expansion(;
   distribute=nothing,
   rank_partition=nothing,
   title = "Expansion",
-  mesh  = "720",
+  mesh  = "720",            #Either a string or a dictionary
   vtk   = true,
   path  = datadir(),
   debug = false,
   verbose = true,
   solver  = :julia,
-  formulation = :cfd,
+  formulation = :mhd,
+  Z = 4.0,                  #Expansion Ratio, it has to be consistent with the mesh
+  b = 0.2,                  #Outlet channel aspect ratio, it has to be consistent with the mesh
   N  = 1.0,
   Ha = 1.0,
   cw = 0.028,
   τ  = 100,
-  ζ  = 0.0,
+  ζ  = 0.0, 
   order = 2,
+  inlet = :parabolic
   )
   
   info   = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
-    :debug=>debug,
-    :solve=>true,
-    :res_assemble=>false,
-    :jac_assemble=>false,
-    :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver,
-  )
-
+       :debug=>debug,
+       :solve=>true,
+       :res_assemble=>false,
+       :jac_assemble=>false,
+       :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver
+    )
+    
   if isa(distribute,Nothing)
     @assert isa(rank_partition,Nothing)
     rank_partition = (1,)
@@ -118,23 +121,23 @@ function _expansion(;
   )
 
   # Boundary conditions
-  u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0) # This gives mean(u_inlet)=1
+  # u_inlet((x,y,z)) = VectorValue(36.0*(y-1/4)*(y+1/4)*(z-1)*(z+1),0,0) # This gives mean(u_inlet)=1
   if abs(cw) < 1.e-5
     params[:bcs] = Dict( 
       :u => Dict(
         :tags => ["inlet", "wall"],
-        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+        :values => [u_inlet(inlet,Ha,Z,b), VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
 		    :tags => ["wall", "inlet", "outlet"], 
         :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
-      )
+      ) #Pending: Add J analyical formula in the inlet BC when Shercliff BC is selected at the inlet
     )
   else 
     params[:bcs] = Dict(
       :u => Dict(
         :tags => ["inlet", "wall"],
-        :values => [u_inlet, VectorValue(0.0, 0.0, 0.0)]
+        :values => [u_inlet(inlet,Ha,Z,b), VectorValue(0.0, 0.0, 0.0)]
       ),
       :j => Dict(
         :tags => ["inlet", "outlet"], 
@@ -143,7 +146,7 @@ function _expansion(;
       :thin_wall => [Dict(
         :τ=>τ,
         :cw=>cw,
-        :domain => ["wall"],
+        :domain => ["wall"]
       )]
     )
   end
@@ -165,12 +168,16 @@ function _expansion(;
   tic!(t,barrier=true)
 
   # Post-process
-  uh,ph,jh,φh = xh
+   uh,ph,jh,φh = xh
+  div_jh = ∇·jh
+  div_uh = ∇·uh
+  Grad_p = ∇·ph
+
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=order,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p])
     toc!(t,"vtk")
   end
   if verbose
@@ -196,8 +203,8 @@ function expansion_mesh(mesh::Dict,ranks,params)
 end
 
 function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
-  # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
-  # after and before the expansion respectively (L=1).
+  # The domain is of size L_out x 2 x 2/β and L_in x 2/Z x 2/β
+  # after and before the expansion respectively.
   msh_name = mesh[:base_mesh]
   msh_file = joinpath(projectdir(),"meshes","Expansion_"*msh_name*".msh") |> normpath
   model = GmshDiscreteModel(ranks,msh_file)
@@ -244,4 +251,23 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   model = get_model(mh,1)
   params[:model] = model
   return model
+end
+
+function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in every case 
+ 
+  u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/Z)*(y+1/Z)*(z-β*Z)*(z+β*Z),0,0)  
+    
+  kp_inlet = GridapMHD.kp_shercliff_cartesian(β*Z,Ha/Z)
+  u_inlet_shercliff((x,y,z)) = VectorValue(GridapMHD.analytical_GeneralHunt_u(β*Z, 0.0, -Z*kp_inlet, Ha/Z,200,(z*Z,y*Z,x))[3],0.0,0.0) 
+
+  u_inlet_cte = VectorValue(Z,0.0,0.0)  
+
+  if inlet == :parabolic
+	U = u_inlet_parabolic
+  elseif inlet == :shercliff
+    U = u_inlet_shercliff
+  else
+    U = u_inlet_cte
+  end
+ U
 end
