@@ -86,7 +86,7 @@ function _hunt(;
   end
   @assert length(rank_partition) == length(nc)
   parts = distribute(LinearIndices((prod(rank_partition),)))
-  
+
   # Timer
   t = PTimer(parts,verbose=verbose)
   params[:ptimer] = t
@@ -160,7 +160,7 @@ function _hunt(;
     xh,fullparams,info = GridapPETSc.with(args=split(petsc_options)) do
       xh,fullparams,info = main(params;output=info)
       GridapPETSc.gridap_petsc_gc() # Destroy all PETSc objects
-      return xh,fullparams,info 
+      return xh,fullparams,info
     end
   end
   t = fullparams[:ptimer]
@@ -173,6 +173,9 @@ function _hunt(;
   ph = (ρ*u0^2)*p̄h
   jh = (σ*u0*B0)*j̄h
   φh = (u0*B0*L)*φ̄h
+
+  div_jh = ∇·jh
+  div_uh = ∇·uh
 
   if L == 1.0
     Ω_phys = Ω
@@ -207,19 +210,14 @@ function _hunt(;
   toc!(t,"post_process")
 
   if vtk
+    cellfields = [
+      "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
+      "div_jh"=>div_jh,"div_uh"=>div_uh,
+      "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref]
     if tw > 0.0
-      writevtk(Ω_phys,joinpath(path,title),
-        order=2,
-        cellfields=[
-          "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
-          "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref,"σ"=>σ_Ω])
-    else
-      writevtk(Ω_phys,joinpath(path,title),
-        order=2,
-        cellfields=[
-          "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
-          "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
+      push!(cellfields,"σ"=>σ_Ω)
     end
+    writevtk(Ω_phys,joinpath(path,title),order=2,cellfields=cellfields)
     toc!(t,"vtk")
   end
   if verbose
