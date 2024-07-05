@@ -277,7 +277,7 @@ function solid_conductivity(σ̄1,σ̄2,Ω::GridapDistributed.DistributedTriangu
     cell_entity = labels.d_to_dface_to_entity[end]
     σ_field(σ̄1,σ̄2,labels,trian,cell_entity[partition.own_to_local])
   end
-  GridapDistributed.DistributedCellField(fields)
+  GridapDistributed.DistributedCellField(fields,Ω)
 end
 
 function σ_field(σ̄1,σ̄2,labels,Ω,cell_entity)
