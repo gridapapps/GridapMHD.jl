@@ -48,7 +48,9 @@ include("Applications/expansion.jl")
 include("Applications/cavity.jl")
 include("Applications/transient.jl")
 include("Applications/channel.jl")
+include("Applications/FullyDevelopedFlow.jl")
+include("Applications/Tube.jl")
 
-export hunt, expansion, cavity
+export hunt, expansion, cavity, tube, FullyDeveloped
 
 end # module

@@ -47,14 +47,14 @@ function _expansion(;
   debug = false,
   verbose = true,
   solver  = :julia,
-  formulation = :cfd,
-  Z = 4.0,
+  formulation = :mhd,
+  Z = 4.0,                  #Expansion Ratio, it has to be consistent with the mesh
+  b = 0.2,                  #Outlet channel aspect ratio, it has to be consistent with the mesh
   N  = 1.0,
   Ha = 1.0,
   cw = 0.028,
   τ  = 100,
   ζ  = 0.0,
-  b  = 0.2,
   order = 2,
   inlet = :parabolic,
   μ=0,
@@ -67,12 +67,12 @@ function _expansion(;
 
   info   = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
-    :debug=>debug,
-    :solve=>true,
-    :res_assemble=>false,
-    :jac_assemble=>false,
-    :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver,
-  )
+       :debug=>debug,
+       :solve=>true,
+       :res_assemble=>false,
+       :jac_assemble=>false,
+       :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver
+    )
 
   if isa(distribute,Nothing)
     @assert isa(rank_partition,Nothing)
@@ -190,12 +190,16 @@ function _expansion(;
   tic!(t,barrier=true)
 
   # Post-process
-  uh,ph,jh,φh = xh
+   uh,ph,jh,φh = xh
+  div_jh = ∇·jh
+  div_uh = ∇·uh
+  Grad_p = ∇·ph
+
   if vtk
     writevtk(Ω,joinpath(path,title),
       order=order,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"φh"=>φh,])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p])
     toc!(t,"vtk")
   end
   if savelines
@@ -233,8 +237,8 @@ function expansion_mesh(mesh::Dict,ranks,params)
 end
 
 function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
-  # The domain is of size 8L x 2L x 2L and 8L x 2L/Z x 2L
-  # after and before the expansion respectively (L=1).
+  # The domain is of size L_out x 2 x 2/β and L_in x 2/Z x 2/β
+  # after and before the expansion respectively.
   msh_name = mesh[:base_mesh]
   msh_file = joinpath(expansion_meshes_dir,"Expansion_"*msh_name*".msh") |> normpath
   model = GmshDiscreteModel(ranks,msh_file)
