@@ -302,6 +302,7 @@ function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in
   if inlet == :parabolic
 	U = u_inlet_parabolic
   elseif inlet == :shercliff
+    Ha > 10 || @warn "Shercliff inlet is not accurate for Ha=$Ha"
     U = u_inlet_shercliff
   else
     U = u_inlet_cte

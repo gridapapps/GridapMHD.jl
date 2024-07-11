@@ -5,6 +5,7 @@ using LinearAlgebra
 using SparseArrays
 using SparseMatricesCSR
 using BlockArrays
+using ForwardDiff
 
 using FileIO
 using BSON
@@ -46,7 +47,7 @@ include("Applications/hunt.jl")
 include("Applications/expansion.jl")
 include("Applications/cavity.jl")
 include("Applications/transient.jl")
-include("Applications/pipe.jl")
+include("Applications/channel.jl")
 
 export hunt, expansion, cavity
 

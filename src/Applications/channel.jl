@@ -1,23 +1,23 @@
 
-function pipe(;
+function channel(;
   backend = nothing,
   np      = 1,
-  title   = "Pipe",
+  title   = "Channel",
   path    = datadir(),
   kwargs...)
 
   if isa(backend,Nothing)
     @assert np == 1
-    info, t = _pipe(;title=title,path=path,kwargs...)
+    info, t = _channel(;title=title,path=path,kwargs...)
   else
     @assert backend ∈ [:sequential,:mpi]
     if backend === :sequential
       info,t = with_debug() do distribute
-        _pipe(;distribute=distribute,np=np,title=title,path=path,kwargs...)
+        _channel(;distribute=distribute,np=np,title=title,path=path,kwargs...)
       end
     else
       info,t = with_mpi() do distribute
-        _pipe(;distribute=distribute,np=np,title=title,path=path,kwargs...)
+        _channel(;distribute=distribute,np=np,title=title,path=path,kwargs...)
       end
     end
   end
@@ -34,7 +34,7 @@ function pipe(;
   nothing
 end
 
-function _pipe(;
+function _channel(;
   distribute = nothing,
   np = nothing,
   n=2,
@@ -53,7 +53,7 @@ function _pipe(;
   B0=norm(VectorValue(B)),
   nsums = 10,
   vtk=true,
-  title = "pipe",
+  title = "channel",
   path  = datadir(),
   debug = false,
   res_assemble = false,
@@ -111,11 +111,14 @@ function _pipe(;
   β = 1.0/Re
   γ = N
   f̄ = VectorValue(f)
+  γB = γB*(30/ax)*(ay/1)
 
   if nonuniform_B
-    B̄ = magnetic_field(;γ=γB,Ha,Re,d=ay,c=ax/2)
+    B̄ = magnetic_field(;γ=γB,Ha,Re,d=ay)
+    Bx = x-> B0 * B̄(x)
   else
     B̄ = (1/norm(B))*VectorValue(B)
+    Bx = x-> VectorValue(B)
   end
   h = ax/nc[1]
 
@@ -141,7 +144,7 @@ function _pipe(;
     disc_factor = nothing
   end
 
-  params[:model] = _pipe_model(parts,np,sizes,nc;bl_orders,disc_dirs,disc_factor)
+  params[:model] = _channel_model(parts,np,sizes,nc;bl_orders,disc_dirs,disc_factor)
 
 
   if debug && vtk
@@ -153,6 +156,7 @@ function _pipe(;
   :k => k)
 
   # Fluid parameters
+  @show convection
   params[:fluid] = Dict(
     :domain=>nothing,
     :α=>α,
@@ -214,6 +218,7 @@ function _pipe(;
   jh = (σ*u0*B0)*j̄h
   φh = (u0*B0*L)*φ̄h
 
+
   info[:ncells] = num_cells(params[:model])
   info[:Re] = Re
   info[:Ha] = Ha
@@ -222,7 +227,7 @@ function _pipe(;
     writevtk(Ω_phys,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"B"=>Bx])
     toc!(t,"vtk")
   end
 
@@ -243,7 +248,7 @@ function inlet_profile_1d(L)
   end
 end
 
-function _pipe_model(parts,np,sizes,nc;
+function _channel_model(parts,np,sizes,nc;
   bl_orders=(1,2,2),disc_dirs=1,disc_factor=1)
   D = length(nc)
   domain = ntuple(Val{D*2}()) do i
@@ -282,8 +287,7 @@ function magnetic_field(;kwargs...)
   d⁴B(x) = ForwardDiff.derivative(d³B,x)
 
   function magnetic_field_fun(X)
-    x = X[1]
-    y = X[2]
+    x,y = X[1],X[2]
     Bx = dB(x)*y - d³B(x)*y^3/6
     By = B(x) - d²B(x)*y^2/2 + d⁴B(x)*y^4/24
     Bz = 0.0
