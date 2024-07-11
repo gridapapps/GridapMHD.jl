@@ -29,23 +29,25 @@ writedlm("mesh_params",pass)
 
 
 #Eliminate old information
-sed -i '/Ha=/d' $path/Expansion_B-alt.geo
-sed -i '/N_Ha=/d' $path/Expansion_B-alt.geo
-sed -i '/N_s=/d' $path/Expansion_B-alt.geo
-sed -i '/N_1=/d' $path/Expansion_B-alt.geo
-sed -i '/N_2=/d' $path/Expansion_B-alt.geo
-sed -i '/R_1=/d' $path/Expansion_B-alt.geo
-sed -i '/R_2=/d' $path/Expansion_B-alt.geo
-sed -i '/r=/d' $path/Expansion_B-alt.geo
-sed -i '/betta=/d' $path/Expansion_B-alt.geo
-sed -i '/L_in=/d' $path/Expansion_B-alt.geo
-sed -i '/L_out=/d' $path/Expansion_B-alt.geo
+sed -i '/Ha=/d' $path/Expansion_B.geo
+sed -i '/N_Ha=/d' $path/Expansion_B.geo
+sed -i '/N_s=/d' $path/Expansion_B.geo
+sed -i '/N_1=/d' $path/Expansion_B.geo
+sed -i '/N_2=/d' $path/Expansion_B.geo
+sed -i '/R_1=/d' $path/Expansion_B.geo
+sed -i '/R_2=/d' $path/Expansion_B.geo
+sed -i '/r=/d' $path/Expansion_B.geo
+sed -i '/betta=/d' $path/Expansion_B.geo
+sed -i '/L_in=/d' $path/Expansion_B.geo
+sed -i '/L_out=/d' $path/Expansion_B.geo
 
 #Write the new information
 
-sed -e '/Mesh parameters/r./mesh_params' $path/Expansion_B-alt.geo > $path/Expansion_B-2.geo
-mv $path/Expansion_B-2.geo  $path/Expansion_B-alt.geo
+sed -e '/Mesh parameters/r./mesh_params' $path/Expansion_B.geo > $path/Expansion_B-2.geo
+mv $path/Expansion_B-2.geo  $path/Expansion_B.geo
 
 #Generate the mesh
 
-gmsh $path/Expansion_B-alt.geo -3 -o $path/Expansion_computed.msh
+gmsh $path/Expansion_B.geo -3 -o $path/../Expansion_computed.msh
+
+
