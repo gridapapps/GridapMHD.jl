@@ -163,14 +163,14 @@ function _expansion(;
     params[:solver][:initial_values] = Dict(
       :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0)
   end
+  if params[:solver][:solver] == :petsc && petsc_options != ""
+    params[:solver][:petsc_options] = petsc_options
+  end
   if !isnothing(niter)
     params[:solver][:niter] = niter
     if params[:solver][:solver] == :petsc
       params[:solver][:petsc_options] *= " -snes_max_funcs $(niter+1)"
     end
-  end
-  if params[:solver][:solver] == :petsc && petsc_options != ""
-    params[:solver][:petsc_options] = petsc_options
   end
 
   toc!(t,"pre_process")
