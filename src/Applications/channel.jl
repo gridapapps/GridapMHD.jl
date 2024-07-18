@@ -70,6 +70,7 @@ function _channel(;
   bl_orders=(1,1,1),
   initial_value=:zero,
   convection=true,
+  petsc_options="",
   )
 
   info = Dict{Symbol,Any}()
@@ -124,10 +125,10 @@ function _channel(;
 
   Reh = Re*h/L
   Hah = Ha*h/L
-  @show Re
-  @show Ha
-  @show Reh
-  @show Hah
+  # @show Re
+  # @show Ha
+  # @show Reh
+  # @show Hah
 
   Z_u = 2/ay
   β_u = az/2
@@ -156,7 +157,6 @@ function _channel(;
   :k => k)
 
   # Fluid parameters
-  @show convection
   params[:fluid] = Dict(
     :domain=>nothing,
     :α=>α,
@@ -188,6 +188,9 @@ function _channel(;
       :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0)
   end
   if params[:solver][:solver] == :petsc
+    if petsc_options != ""
+      params[:solver][:petsc_options] = petsc_options
+    end
     params[:solver][:petsc_options] *= " -snes_max_funcs $(niter+1)"
   end
 
