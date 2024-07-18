@@ -220,6 +220,9 @@ function _channel(;
   ph = (ρ*u0^2)*p̄h
   jh = (σ*u0*B0)*j̄h
   φh = (u0*B0*L)*φ̄h
+  div_jh = ∇·jh
+  div_uh = ∇·uh
+  Grad_p = ∇·ph
 
 
   info[:ncells] = num_cells(params[:model])
@@ -230,7 +233,14 @@ function _channel(;
     writevtk(Ω_phys,joinpath(path,title),
       order=2,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"B"=>Bx])
+        "uh"=>uh,
+        "ph"=>ph,
+        "jh"=>jh,
+        "phi"=>φh,
+        "B"=>Bx,
+        "div_jh"=>div_jh,
+        "div_uh"=>div_uh,
+        "Grad_p"=>Grad_p],)
     toc!(t,"vtk")
   end
 
