@@ -123,18 +123,10 @@ function _channel(;
   end
   h = ax/nc[1]
 
-  Reh = Re*h/L
-  Hah = Ha*h/L
-  # @show Re
-  # @show Ha
-  # @show Reh
-  # @show Hah
 
   Z_u = 2/ay
   β_u = az/2
   ū = u_inlet(inlet,Ha,Z_u,β_u)
-
-  # ū = inlet_profile(sizes)
 
 
   if nonuniform_B
