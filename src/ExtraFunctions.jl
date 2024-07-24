@@ -1,6 +1,6 @@
 ##Functions for mesh manipulation
 
-function ChangeDensity(coord;domain=(0.0,1.0,0.0,1.0,0.0,1.0),subDomain=(0.0,1.0,0.0,1.0,0.0,1.0), 
+function ChangeDensity(coord;domain=(0.0,1.0,0.0,1.0,0.0,1.0),subDomain=(0.0,1.0,0.0,1.0,0.0,1.0),
 			     nodesTot=(1.0,1.0,1.0), nodesSub=(1.0,1.0,1.0), dirs=(1,2,3))
   ncoord = collect(coord.data)
   for (i,dir) in enumerate(dirs)
@@ -8,7 +8,7 @@ function ChangeDensity(coord;domain=(0.0,1.0,0.0,1.0,0.0,1.0),subDomain=(0.0,1.0
     ξ1 = domain[i*2]
     Ltot =  ξ1 - ξ0
     Lsub = subDomain[i*2] - subDomain[i*2-1]
-    
+
     alpha = (Lsub/Ltot)*(nodesTot[i]/nodesSub[i])
     betta = ((Ltot-Lsub)/Ltot)*(nodesTot[i]/(nodesTot[i]-nodesSub[i]))
 
@@ -67,28 +67,28 @@ end
 # Analytical formulas for pressure drop gradients
 
 function kp_shercliff_cartesian(b,Ha)
-    kp = 1/(Ha*(1-0.852*Ha^(-0.5)/b-1/Ha))
-  kp
+  kp = 1/(Ha*(1-0.852*Ha^(-0.5)/b-1/Ha))
+kp
 end
 
 function kp_shercliff_cylinder(Ha)
-    kp = (3/8)*pi/(Ha-(3/2)*pi)
-  kp
+  kp = (3/8)*pi/(Ha-(3/2)*pi)
+kp
 end
 
 function kp_hunt(b,Ha)
-    kp = 1/(Ha*(1-0.956*Ha^(-0.5)/b-1/Ha))
-  kp
+  kp = 1/(Ha*(1-0.956*Ha^(-0.5)/b-1/Ha))
+kp
 end
 
 function kp_tillac(b,Ha,cw_s,cw_Ha)
-    k_s = (1/(3*b))*(Ha^(0.5)/(1+cw_s*Ha^(0.5)))
-    k_Ha = (1+cw_Ha)/(1/Ha + cw_Ha)
-    kp = 1/(k_s+k_Ha)
-  kp
+  k_s = (1/(3*b))*(Ha^(0.5)/(1+cw_s*Ha^(0.5)))
+  k_Ha = (1+cw_Ha)/(1/Ha + cw_Ha)
+  kp = 1/(k_s+k_Ha)
+kp
 end
 
 function kp_glukhih(Ha,cw)
-    kp = (3/8)*pi*(1+0.833*cw*Ha-0.019*(cw*Ha)^2)/Ha
-  kp
+  kp = (3/8)*pi*(1+0.833*cw*Ha-0.019*(cw*Ha)^2)/Ha
+kp
 end
