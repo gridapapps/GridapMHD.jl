@@ -21,7 +21,7 @@ hunt(
   vtk=true,
   title="hunt",
   solver=solver,
-  ζ=10.0,
+  ζ=100.0,
 )
 
 # Badia2024, with GMG solver for u-j sub-block
@@ -33,7 +33,7 @@ solver = Dict(
   :block_solvers  => [:gmg,:cg_jacobi,:cg_jacobi],
 )
 hunt(
-  nc=(4,4),
+  nc=(6,6),
   np=(1,1),
   backend=:mpi,
   L=1.0,
@@ -42,7 +42,7 @@ hunt(
   vtk=true,
   title="hunt",
   solver=solver,
-  ζ=10.0,
+  ζ=50.0,
   ranks_per_level=[1,1],
   BL_adapted=false,
 )

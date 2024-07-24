@@ -23,17 +23,19 @@ function Li2019Solver(op::FEOperator,params)
   a_Ip(p,v_p) = ∫(-inv_α1*p*v_p)*dΩ
   a_Iφ(φ,v_φ) = ∫(-φ*v_φ)*dΩ
 
-  perm = [3,1,2,4]
-  _trial, _test = get_trial(op), get_test(op)
-  trial = map(i -> _trial[i], perm)
-  test  = map(i -> _test[i], perm)
+  U_u, U_p, U_j, U_φ = get_trial(op)
+  V_u, V_p, V_j, V_φ = get_test(op)
 
-  NB = length(trial)
   diag_solvers = map(s -> get_block_solver(Val(s),params),params[:solver][:block_solvers])
-  diag_blocks  = map((b,f,u,v) -> b(f,u,v), [BiformBlock,TriformBlock,BiformBlock,BiformBlock],[a_Dj,a_Fk,a_Ip,a_Iφ],trial,test)
-  blocks = map(CartesianIndices((NB,NB))) do I
-    (I[1] == I[2]) ? diag_blocks[I[1]] : LinearSystemBlock()
-  end
+
+  j_block = BiformBlock(a_Dj,U_j,V_j)
+  u_block = TriformBlock(a_Fk,U_u,U_u,V_u,[2])
+  p_block = BiformBlock(a_Ip,U_p,V_p)
+  φ_block = BiformBlock(a_Iφ,U_φ,V_φ)
+  blocks = [    j_block        LinearSystemBlock() LinearSystemBlock() LinearSystemBlock();
+            LinearSystemBlock()     u_block         LinearSystemBlock() LinearSystemBlock();
+            LinearSystemBlock() LinearSystemBlock()      p_block         LinearSystemBlock();
+            LinearSystemBlock() LinearSystemBlock() LinearSystemBlock()      φ_block       ]
   coeffs = [1.0 2.0 0.0 2.0;  # | Dj  2Aju   0   2Aφu |   | j |   | bj |
             0.0 1.0 1.0 0.0;  # | 0    Fk   Aup   0   |   | u |   | bu |
             0.0 0.0 1.0 0.0;  # | 0    0    Ip    0   | ⋅ | p | = | bp |

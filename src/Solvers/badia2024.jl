@@ -14,12 +14,14 @@ function Badia2024Solver(op::FEOperator,params)
   U_u, U_p, U_j, U_φ = get_trial(op)
   V_u, V_p, V_j, V_φ = get_test(op)
 
-  NB = 3
   diag_solvers = map(s -> get_block_solver(Val(s),params),params[:solver][:block_solvers])
-  diag_blocks  = [NonlinearSystemBlock(),BiformBlock(a_Ip,U_p,V_p),BiformBlock(a_Iφ,U_φ,V_φ)]
-  blocks = map(CartesianIndices((NB,NB))) do I
-    (I[1] == I[2]) ? diag_blocks[I[1]] : LinearSystemBlock()
-  end
+
+  uj_block = NonlinearSystemBlock(1)
+  p_block  = BiformBlock(a_Ip,U_p,V_p)
+  φ_block  = BiformBlock(a_Iφ,U_φ,V_φ)
+  blocks = [    uj_block        LinearSystemBlock() LinearSystemBlock();
+            LinearSystemBlock()     p_block         LinearSystemBlock();
+            LinearSystemBlock() LinearSystemBlock()      φ_block       ]
   coeffs = [1.0 1.0 1.0;
             0.0 1.0 0.0; 
             0.0 0.0 1.0]  

@@ -21,18 +21,19 @@ solver = Dict(
   :block_solvers => [:gmg,:cg_jacobi,:cg_jacobi],
   :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason"
 )
-expansion(np=1,backend=:mpi,mesh=mesh,solver=solver,order=2,ζ=1000.0,N=N,Ha=Ha,cw=cw,title="ExpansionGMG")
+expansion(np=1,backend=:mpi,mesh=mesh,solver=solver,order=2,ζ=100.0,N=N,Ha=Ha,cw=cw,title="ExpansionGMG",formulation=:mhd)
 
+"""
 # ReferenceSolution
 expansion(np=1,backend=:mpi,solver=:julia,order=2,ζ=0.0,N=N,Ha=Ha,cw=cw,title="ExpansionRef")
 
 expansion(np=1,backend=:mpi,solver=:julia,order=2,ζ=0.0,N=N,Ha=Ha,cw=cw,title="ExpansionRefBis",mesh=mesh)
 
 meshbis = Dict(
-  :mesher => :SG,
+  :mesher => :p4est_SG,
   :base_mesh => "coarse",
   :num_refs => 1
 )
 expansion(np=1,backend=:mpi,solver=:julia,order=2,ζ=0.0,N=N,Ha=Ha,cw=cw,title="ExpansionRefBis",mesh=meshbis)
-
+"""
 end # module
