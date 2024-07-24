@@ -51,6 +51,9 @@ function _hunt(;
   L=1.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
+  σw1=0.1,
+  σw2=10.0,
+  tw=0.0,
   nsums = 10,
   vtk=true,
   title = "test",
@@ -105,24 +108,40 @@ function _hunt(;
   α = 1.0
   β = 1.0/Re
   γ = N
+  σ̄1 = σw1/σ
+  σ̄2 = σw2/σ
 
   # DiscreteModel in terms of reduced quantities
 
-  model = hunt_mesh(parts,params,nc,rank_partition,L,Ha,kmap_x,kmap_y,BL_adapted,ranks_per_level)
+  model = hunt_mesh(parts,params,nc,rank_partition,L,tw,Ha,kmap_x,kmap_y,BL_adapted,ranks_per_level)
   Ω = Interior(model)
   if debug && vtk
-    writevtk(model,"data/hunt_model")
+    writevtk(model,"hunt_model")
   end
 
-  params[:fluid] = Dict(
-    :domain=>nothing,
-    :α=>α,
-    :β=>β,
-    :γ=>γ,
-    :f=>f̄,
-    :B=>B̄,
-    :ζ=>ζ,
-  )
+  if tw > 0.0
+    σ_Ω = solid_conductivity(σ̄1,σ̄2,Ω,get_cell_gids(model),get_face_labeling(model))
+    params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
+    params[:fluid] = Dict(
+      :domain=>"fluid",
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :B=>B̄,
+      :f=>f̄,
+      :ζ=>ζ,
+     )
+  else
+    params[:fluid] = Dict(
+      :domain=>nothing,
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :f=>f̄,
+      :B=>B̄,
+      :ζ=>ζ,
+    )
+  end
 
   # Boundary conditions
 
@@ -191,11 +210,14 @@ function _hunt(;
   toc!(t,"post_process")
 
   if vtk
-    writevtk(Ω_phys,joinpath(path,title),
-      order=2,
-      cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_jh"=>div_jh,"div_uh"=>div_uh,
-        "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref])
+    cellfields = [
+      "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,
+      "div_jh"=>div_jh,"div_uh"=>div_uh,
+      "u"=>u,"j"=>j,"u_ref"=>u_ref,"j_ref"=>j_ref]
+    if tw > 0.0
+      push!(cellfields,"σ"=>σ_Ω)
+    end
+    writevtk(Ω_phys,joinpath(path,title),order=2,cellfields=cellfields)
     toc!(t,"vtk")
   end
   if verbose
@@ -230,13 +252,13 @@ end
 
 function hunt_mesh(
   parts,params,
-  nc::Tuple,np::Tuple,L::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool,
+  nc::Tuple,np::Tuple,L::Real,tw::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool,
   ranks_per_level)
   if isnothing(ranks_per_level) # Single grid
-    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,Ha,kmap_x,kmap_y,BL_adapted)
+    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
     params[:model] = model
   else # Multigrid
-    base_model = Meshers.hunt_generate_base_mesh(nc,L,Ha,kmap_x,kmap_y,BL_adapted)
+    base_model = Meshers.hunt_generate_base_mesh(nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
     mh = Meshers.generate_mesh_hierarchy(parts,base_model,0,ranks_per_level)
     params[:multigrid] = Dict{Symbol,Any}(
       :mh => mh,
@@ -247,6 +269,30 @@ function hunt_mesh(
     params[:model] = model
   end
   return model
+end
+
+function solid_conductivity(σ̄1,σ̄2,Ω::GridapDistributed.DistributedTriangulation,cells,labels)
+  D = num_cell_dims(Ω)
+  fields =  map(local_views(labels),local_views(cells),local_views(Ω)) do labels,partition,trian
+    cell_entity = labels.d_to_dface_to_entity[end]
+    σ_field(σ̄1,σ̄2,labels,trian,cell_entity[partition.own_to_local])
+  end
+  GridapDistributed.DistributedCellField(fields,Ω)
+end
+
+function σ_field(σ̄1,σ̄2,labels,Ω,cell_entity)
+  solid_1 = get_tag_entities(labels,"solid_1")[1]
+  solid_2 = get_tag_entities(labels,"solid_2")[1]
+  function entity_to_σ(entity)
+    if entity == solid_1
+      σ̄1
+    elseif entity == solid_2
+      σ̄2
+    else
+      1.0
+    end
+  end
+  σ_field = CellField(map(entity_to_σ,cell_entity),Ω)
 end
 
 # This is not very elegant. This needs to be solved by Gridap and GridapDistributed
@@ -282,6 +328,10 @@ function analytical_hunt_u(
   l = b/a
   ξ = x[1]/a
   η = x[2]/a
+
+  if ξ > 1.0 || ξ < -1.0 || η > 1.0 || η < -1.0# think about a≠b...
+    return VectorValue(0.0,0.0,0.0)
+  end
 
   V = 0.0; V0=0.0;
   for k in 0:n
@@ -320,6 +370,10 @@ function analytical_hunt_j(
   l = b/a
   ξ = x[1]/a
   η = x[2]/a
+
+  if ξ > 1.0 || ξ < -1.0 || η > 1.0 || η < -1.0# think about a≠b...
+    return VectorValue(0.0,0.0,0.0)
+  end
 
   H_dx = 0.0; H_dy = 0.0
   for k in 0:n

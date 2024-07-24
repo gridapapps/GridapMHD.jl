@@ -16,3 +16,4 @@ LocalPreferences.toml
 /docs/build/
 /docs/site/
 *.so
+.vscode
