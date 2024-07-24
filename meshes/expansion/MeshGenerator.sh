@@ -7,7 +7,7 @@ julia -e\
 using DelimitedFiles
 
 include("input_params.jl")
-include("../../meshes/expansion/params_calculator.jl")
+include("'$GRIDAPMHD'/meshes/expansion/params_calculator.jl")
 R_1= R_calc(;N=N_1,Dx=dx,L=L_out)
 R_2= R_calc(;N=N_2,Dx=dx,L=L_in)
 

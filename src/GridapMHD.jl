@@ -5,6 +5,7 @@ using LinearAlgebra
 using SparseArrays
 using SparseMatricesCSR
 using BlockArrays
+using ForwardDiff
 
 using FileIO
 using BSON
@@ -12,7 +13,7 @@ using DrWatson
 
 using Gridap
 using Gridap.Helpers, Gridap.Algebra, Gridap.CellData, Gridap.ReferenceFEs
-using Gridap.Geometry, Gridap.FESpaces, Gridap.MultiField
+using Gridap.Geometry, Gridap.FESpaces, Gridap.MultiField, Gridap.ODEs
 
 using PartitionedArrays
 using PartitionedArrays: getany
@@ -45,6 +46,8 @@ include("Main.jl")
 include("Applications/hunt.jl")
 include("Applications/expansion.jl")
 include("Applications/cavity.jl")
+include("Applications/transient.jl")
+include("Applications/channel.jl")
 include("Applications/FullyDevelopedFlow.jl")
 include("Applications/Tube.jl")
 
