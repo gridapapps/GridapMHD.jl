@@ -47,4 +47,20 @@ hunt(
   solver=:julia,
 )
 
+hunt(
+  nc=(12,12),
+  backend=:sequential,
+  np=(2,2),
+  L=1.0,
+  B=(0.,50.,0.),
+  tw=0.2,
+  debug=false,
+  vtk=true,
+  title="hunt-solid",
+  solver=:julia,
+  BL_adapted=false,
+  kmap_x = 3,
+  kmap_y = 3
+)
+
 end # module
