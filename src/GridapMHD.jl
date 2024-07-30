@@ -38,7 +38,7 @@ include("Solvers/badia2024.jl")
 
 # Main driver
 include("Fixes.jl")
-include("ExtraFunctions.jl")
+include("utils.jl")
 include("parameters.jl")
 include("weakforms.jl")
 include("Main.jl")

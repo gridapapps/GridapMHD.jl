@@ -1,6 +1,7 @@
 
-function weak_form(params,k)
+function weak_form(params)
 
+  k = params[:fespaces][:k]
   fluid = params[:fluid]
   Ωf, dΩf, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
   Πp = params[:fespaces][:Πp]

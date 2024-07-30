@@ -240,7 +240,8 @@ end
 Valid keys for `params[:fespaces]` are the following:
 
 # Optional keys
--  `:k`: Polynomial degree for the fluid velocity.
+-  `:order_u`: Polynomial degree for the fluid velocity. Default is 2.
+-  `:order_j`: Polynomial degree for the current density. Default is :order_u.
 -  `:p_space`: FESpace conformity for pressure. Possible values are [:P,:Q]
 """
 function params_fespaces(params::Dict{Symbol,Any})
@@ -248,15 +249,18 @@ function params_fespaces(params::Dict{Symbol,Any})
     params[:fespaces] = Dict{Symbol,Any}()
   end
   mandatory = Dict(
-   :k => false,
+   :order_u => false,
+   :order_j => false,
    :p_space => false,
   )
   optional = Dict(
-   :k => 2,
+   :order_u => 2,
+   :order_j => haskey(params[:fespaces],:order_u) ? params[:fespaces][:order_u] : 2,
    :p_space => :P,
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
   fespaces[:p_conformity] = p_conformity(params[:model],fespaces)
+  fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j]) # Maximal polynomial degree
   return fespaces
 end
 
@@ -286,9 +290,6 @@ p_conformity(model::GridapDistributed.DistributedDiscreteModel,feparams) = p_con
 """
 Valid keys for `params[:multigrid]` are the following:
 
-# Optional keys
--  `:k`: Polynomial degree for the fluid velocity.
--  `:p_space`: FESpace conformity for pressure. Possible values are [:P,:Q]
 """
 function params_multigrid(params::Dict{Symbol,Any})
   solver = params[:solver]
@@ -302,6 +303,11 @@ function params_multigrid(params::Dict{Symbol,Any})
     @error "Multigrid is used with solver $(solver[:solver]), but params[:multigrid] is missing!"
   end
   multigrid = params[:multigrid]
+
+  # Init some variables
+  multigrid[:trials] = Dict{Symbol,Any}()
+  multigrid[:tests] = Dict{Symbol,Any}()
+  
   return multigrid
 end
 

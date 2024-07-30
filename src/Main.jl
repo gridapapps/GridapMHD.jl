@@ -102,8 +102,10 @@ or a `GridapDistributed.DistributedDiscreteModel`
   A `Dict` defining the solid domain and solid parameters.
   If not provided or set to `nothing` the solid domain is not taken into account.
   See [`params_solid`](@ref) for further details.
-- `:k => 2`:
+- `:order_u => 2`:
   Maximum interpolation order (i.e., the order used for the fluid velocity).
+- `:order_j => :order_u`:
+  Order used for the current density.
 - `:solver => default_solver()`:
   Nonlinear solver to compute the solution.
     It should be an instance of some type implementing the `NonlinearSolver` interface of Gridap.
@@ -122,9 +124,19 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
   params = add_default_params(_params)
   t = params[:ptimer]
 
+  # Compute triangulations only once for performance
+  _setup_trians!(params)
+
   # FESpaces
   tic!(t;barrier=true)
-  U, V = _fe_spaces(params)
+  U_u, V_u = _fe_space(Val(:u),params)
+  U_p, V_p = _fe_space(Val(:p),params)
+  U_j, V_j = _fe_space(Val(:j),params)
+  U_φ, V_φ = _fe_space(Val(:φ),params)
+
+  mfs = _multi_field_style(params)
+  V = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
+  U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
   toc!(t,"fe_spaces")
 
   tic!(t;barrier=true)
@@ -182,104 +194,75 @@ _multi_field_style(::Val{:badia2024}) = BlockMultiFieldStyle(3,(2,1,1),(1,3,2,4)
 
 # FESpaces
 
-_fe_spaces(params) = _fe_spaces(Val(uses_multigrid(params[:solver])),params)
-
-function _fe_spaces(::Val{false},params)
-  k = params[:fespaces][:k]
-  T = Float64
+function _fe_space(::Val{:u},params)
+  k = params[:fespaces][:order_u]
   model = params[:model]
+  uses_mg = space_uses_multigrid(params[:solver])[1]
 
-  # Projection map onto p_space
-  @assert length(get_polytopes(model)) == 1
-  poly = get_polytopes(model)[1]
-  Π_reffe = ReferenceFE(poly,lagrangian,T,k-1;space=params[:fespaces][:p_space])
-  params[:fespaces][:Πp] = LocalProjectionMap(Π_reffe,2*k)
+  Ωf = uses_mg ? params[:multigrid][:Ωf] : params[:Ωf]
 
-  # ReferenceFEs
-  D = num_cell_dims(model)
-  reffe_u = ReferenceFE(lagrangian,VectorValue{D,T},k)
-  reffe_p = ReferenceFE(lagrangian,T,k-1;space=params[:fespaces][:p_space])
-  reffe_j = ReferenceFE(raviart_thomas,T,k-1)
-  reffe_φ = ReferenceFE(lagrangian,T,k-1)
+  T = VectorValue{num_cell_dims(model),Float64}
+  reffe_u = ReferenceFE(lagrangian,T,k)
 
-  # Test spaces
-  mfs = _multi_field_style(params)
-  Ωf  = _fluid_mesh(model,params[:fluid][:domain])
-  V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  V_p = TestFESpace(Ωf,reffe_p;conformity=p_conformity(model,params[:fespaces]))
-  V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
-  V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
-  V = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
-
-  # Trial spaces
-  z = zero(VectorValue{D,Float64})
   u_bc = params[:bcs][:u][:values]
-  j_bc = params[:bcs][:j][:values]
-  U_u = u_bc == z ? V_u : TrialFESpace(V_u,u_bc)
-  U_j = j_bc == z ? V_j : TrialFESpace(V_j,j_bc)
-  U_p = TrialFESpace(V_p)
-  U_φ = TrialFESpace(V_φ)
-  U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
+  V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
+  U_u = iszero(u_bc) ? V_u : TrialFESpace(V_u,u_bc)
 
-  return U, V
+  if uses_mg
+    params[:multigrid][:trials][:u] = U_u
+    params[:multigrid][:tests][:u] = V_u
+    U_u, V_u = get_fe_space(U_u,1), get_fe_space(V_u,1)
+  end
+
+  return U_u, V_u
 end
 
-function _fe_spaces(::Val{true},params)
-  # TODO: Add fluid/solid mesh support
-  k = params[:fespaces][:k]
-  T = Float64
-  model = params[:model]
-  mh    = params[:multigrid][:mh]
-  Ωf    = _fluid_mesh(model,params[:fluid][:domain])
-  @assert get_model(mh,1) == model
+function _fe_space(::Val{:p},params)
+  @notimplementedif space_uses_multigrid(params[:solver])[2]
 
-  uses_mg = space_uses_multigrid(params[:solver])
-  trians  = map((m,a,b) -> m ? a : b , uses_mg, [mh,mh,mh,mh], [Ωf,Ωf,model,model])
+  k = params[:fespaces][:order_u]
+  Ωf = params[:Ωf]
 
-  # Projection map onto p_space
-  @assert length(get_polytopes(model)) == 1
-  poly = get_polytopes(model)[1]
-  Π_reffe = ReferenceFE(poly,lagrangian,T,k-1;space=params[:fespaces][:p_space])
-  params[:fespaces][:Πp] = LocalProjectionMap(Π_reffe,2*k)
+  reffe_p = ReferenceFE(lagrangian,Float64,k-1;space=params[:fespaces][:p_space])
+  conformity = p_conformity(Ωf,params[:fespaces])
 
-  # ReferenceFEs
-  D = num_cell_dims(model)
-  reffe_u = ReferenceFE(lagrangian,VectorValue{D,T},k)
-  reffe_p = ReferenceFE(lagrangian,T,k-1;space=params[:fespaces][:p_space])
-  reffe_j = ReferenceFE(raviart_thomas,T,k-1)
-  reffe_φ = ReferenceFE(lagrangian,T,k-1)
-
-  # Test spaces
-  mfs = _multi_field_style(params)
-  V_u = TestFESpace(trians[1],reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  V_p = TestFESpace(trians[2],reffe_p;conformity=p_conformity(model,params[:fespaces]))
-  V_j = TestFESpace(trians[3],reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
-  V_φ = TestFESpace(trians[4],reffe_φ;conformity=:L2)
-  
-  # Trial spaces
-  z = zero(VectorValue{D,Float64})
-  u_bc = params[:bcs][:u][:values]
-  j_bc = params[:bcs][:j][:values]
-  U_u = (u_bc == z) ? V_u : TrialFESpace(V_u,u_bc)
+  V_p = TestFESpace(Ωf,reffe_p;conformity)
   U_p = TrialFESpace(V_p)
-  U_j = (j_bc == z) ? V_j : TrialFESpace(V_j,j_bc)
+
+  return U_p, V_p
+end
+
+function _fe_space(::Val{:j},params)
+  k = params[:fespaces][:order_j]
+  uses_mg = space_uses_multigrid(params[:solver])[3]
+  model = uses_mg ? params[:multigrid][:mh] : params[:model]
+
+  reffe_j = ReferenceFE(raviart_thomas,Float64,k-1)
+
+  j_bc = params[:bcs][:j][:values]
+  V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
+  U_j = iszero(j_bc) ? V_j : TrialFESpace(V_j,j_bc)
+
+  if uses_mg
+    params[:multigrid][:trials][:j] = U_j
+    params[:multigrid][:tests][:j] = V_j
+    U_j, V_j = get_fe_space(U_j,1), get_fe_space(V_j,1)
+  end
+
+  return U_j, V_j
+end
+
+function _fe_space(::Val{:φ},params)
+  @notimplementedif space_uses_multigrid(params[:solver])[4]
+  k = params[:fespaces][:order_j]
+  model = params[:model]
+
+  reffe_φ = ReferenceFE(lagrangian,Float64,k-1)
+
+  V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
   U_φ = TrialFESpace(V_φ)
 
-  # Sort spaces
-  trials, tests, sh_trials, sh_tests = map(uses_mg,[U_u,U_p,U_j,U_φ],[V_u,V_p,V_j,V_φ]) do m,trial,test
-    if m
-      GridapSolvers.get_fe_space(trial,1), GridapSolvers.get_fe_space(test,1), trial, test
-    else
-      trial, test, nothing, nothing
-    end
-  end |> tuple_of_arrays
-
-  params[:multigrid][:variables] = findall(uses_mg)
-  params[:multigrid][:trials] = sh_trials
-  params[:multigrid][:tests]  = sh_tests
-  U = MultiFieldFESpace([trials...];style=mfs)
-  V = MultiFieldFESpace([tests...];style=mfs)
-  return U, V
+  return U_φ, V_φ
 end
 
 # FEOperator
@@ -287,8 +270,7 @@ end
 _fe_operator(U,V,params) = _fe_operator(_multi_field_style(params),U,V,params)
 
 function _fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
-  k = params[:fespaces][:k]
-  res, jac = weak_form(params,k)
+  res, jac = weak_form(params)
   Tm = params[:solver][:matrix_type]
   Tv = params[:solver][:vector_type]
   assem = SparseMatrixAssembler(Tm,Tv,U,V)
@@ -297,8 +279,7 @@ end
 
 function _fe_operator(::BlockMultiFieldStyle,U,V,params)
   # TODO: BlockFEOperator, which only updates nonlinear blocks (only important for high Re)
-  k = params[:fespaces][:k]
-  res, jac = weak_form(params,k)
+  res, jac = weak_form(params)
   Tm = params[:solver][:matrix_type]
   Tv = params[:solver][:vector_type]
   assem = SparseMatrixAssembler(Tm,Tv,U,V)
@@ -326,6 +307,18 @@ _interior(model,domain) = Interior(model,tags=domain)
 
 _boundary(model,domain::TriangulationTypes) = domain
 _boundary(model,domain) = Boundary(model,tags=domain)
+
+function _setup_trians!(params)
+  if !uses_multigrid(params[:solver])
+    params[:Ωf] = _fluid_mesh(params[:model],params[:fluid][:domain])
+    params[:Ωs] = _interior(params[:model],params[:solid][:domain])
+  else
+    params[:multigrid][:Ωf] = _fluid_mesh(params[:multigrid][:mh],params[:fluid][:domain])
+    params[:multigrid][:Ωs] = _interior(params[:multigrid][:mh],params[:solid][:domain])
+    params[:Ωf] = params[:multigrid][:Ωf][1]
+    params[:Ωs] = params[:multigrid][:Ωs][1]
+  end
+end
 
 # Random vector generation
 

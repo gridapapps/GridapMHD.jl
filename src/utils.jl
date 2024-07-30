@@ -25,7 +25,7 @@ function ChangeDensity(coord;domain=(0.0,1.0,0.0,1.0,0.0,1.0),subDomain=(0.0,1.0
   return VectorValue(ncoord)
 end
 
-##Functions for geometry generation
+## Functions for geometry generation
 
 function cuboid(;dx=1,dy=1,dz=1,x0=Point(0,0,0),name="cuboid",faces=["face$i" for i in 1:6])
   e1 = VectorValue(1,0,0)

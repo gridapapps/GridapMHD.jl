@@ -104,7 +104,7 @@ function _expansion(;
   end
 
   params[:fespaces] = Dict(
-    :k => order
+    :order_u => order
   )
 
   params[:fluid] = Dict(
@@ -205,7 +205,7 @@ function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   return model
 end
 
-function epansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
+function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs)
   num_refs = mesh[:num_refs]
   if haskey(mesh,:base_mesh)
