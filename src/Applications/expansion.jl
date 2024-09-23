@@ -203,13 +203,16 @@ function _expansion(;
     toc!(t,"vtk")
   end
   if savelines
-    xline,yline,zline = evaluation_lines(model,Z)
-    info[:xline] = xline
-    info[:yline] = yline
-    info[:zline] = zline
-    info[:uh_xline] = vector_field_eval(uh,xline)
-    info[:uh_yline] = vector_field_eval(uh,yline)
-    info[:uh_zline] = vector_field_eval(uh,zline)
+    line = top_line(model)
+    info[:line] = line
+    info[:p_on_top] = ph(line)
+    # xline,yline,zline = evaluation_lines(model,Z)
+    # info[:xline] = xline
+    # info[:yline] = yline
+    # info[:zline] = zline
+    # info[:uh_xline] = vector_field_eval(uh,xline)
+    # info[:uh_yline] = vector_field_eval(uh,yline)
+    # info[:uh_zline] = vector_field_eval(uh,zline)
   end
   if verbose
     display(t)
@@ -311,6 +314,14 @@ function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in
     U = u_inlet_cte
   end
  U
+end
+
+function top_line(model,n=100)
+  pmin,pmax = _get_bounding_box(model)
+  xmin,xmax = pmin[1],pmax[1]
+  zmax = pmax[3]
+  line = map(x->Point(x,0.0,zmax), range(xmin,xmax,n+1))
+  return line
 end
 
 function evaluation_lines(model,Z,n=100)
