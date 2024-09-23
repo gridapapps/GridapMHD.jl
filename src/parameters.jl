@@ -243,6 +243,8 @@ Valid keys for `params[:fespaces]` are the following:
 -  `:order_u`: Polynomial degree for the fluid velocity. Default is 2.
 -  `:order_j`: Polynomial degree for the current density. Default is :order_u.
 -  `:p_space`: FESpace conformity for pressure. Possible values are [:P,:Q]
+-  `:constraint_p`: Constraint for the pressure. Default is nothing.
+-  `:constraint_φ`: Constraint for the electric potential. Default is nothing.
 """
 function params_fespaces(params::Dict{Symbol,Any})
   if !haskey(params,:fespaces) || isa(params[:fespaces],Nothing)
@@ -252,11 +254,15 @@ function params_fespaces(params::Dict{Symbol,Any})
    :order_u => false,
    :order_j => false,
    :p_space => false,
+   :constraint_p => false,
+   :constraint_φ => false,
   )
   optional = Dict(
    :order_u => 2,
    :order_j => haskey(params[:fespaces],:order_u) ? params[:fespaces][:order_u] : 2,
    :p_space => :P,
+   :constraint_p => nothing,
+   :constraint_φ => nothing,
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
   fespaces[:p_conformity] = p_conformity(params[:model],fespaces)

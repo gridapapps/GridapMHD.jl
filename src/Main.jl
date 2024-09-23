@@ -225,8 +225,9 @@ function _fe_space(::Val{:p},params)
 
   reffe_p = ReferenceFE(lagrangian,Float64,k-1;space=params[:fespaces][:p_space])
   conformity = p_conformity(Ωf,params[:fespaces])
+  constraint = params[:fespaces][:p_constraint]
 
-  V_p = TestFESpace(Ωf,reffe_p;conformity)
+  V_p = TestFESpace(Ωf,reffe_p;conformity,constraint)
   U_p = TrialFESpace(V_p)
 
   return U_p, V_p
@@ -258,8 +259,10 @@ function _fe_space(::Val{:φ},params)
   model = params[:model]
 
   reffe_φ = ReferenceFE(lagrangian,Float64,k-1)
+  conformity = :L2
+  constraint = params[:fespaces][:φ_constraint]
 
-  V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
+  V_φ = TestFESpace(model,reffe_φ;conformity,constraint)
   U_φ = TrialFESpace(V_φ)
 
   return U_φ, V_φ
