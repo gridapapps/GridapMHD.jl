@@ -1,13 +1,22 @@
 
 function weak_form(params,k)
+  if !params[:transient]
+    _weak_form(params,k)
+  else
+     _ode_weak_form(params,k)
+  end
+end
+
+function _weak_form(params,k)
 
   fluid = params[:fluid]
-  Ωf, dΩf, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(params,k)
+  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
 
   solid = params[:solid]
   Ωs, dΩs, σs = retrieve_solid_params(params,k)
 
-  params_φ, params_thin_wall, params_f, params_B = retrieve_bcs_params(params,k)
+  bcs_params = retrieve_bcs_params(params,k)
+  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
   function a(x,dy)
     r = a_mhd(x,dy,β,γ,B,σf,dΩf)
@@ -16,6 +25,9 @@ function weak_form(params,k)
     end
     for p in params_B
       r = r + a_B(x,dy,p...)
+    end
+    for p in params_Λ
+      r = r + a_Λ(x,dy,p...)
     end
     if solid !== nothing
       r = r + a_solid(x,dy,σs,dΩs)
@@ -50,10 +62,88 @@ function weak_form(params,k)
     r
   end
 
-  res(x,dy) = c(x,dy) + a(x,dy) - ℓ(dy)
-  jac(x,dx,dy) = dc(x,dx,dy) + a(dx,dy)
-
+  function res(x,dy)
+    r = a(x,dy) - ℓ(dy)
+    if fluid[:convection]
+      r = r + c(x,dy)
+    end
+    r
+  end
+  function jac(x,dx,dy)
+    r = a(dx,dy)
+    if fluid[:convection]
+      r = r + dc(x,dx,dy)
+    end
+    r
+  end
   return res, jac
+end
+
+
+function _ode_weak_form(params,k)
+
+  fluid = params[:fluid]
+  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
+
+  solid = params[:solid]
+  Ωs, dΩs, σs = retrieve_solid_params(params,k)
+
+  bcs_params = retrieve_bcs_params(params,k)
+  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
+
+  m(t,x,dy) = m_u(x,dy,dΩf)
+
+  a_dt(t,x,dy) = a_dut(x,dy,dΩf)
+
+  function a(t,x,dy)
+    r = a_mhd(x,dy,β,γ,time_eval(B,t),σf,dΩf)
+    for p in params_thin_wall
+      r = r + a_thin_wall(x,dy,time_eval(p,t)...)
+    end
+    for p in params_B
+      r = r + a_B(x,dy,time_eval(p,t)...)
+    end
+    for p in params_Λ
+      r = r + a_Λ(x,dy,p...)
+    end
+    if solid !== nothing
+      r = r + a_solid(x,dy,σs,dΩs)
+    end
+    if abs(ζ) > eps(typeof(ζ))
+      r = r + a_al(x,dy,ζ,dΩf)
+    end
+    r
+  end
+
+  function ℓ(t,dy)
+    r = ℓ_mhd(dy,time_eval(f,t),dΩf) + ℓ_fj(dy,time_eval(g,t),dΩf)
+    for p in params_φ
+      r = r + ℓ_φ(dy,time_eval(p,t)...)
+    end
+    for p in params_thin_wall
+      r = r + ℓ_thin_wall(dy,time_eval(p,t)...)
+    end
+    for p in params_f
+      r = r + ℓ_f(dy,time_eval(p,t)...)
+    end
+    r
+  end
+
+  function c(x,dy)
+    r = c_mhd(x,dy,α,dΩf)
+    r
+  end
+
+  function dc(x,dx,dy)
+    r = dc_mhd(x,dx,dy,α,dΩf)
+    r
+  end
+
+  res(t,x,dy) = c(x,dy) + a_dt(t,x,dy) + a(t,x,dy) - ℓ(t,dy)
+  jac(t,x,dx,dy) = dc(x,dx,dy) + a(t,dx,dy)
+  jac_t(t,x,dx,dy) = m(t,dx,dy)
+
+  return res,jac,jac_t
 end
 
 ############################################################################################
@@ -70,7 +160,8 @@ function retrieve_fluid_params(model,params,k)
   f = fluid[:f]
   B = fluid[:B]
   ζ = fluid[:ζ]
-  return Ωf, dΩf, α, β, γ, σf, f, B, ζ
+  g = fluid[:g]
+  return Ωf, dΩf, α, β, γ, σf, f, B, ζ, g
 end
 
 retrieve_solid_params(params,k) = retrieve_solid_params(params[:model],params,k)
@@ -132,7 +223,17 @@ function retrieve_bcs_params(model,params,k)
     push!(params_f,(γ,B_i,dΩ_i))
   end
 
-  return params_φ, params_thin_wall, params_f, params_B
+  params_Λ = []
+  for i in 1:length(params[:bcs][:stabilization])
+    Λ = _skeleton(model,params[:bcs][:stabilization][i][:domain])
+    dΛ = Measure(Λ,2*k)
+    _h = _get_cell_size(Λ)
+    h = CellField(_h,Λ)
+    μ = params[:bcs][:stabilization][i][:μ]
+    push!(params_Λ,(μ,h,dΛ))
+  end
+
+  return params_φ, params_thin_wall, params_f, params_B, params_Λ
 end
 
 ############################################################################################
@@ -157,10 +258,16 @@ a_mhd_u_p(p,v_u,dΩ)     = ∫( -p*(∇⋅v_u) )*dΩ
 a_mhd_u_j(j,v_u,γ,B,dΩ) = ∫( -γ*(j×B)⋅v_u )*dΩ
 a_mhd_p_u(u,v_p,dΩ)     = ∫( -(∇⋅u)*v_p )*dΩ
 
-a_mhd_j_u(u,v_j,σ,B,dΩ) = ∫( -σ*(u×B)⋅v_j )*dΩ  
+a_mhd_j_u(u,v_j,σ,B,dΩ) = ∫( -σ*(u×B)⋅v_j )*dΩ
 a_mhd_j_j(j,v_j,dΩ)     = ∫( j⋅v_j )*dΩ
 a_mhd_j_φ(φ,v_j,σ,dΩ)   = ∫( -σ*φ*(∇⋅v_j) )*dΩ
 a_mhd_φ_j(j,v_φ,dΩ)     = ∫( -(∇⋅j)*v_φ )*dΩ
+
+function a_Λ(x,dy,μ,h,dΛ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫( (1/2) * μ * (h*h) * jump( ∇(u) ) ⊙ jump( ∇(v_u) ))*dΛ
+end
 
 function ℓ_mhd(dy,f,dΩ)
   v_u, v_p, v_j, v_φ = dy
@@ -219,6 +326,11 @@ function ℓ_f(dy,f,dΩ)
 end
 ℓ_f_u(f,v_u,dΩ) = ∫( v_u⋅f )*dΩ
 
+function ℓ_fj(dy,f,dΩ)
+  v_u, v_p, v_j, v_φ = dy
+  ∫( v_j⋅f )*dΩ
+end
+
 function ℓ_thin_wall(dy,τ,cw,jw,n_Γ,dΓ)
   v_u, v_p, v_j, v_φ = dy
   ℓ_thin_wall_j(v_j,τ,cw,jw,n_Γ,dΓ)
@@ -237,3 +349,25 @@ function a_B(x,dy,γ,B,dΩ)
   v_u, v_p, v_j, v_φ = dy
   ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
 end
+
+# Mass matrix
+
+function a_dut(x,dy,dΩ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫(∂t(u)⋅v_u )*dΩ
+end
+
+function m_u(x,dy,dΩ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫( u⋅v_u )*dΩ
+end
+
+############################################################################################
+# Helper functions
+
+time_eval(a::AbstractVector,t::Real) = map(f->time_eval(f,t),a)
+time_eval(a::Tuple,t::Real) = map(f->time_eval(f,t),a)
+time_eval(a::Function,t::Real) = a(t)
+time_eval(a::Any,t::Real) = a

@@ -1,10 +1,12 @@
 module Meshers
   using DrWatson
   using PartitionedArrays, MPI
+  using GridapDistributed
   using Gridap, GridapP4est, GridapSolvers
 
   using Gridap.Arrays, Gridap.Geometry, Gridap.ReferenceFEs, Gridap.Adaptivity
 
+  include("tools.jl")
   include("p4est.jl")
   
   export generate_refined_mesh
