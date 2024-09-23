@@ -97,6 +97,8 @@ function add_default_params(_params)
     :solver=>true,
     :multigrid=>false,
     :check_valid=>false,
+    :ode=>false,
+    :transient=>false,
   )
   _check_mandatory(_params,mandatory,"")
   optional = Dict(
@@ -108,6 +110,8 @@ function add_default_params(_params)
     :fespaces=>nothing,
     :multigrid=>nothing,
     :check_valid=>true,
+    :ode=>nothing,
+    :transient=>default_transient(_params),
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
   _check_unused(params,mandatory,params,"")
@@ -125,6 +129,8 @@ end
 
 default_ptimer(model) = PTimer(DebugArray(LinearIndices((1,))))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_parts(model))
+
+default_transient(params) = haskey(params,:ode) && !isnothing(params[:ode])
 
 """
 Valid keys for `params[:solver]` are the following:
@@ -162,7 +168,9 @@ function default_solver_params(::Val{:julia})
     :matrix_type    => SparseMatrixCSC{Float64,Int64},
     :vector_type    => Vector{Float64},
     :solver_postpro => ((cache,info) -> nothing),
+    :niter          => 10,
     :rtol           => 1e-5,
+    :initial_values => nothing,
   )
 end
 
@@ -175,6 +183,7 @@ function default_solver_params(::Val{:petsc})
     :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0",
     :niter          => 100,
     :rtol           => 1e-5,
+    :initial_values => nothing,
   )
 end
 
@@ -188,6 +197,7 @@ function default_solver_params(::Val{:li2019})
     :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
+    :initial_values => nothing,
   )
 end
 
@@ -261,8 +271,7 @@ function params_fespaces(params::Dict{Symbol,Any})
    :order_u => 2,
    :order_j => haskey(params[:fespaces],:order_u) ? params[:fespaces][:order_u] : 2,
    :p_space => :P,
-   :constraint_p => nothing,
-   :constraint_φ => nothing,
+   :p_constraint => nothing,
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
   fespaces[:p_conformity] = p_conformity(params[:model],fespaces)
@@ -347,8 +356,10 @@ function params_fluid(params::Dict{Symbol,Any})
    :f=>false,
    :σ=>false,
    :ζ=>false,
+   :g=>false,
+   :convection=>false,
   )
-  optional = Dict(:σ=>1.0,:f=>VectorValue(0,0,0),:ζ=>0.0)
+  optional = Dict(:σ=>1.0,:f=>VectorValue(0,0,0),:ζ=>0.0,:g=>VectorValue(0,0,0),:convection=>true)
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
   fluid
 end
@@ -402,6 +413,7 @@ function params_bcs(params)
    :thin_wall=>false,
    :f => false,
    :B => false,
+   :stabilization=>false,
   )
   optional = Dict(
    :φ=>[],
@@ -409,6 +421,7 @@ function params_bcs(params)
    :thin_wall=>[],
    :f =>[],
    :B =>[],
+   :stabilization=>[],
   )
   bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")
   # Sub params
@@ -422,6 +435,9 @@ function params_bcs(params)
   end
   if bcs[:thin_wall] !== optional[:thin_wall]
     bcs[:thin_wall] = params_bcs_thin_wall(params)
+  end
+  if bcs[:stabilization] !== optional[:stabilization]
+    bcs[:stabilization] = params_bcs_stabilization(params)
   end
   bcs
 end
@@ -542,4 +558,32 @@ function params_bcs_thin_wall(params::Dict{Symbol,Any})
   )
   optional = Dict(:jw=>0)
   _check_mandatory_and_add_optional_weak(params[:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
+end
+
+"""
+Valid keys for the dictionaries in `params[:bcs][:stabilization]` are the following.
+
+The proposed stabilization is
+
+    (1/2) ∫ μ * h^2 * [ ∇(u) ][ ∇(v) ] dΛ
+
+where `μ` is the stabilization parameter, `h` the cell size,
+`u` the trial function, `v` the test function, `[...]` represents the jump and
+`Λ` is the skeleton triangulation.
+
+# Mandatory keys
+- `:μ`: Value of the parameter `μ`.
+
+# Optional keys
+- `:domain`: Domain where to apply the stabilization. This should coincide with
+the domain of the fluid. The domain is represented either with a `Triangulation`
+or with a `Integer`/`String` tag in the underlying discrete model.
+"""
+function params_bcs_stabilization(params::Dict{Symbol,Any})
+  mandatory = Dict(
+   :domain=>false,
+   :μ=>true,
+  )
+  optional = Dict(:domain=>params[:fluid][:domain])
+  _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:thin_wall]")
 end
