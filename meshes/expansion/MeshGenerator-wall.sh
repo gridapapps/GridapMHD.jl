@@ -7,7 +7,7 @@ julia -e\
 using DelimitedFiles
 
 include("input_params.jl")
-include("params_calculator.jl")
+include("../../meshes/expansion/params_calculator.jl")
 R_1= R_calc(;N=N_1,Dx=dx,L=L_out)
 R_2= R_calc(;N=N_2,Dx=dx,L=L_in)
 
@@ -36,32 +36,32 @@ writedlm("mesh_params",pass)
 
 
 #Eliminate old information
-sed -i '/Ha=/d' Expansion_B-wall.geo
-sed -i '/N_Ha=/d' Expansion_B-wall.geo
-sed -i '/N_s=/d' Expansion_B-wall.geo
-sed -i '/exp_Ha=/d' Expansion_B-wall.geo
-sed -i '/exp_s=/d' Expansion_B-wall.geo
-sed -i '/N_1=/d' Expansion_B-wall.geo
-sed -i '/N_2=/d' Expansion_B-wall.geo
-sed -i '/N_w=/d' Expansion_B-wall.geo
-sed -i '/R_1=/d' Expansion_B-wall.geo
-sed -i '/R_2=/d' Expansion_B-wall.geo
-sed -i '/r=/d'   Expansion_B-wall.geo
-sed -i '/betta=/d' Expansion_B-wall.geo
-sed -i '/L_in=/d' Expansion_B-wall.geo
-sed -i '/L_out=/d' Expansion_B-wall.geo
-sed -i '/t=/d' Expansion_B-wall.geo
+sed -i '/Ha=/d' $path/Expansion_B-wall.geo
+sed -i '/N_Ha=/d' $path/Expansion_B-wall.geo
+sed -i '/N_s=/d' $path/Expansion_B-wall.geo
+sed -i '/exp_Ha=/d'  $path/Expansion_B-wall.geo
+sed -i '/exp_s=/d'  $path/Expansion_B-wall.geo
+sed -i '/N_1=/d'  $path/Expansion_B-wall.geo
+sed -i '/N_2=/d'  $path/Expansion_B-wall.geo
+sed -i '/N_w=/d'  $path/Expansion_B-wall.geo
+sed -i '/R_1=/d'  $path/Expansion_B-wall.geo
+sed -i '/R_2=/d'  $path/Expansion_B-wall.geo
+sed -i '/r=/d'    $path/Expansion_B-wall.geo
+sed -i '/betta=/d'  $path/Expansion_B-wall.geo
+sed -i '/L_in=/d'  $path/Expansion_B-wall.geo
+sed -i '/L_out=/d'  $path/Expansion_B-wall.geo
+sed -i '/t=/d'  $path/Expansion_B-wall.geo
 
 #Write the new information
 
-sed -e '/Mesh parameters/r./mesh_params' Expansion_B-wall.geo > Expansion_B-2.geo
-mv Expansion_B-2.geo  Expansion_B-wall.geo
+sed -e '/Mesh parameters/r./mesh_params'  $path/Expansion_B-wall.geo >  $path/Expansion_B-2.geo
+mv  $path/Expansion_B-2.geo   $path/Expansion_B-wall.geo
 
 rm mesh_params
-rm input_params.jl
+
 
 #Generate the mesh
 
-gmsh $path/Expansion_B-wall.geo -3 -o $path/../Expansion-wall_computed.msh
+gmsh $path/Expansion_B-wall.geo -3 -o $path/../Expansion_wall_computed.msh
 
 
