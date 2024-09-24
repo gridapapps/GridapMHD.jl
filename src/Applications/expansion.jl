@@ -190,16 +190,19 @@ function _expansion(;
   tic!(t,barrier=true)
 
   # Post-process
-   uh,ph,jh,φh = xh
+  uh,ph,jh,φh = xh
   div_jh = ∇·jh
   div_uh = ∇·uh
   Grad_p = ∇·ph
 
   if vtk
-    writevtk(Ω,joinpath(path,title),
+    writevtk(
+      Ω,joinpath(path,title),
       order=order,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p])
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p],
+      append=false
+    )
     toc!(t,"vtk")
   end
   if savelines
@@ -243,7 +246,7 @@ function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   # after and before the expansion respectively.
   msh_name = mesh[:base_mesh]
   msh_file = joinpath(meshes_dir,"Expansion_"*msh_name*".msh") |> normpath
-  model = GmshDiscreteModel(ranks,msh_file)
+  model = GmshDiscreteModel(ranks,msh_file;has_affine_map=true)
   params[:model] = model
   return model
 end
@@ -253,7 +256,7 @@ function epansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   num_refs = mesh[:num_refs]
   if haskey(mesh,:base_mesh)
     msh_file = joinpath(meshes_dir,"Expansion_"*mesh[:base_mesh]*".msh") |> normpath
-    base_model = GmshDiscreteModel(msh_file)
+    base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
@@ -270,7 +273,7 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   ranks_per_level = mesh[:ranks_per_level]
   if haskey(mesh,:base_mesh)
     msh_file = joinpath(meshes_dir,"Expansion_"*mesh[:base_mesh]*".msh") |> normpath
-    base_model = GmshDiscreteModel(msh_file)
+    base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
