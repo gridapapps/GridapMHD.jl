@@ -56,23 +56,26 @@ function _expansion(;
   τ  = 100,
   ζ  = 0.0,
   order = 2,
-  inlet = :parabolic,
   μ=0,
+  inlet = :parabolic,
   initial_value=:zero,
+  solid_coupling=:none,
   niter=nothing,
   convection=:true,
   savelines=false,
   petsc_options="",
-  )
+)
+  @assert solid_coupling ∈ [:none,:thin_wall,:solid]
+  @assert inlet ∈ [:parabolic,:shercliff,:constant]
 
   info   = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
-       :debug=>debug,
-       :solve=>true,
-       :res_assemble=>false,
-       :jac_assemble=>false,
-       :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver
-    )
+    :debug=>debug,
+    :solve=>true,
+    :res_assemble=>false,
+    :jac_assemble=>false,
+    :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver
+  )
 
   if isa(distribute,Nothing)
     @assert isa(rank_partition,Nothing)
@@ -91,9 +94,9 @@ function _expansion(;
   end
   model = expansion_mesh(mesh,parts,params)
   if debug && vtk
-    writevtk(model,"data/expansion_model")
+    writevtk(model,path*"/expansion_model")
   end
-  Ω = Interior(model,tags="PbLi")
+  Ω = Interior(model,tags="fluid")
   toc!(t,"model")
 
   # Parameters and bounday conditions
@@ -136,13 +139,12 @@ function _expansion(;
     :values => [u_in, VectorValue(0.0, 0.0, 0.0)]
   )
 
-  if abs(cw) < 1.e-5
+  if solid_coupling == :none
     params[:bcs][:j] = Dict(
       :tags => ["wall", "inlet", "outlet"],
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
     )
-
-  else
+  elseif solid_coupling == :thin_wall
     params[:bcs][:j] = Dict(
       :tags => ["inlet", "outlet"],
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
@@ -152,6 +154,13 @@ function _expansion(;
       :cw=>cw,
       :domain => ["wall"],
     )
+  else
+    @assert solid_coupling == :solid
+    params[:bcs][:j] = Dict(
+      :tags => ["inlet", "outlet"],
+      :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
+    )
+    params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
   end
 
   if μ > 0
@@ -209,14 +218,7 @@ function _expansion(;
   if savelines
     line = top_line(model)
     info[:line] = line
-    info[:p_on_top] = ph(line)
-    # xline,yline,zline = evaluation_lines(model,Z)
-    # info[:xline] = xline
-    # info[:yline] = yline
-    # info[:zline] = zline
-    # info[:uh_xline] = vector_field_eval(uh,xline)
-    # info[:uh_yline] = vector_field_eval(uh,yline)
-    # info[:uh_zline] = vector_field_eval(uh,zline)
+    info[:p_line] = ph(line)
   end
   if verbose
     display(t)
@@ -263,7 +265,7 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
       msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
     end
     base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
-    add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
+    add_tag_from_tags!(get_face_labeling(base_model),"interior",["fluid"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
     base_model = expansion_generate_base_mesh()
@@ -283,7 +285,7 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
       msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
     end
     base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
-    add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
+    add_tag_from_tags!(get_face_labeling(base_model),"interior",["fluid"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
     base_model = expansion_generate_base_mesh()

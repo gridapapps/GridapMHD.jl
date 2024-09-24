@@ -10,7 +10,7 @@ $PhysicalNames
 2 1 "inlet"
 2 2 "outlet"
 2 3 "wall"
-3 4 "PbLi"
+3 4 "fluid"
 $EndPhysicalNames
 $Entities
 34 53 22 2

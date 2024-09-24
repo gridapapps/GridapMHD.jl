@@ -121,7 +121,7 @@ Physical Surface("outlet") = {85, 89, 93, 97, 101, 105};
 //+
 Physical Surface("wall") = {1, 2, 33, 45, 109, 81, 50, 122, 77, 73, 117, 113};
 //+
-Physical Volume("PbLi") = {1, 2};
+Physical Volume("fluid") = {1, 2};
 //+
 Physical Line("inlet") = {27};
 Physical Line("outlet") = {84,88,92,96,100};
