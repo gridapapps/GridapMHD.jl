@@ -161,7 +161,8 @@ function _expansion(;
   j_zero = VectorValue(0.0,0.0,0.0)
   if initial_value == :inlet
     params[:solver][:initial_values] = Dict(
-      :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0)
+      :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0
+    )
   end
   if params[:solver][:solver] == :petsc && petsc_options != ""
     params[:solver][:petsc_options] = petsc_options
@@ -244,8 +245,10 @@ end
 function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   # The domain is of size L_out x 2 x 2/β and L_in x 2/Z x 2/β
   # after and before the expansion respectively.
-  msh_name = mesh[:base_mesh]
-  msh_file = joinpath(meshes_dir,"Expansion_"*msh_name*".msh") |> normpath
+  msh_file = mesh[:base_mesh]
+  if !ispath(msh_file)
+    msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
+  end
   model = GmshDiscreteModel(ranks,msh_file;has_affine_map=true)
   params[:model] = model
   return model
@@ -255,7 +258,10 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs)
   num_refs = mesh[:num_refs]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(meshes_dir,"Expansion_"*mesh[:base_mesh]*".msh") |> normpath
+    msh_file = mesh[:base_mesh]
+    if !ispath(msh_file)
+      msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
+    end
     base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
@@ -272,7 +278,10 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   num_refs_coarse = mesh[:num_refs_coarse]
   ranks_per_level = mesh[:ranks_per_level]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(meshes_dir,"Expansion_"*mesh[:base_mesh]*".msh") |> normpath
+    msh_file = mesh[:base_mesh]
+    if !ispath(msh_file)
+      msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
+    end
     base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
