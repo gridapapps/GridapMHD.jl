@@ -264,14 +264,15 @@ function params_fespaces(params::Dict{Symbol,Any})
    :order_u => false,
    :order_j => false,
    :p_space => false,
-   :constraint_p => false,
-   :constraint_φ => false,
+   :p_constraint => false,
+   :φ_constraint => false,
   )
   optional = Dict(
    :order_u => 2,
    :order_j => haskey(params[:fespaces],:order_u) ? params[:fespaces][:order_u] : 2,
    :p_space => :P,
    :p_constraint => nothing,
+   :φ_constraint => nothing,
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
   fespaces[:p_conformity] = p_conformity(params[:model],fespaces)

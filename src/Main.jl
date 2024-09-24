@@ -252,7 +252,7 @@ function _fe_space(::Val{:p},params)
   constraint = params[:fespaces][:p_constraint]
 
   V_p = TestFESpace(Ωf,reffe_p;conformity,constraint)
-  U_p = _trial_fe_space(V_p,0.0,params[:transient])
+  U_p = _trial_fe_space(V_p,nothing,params[:transient])
 
   return U_p, V_p
 end
@@ -287,18 +287,18 @@ function _fe_space(::Val{:φ},params)
   constraint = params[:fespaces][:φ_constraint]
 
   V_φ = TestFESpace(model,reffe_φ;conformity,constraint)
-  U_φ = _trial_fe_space(V_φ,0.0,params[:transient])
+  U_φ = _trial_fe_space(V_φ,nothing,params[:transient])
 
   return U_φ, V_φ
 end
 
-function _trial_fe_space(V,bc,transient)
-  if iszero(bc)
+function _trial_fe_space(V,v_bc,transient)
+  if isnothing(v_bc) || (isa(v_bc,Number) && iszero(v_bc))
     return V
   elseif !transient
-    return TrialFESpace(V,bc)
+    return TrialFESpace(V,v_bc)
   else
-    return TransientTrialFESpace(V,bc)
+    return TransientTrialFESpace(V,v_bc)
   end
 end
 
@@ -366,14 +366,20 @@ _skeleton(model,domain::Nothing) = SkeletonTriangulation(model)
 _skeleton(model,domain) = _skeleton(model,_interior(model,domain))
 
 function _setup_trians!(params)
+  fluid = params[:fluid]
+  Ωf = _fluid_mesh(params[:model],fluid[:domain])
+
+  solid = params[:solid]
+  Ωs = !isnothing(solid) ? _interior(params[:model],solid[:domain]) : nothing
+
   if !uses_multigrid(params[:solver])
-    params[:Ωf] = _fluid_mesh(params[:model],params[:fluid][:domain])
-    params[:Ωs] = _interior(params[:model],params[:solid][:domain])
+    params[:Ωf] = Ωf
+    params[:Ωs] = Ωs
   else
-    params[:multigrid][:Ωf] = _fluid_mesh(params[:multigrid][:mh],params[:fluid][:domain])
-    params[:multigrid][:Ωs] = _interior(params[:multigrid][:mh],params[:solid][:domain])
-    params[:Ωf] = params[:multigrid][:Ωf][1]
-    params[:Ωs] = params[:multigrid][:Ωs][1]
+    params[:multigrid][:Ωf] = Ωf
+    params[:multigrid][:Ωs] = Ωs
+    params[:Ωf] = Ωs[1]
+    params[:Ωs] = Ωs[1]
   end
 end
 
