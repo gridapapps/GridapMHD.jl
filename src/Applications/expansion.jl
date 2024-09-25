@@ -48,22 +48,22 @@ function _expansion(;
   verbose = true,
   solver  = :julia,
   formulation = :mhd,
-  Z = 4.0,                  #Expansion Ratio, it has to be consistent with the mesh
-  b = 0.2,                  #Outlet channel aspect ratio, it has to be consistent with the mesh
+  Z = 4.0,                  # Expansion Ratio, it has to be consistent with the mesh
+  b = 0.2,                  # Outlet channel aspect ratio, it has to be consistent with the mesh
   N  = 1.0,
   Ha = 1.0,
   cw = 0.028,
   τ  = 100,
   ζ  = 0.0,
   order = 2,
-  μ=0,
+  μ = 0,
   inlet = :parabolic,
-  initial_value=:zero,
-  solid_coupling=:none,
-  niter=nothing,
-  convection=:true,
-  savelines=false,
-  petsc_options="",
+  initial_value = :zero,
+  solid_coupling = :none,
+  niter = nothing,
+  convection = :true,
+  savelines = false,
+  petsc_options = "",
 )
   @assert solid_coupling ∈ [:none,:thin_wall,:solid]
   @assert inlet ∈ [:parabolic,:shercliff,:constant]
@@ -96,12 +96,12 @@ function _expansion(;
   if debug && vtk
     writevtk(model,path*"/expansion_model")
   end
-  Ω = Interior(model,tags="fluid")
   toc!(t,"model")
 
   # Parameters and bounday conditions
 
   # Fluid parameters
+
   Re = Ha^2/N
   if formulation == :cfd # Option 1 (CFD)
     α = 1.0
@@ -131,6 +131,7 @@ function _expansion(;
   )
 
   # Boundary conditions
+
   u_in = u_inlet(inlet,Ha,Z,b)
 
   params[:bcs] = Dict{Symbol,Any}()
@@ -160,12 +161,15 @@ function _expansion(;
       :tags => ["inlet", "outlet"],
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
     )
-    params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
+    params[:solid] = Dict(:domain => "wall",:σ => 1.0)
+    params[:fluid][:domain] = ["fluid"]
   end
 
   if μ > 0
     params[:bcs][:stabilization] = Dict(:μ=>μ)
   end
+
+  # Initial conditions
 
   j_zero = VectorValue(0.0,0.0,0.0)
   if initial_value == :inlet
@@ -173,6 +177,9 @@ function _expansion(;
       :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0
     )
   end
+
+  # Solver options
+
   if params[:solver][:solver] == :petsc && petsc_options != ""
     params[:solver][:petsc_options] = petsc_options
   end
@@ -206,6 +213,7 @@ function _expansion(;
   Grad_p = ∇·ph
 
   if vtk
+    Ω = Interior(model,tags="fluid")
     writevtk(
       Ω,joinpath(path,title),
       order=order,
