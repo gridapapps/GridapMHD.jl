@@ -224,7 +224,7 @@ function _expansion(;
     toc!(t,"vtk")
   end
   if savelines
-    line = top_line(model)
+    line = top_ha_line(model,Z)
     info[:line] = line
     info[:p_line] = ph(line)
   end
@@ -343,6 +343,16 @@ function top_line(model,n=100)
   xmin,xmax = pmin[1],pmax[1]
   zmax = pmax[3]
   line = map(x->Point(x,0.0,zmax), range(xmin,xmax,n+1))
+  return line
+end
+
+function top_ha_line(model,Z,n=100)
+  pmin,pmax = _get_bounding_box(model)
+  xmin,xmax = pmin[1],pmax[1]
+  ymax = pmax[2]
+  # line = map( x -> x>0 ? Point(x,ymax,0.0) : Point(x,ymax/Z,0.0), range(xmin,xmax,n+1))
+  # line = map( x -> x>0 ? Point(x,1.0,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
+  line = map( x -> x>0 ? Point(x,0.99,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
   return line
 end
 
