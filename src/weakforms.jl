@@ -22,6 +22,9 @@ function _weak_form(params,k)
   bcs_params = retrieve_bcs_params(params,k)
   params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
+  reffe_p = params[:fespaces][:reffe_p]
+  Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
+
   function a(x,dy)
     r = a_mhd(x,dy,β,γ,B,σf,dΩf)
     for p in params_thin_wall
@@ -157,7 +160,7 @@ retrieve_fluid_params(params,k) = retrieve_fluid_params(params[:model],params,k)
 
 function retrieve_fluid_params(model,params,k)
   fluid = params[:fluid]
-  Ωf    = _interior(model,fluid[:domain])
+  Ωf    = params[:Ωf]
   dΩf   = Measure(Ωf,2*k)
 
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
@@ -173,7 +176,7 @@ retrieve_solid_params(params,k) = retrieve_solid_params(params[:model],params,k)
 function retrieve_solid_params(model,params,k)
   solid = params[:solid]
   if solid !== nothing
-    Ωs  = _interior(model,solid[:domain])
+    Ωs  = params[:Ωs]
     dΩs = Measure(Ωs,2*k)
     σs  = solid[:σ]
     return Ωs, dΩs, σs
@@ -302,8 +305,8 @@ function a_al(x,dy,ζ,Πp,dΩ)
   v_u, v_p, v_j, v_φ = dy
   a_al_u_u(u,v_u,ζ,Πp,dΩ) + a_al_j_j(j,v_j,ζ,dΩ)
 end
-a_al_u_u(u,v_u,ζ,Πp,dΩ) = ∫( ζ*Πp(∇⋅u)*Πp(∇⋅v_u) ) * dΩ
-a_al_j_j(j,v_j,ζ,dΩ) = ∫( ζ*(∇⋅j)*(∇⋅v_j) ) * dΩ
+a_al_u_u(u,v_u,ζ,Πp,dΩ) = ∫( ζ*Πp(u)*(∇⋅v_u) )*dΩ
+a_al_j_j(j,v_j,ζ,dΩ) = ∫( ζ*(∇⋅j)*(∇⋅v_j) )*dΩ
 
 # Solid equations
 

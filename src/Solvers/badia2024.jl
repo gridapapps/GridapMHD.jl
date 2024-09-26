@@ -34,6 +34,7 @@ function Badia2024Solver(op::FEOperator,params)
   
   m = params[:solver][:niter]
   l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=1e-14,verbose=verbose,name="Global System - FGMRES + Badia2024")
+  SolverInterfaces.set_depth!(l_solver,2)
 
   # Nonlinear Solver
   nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=1,atol=1e-14,rtol=nl_rtol,verbose=verbose)

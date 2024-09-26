@@ -227,6 +227,7 @@ function _fe_space(::Val{:u},params)
 
   T = VectorValue{num_cell_dims(model),Float64}
   reffe_u = ReferenceFE(lagrangian,T,k)
+  params[:fespaces][:reffe_u] = reffe_u
 
   u_bc = params[:bcs][:u][:values]
   V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
@@ -250,6 +251,7 @@ function _fe_space(::Val{:p},params)
   reffe_p = ReferenceFE(lagrangian,Float64,k-1;space=params[:fespaces][:p_space])
   conformity = p_conformity(Ωf,params[:fespaces])
   constraint = params[:fespaces][:p_constraint]
+  params[:fespaces][:reffe_p] = reffe_p
 
   V_p = TestFESpace(Ωf,reffe_p;conformity,constraint)
   U_p = _trial_fe_space(V_p,nothing,params[:transient])
@@ -263,6 +265,7 @@ function _fe_space(::Val{:j},params)
   model = uses_mg ? params[:multigrid][:mh] : params[:model]
 
   reffe_j = ReferenceFE(raviart_thomas,Float64,k-1)
+  params[:fespaces][:reffe_j] = reffe_j
 
   j_bc = params[:bcs][:j][:values]
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
@@ -285,6 +288,7 @@ function _fe_space(::Val{:φ},params)
   reffe_φ = ReferenceFE(lagrangian,Float64,k-1)
   conformity = :L2
   constraint = params[:fespaces][:φ_constraint]
+  params[:fespaces][:reffe_φ] = reffe_φ
 
   V_φ = TestFESpace(model,reffe_φ;conformity,constraint)
   U_φ = _trial_fe_space(V_φ,nothing,params[:transient])
@@ -378,7 +382,7 @@ function _setup_trians!(params)
   else
     params[:multigrid][:Ωf] = Ωf
     params[:multigrid][:Ωs] = Ωs
-    params[:Ωf] = Ωs[1]
+    params[:Ωf] = Ωf[1]
     params[:Ωs] = Ωs[1]
   end
 end

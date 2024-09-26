@@ -24,7 +24,8 @@ using GridapDistributed: i_am_main
 using GridapGmsh
 using GridapPETSc
 
-using GridapSolvers, GridapSolvers.MultilevelTools, GridapSolvers.PatchBasedSmoothers
+using GridapSolvers
+using GridapSolvers.SolverInterfaces, GridapSolvers.MultilevelTools, GridapSolvers.PatchBasedSmoothers
 using GridapSolvers.LinearSolvers, GridapSolvers.NonlinearSolvers, GridapSolvers.BlockSolvers
 
 # Mesh generation

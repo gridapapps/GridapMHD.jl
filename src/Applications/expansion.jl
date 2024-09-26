@@ -115,11 +115,11 @@ function _expansion(;
     error("Unknown formulation")
   end
 
-  params[:fespaces] = Dict(
+  params[:fespaces] = Dict{Symbol,Any}(
     :order_u => order
   )
 
-  params[:fluid] = Dict(
+  params[:fluid] = Dict{Symbol,Any}(
     :domain => nothing, # whole domain
     :α => α,
     :β => β,
@@ -141,16 +141,16 @@ function _expansion(;
   )
 
   if solid_coupling == :none
-    params[:bcs][:j] = Dict(
+    params[:bcs][:j] = Dict{Symbol,Any}(
       :tags => ["wall", "inlet", "outlet"],
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
     )
   elseif solid_coupling == :thin_wall
-    params[:bcs][:j] = Dict(
+    params[:bcs][:j] = Dict{Symbol,Any}(
       :tags => ["inlet", "outlet"],
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
     )
-    params[:bcs][:thin_wall] = Dict(
+    params[:bcs][:thin_wall] = Dict{Symbol,Any}(
       :τ=>τ,
       :cw=>cw,
       :domain => ["wall"],

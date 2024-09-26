@@ -211,6 +211,7 @@ function default_solver_params(::Val{:badia2024})
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
+    :initial_values => nothing,
   )
 end
 
