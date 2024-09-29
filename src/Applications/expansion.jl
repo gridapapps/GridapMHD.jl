@@ -120,7 +120,7 @@ function _expansion(;
   )
 
   params[:fluid] = Dict{Symbol,Any}(
-    :domain => nothing, # whole domain
+    :domain => "fluid",
     :α => α,
     :β => β,
     :γ => γ,
@@ -162,7 +162,6 @@ function _expansion(;
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
     )
     params[:solid] = Dict(:domain => "wall",:σ => 1.0)
-    params[:fluid][:domain] = ["fluid"]
   end
 
   if μ > 0
