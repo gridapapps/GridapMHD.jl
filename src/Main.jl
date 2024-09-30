@@ -348,15 +348,6 @@ end
 const DiscreteModelTypes = Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel}
 const TriangulationTypes = Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation}
 
-function _fluid_mesh(model,domain::DiscreteModelTypes)
-  msg = "params[:fluid][:domain] is a discrete model, but params[:fluid][:domain]===params[:model] is not true."
-  @assert model === domain msg
-  return domain
-end
-_fluid_mesh(model,domain::TriangulationTypes) = domain
-_fluid_mesh(model,domain::Nothing) = model # This should be removed, but Gridap needs fixes
-_fluid_mesh(model,domain) = Interior(model,tags=domain)
-
 _interior(model,domain::DiscreteModelTypes) = Interior(domain)
 _interior(model,domain::TriangulationTypes) = domain
 _interior(model,domain::Nothing) = Triangulation(model) # This should be removed, but Gridap needs fixes
@@ -370,18 +361,23 @@ _skeleton(model,domain::Nothing) = SkeletonTriangulation(model)
 _skeleton(model,domain) = _skeleton(model,_interior(model,domain))
 
 function _setup_trians!(params)
+  Ω = _interior(params[:model],nothing)
+
   fluid = params[:fluid]
-  Ωf = _fluid_mesh(params[:model],fluid[:domain])
+  Ωf = _interior(params[:model],fluid[:domain])
 
   solid = params[:solid]
   Ωs = !isnothing(solid) ? _interior(params[:model],solid[:domain]) : nothing
 
   if !uses_multigrid(params[:solver])
+    params[:Ω]  = Ω
     params[:Ωf] = Ωf
     params[:Ωs] = Ωs
   else
+    params[:multigrid][:Ω]  = Ω
     params[:multigrid][:Ωf] = Ωf
     params[:multigrid][:Ωs] = Ωs
+    params[:Ω]  = Ω[1]
     params[:Ωf] = Ωf[1]
     params[:Ωs] = Ωs[1]
   end

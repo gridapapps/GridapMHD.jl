@@ -4,11 +4,13 @@ function Badia2024Solver(op::FEOperator,params)
   # Preconditioner
   model = params[:model]
   k  = params[:fespaces][:k]
-  Ωf = _interior(model,params[:fluid][:domain])
-  dΩ = Measure(Ωf,2*k)
+  Ω = params[:Ω]
+  dΩ = Measure(Ω,2*k)
+  Ωf = params[:Ωf]
+  dΩf = Measure(Ωf,2*k)
   α_p = -1.0/(params[:fluid][:β] + params[:fluid][:ζ])
   α_φ = -1.0/(1.0 + params[:fluid][:ζ])
-  a_Ip(p,v_p) = ∫(α_p*p*v_p)*dΩ
+  a_Ip(p,v_p) = ∫(α_p*p*v_p)*dΩf
   a_Iφ(φ,v_φ) = ∫(α_φ*φ*v_φ)*dΩ
 
   U_u, U_p, U_j, U_φ = get_trial(op)
@@ -38,6 +40,6 @@ function Badia2024Solver(op::FEOperator,params)
   l_solver.log.depth = 2
 
   # Nonlinear Solver
-  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=1,atol=1e-14,rtol=nl_rtol,verbose=verbose)
+  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=10,atol=1e-14,rtol=nl_rtol,verbose=verbose)
   return nl_solver
 end

@@ -13,6 +13,9 @@ function weak_form(params,k)
 end
 
 function _weak_form(params,k)
+  Ω = params[:Ω]
+  dΩ = Measure(Ω,2*k)
+
   fluid = params[:fluid]
   Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
 
@@ -40,7 +43,7 @@ function _weak_form(params,k)
       r = r + a_solid(x,dy,σs,dΩs)
     end
     if abs(ζ) > eps(typeof(ζ))
-      r = r + a_al(x,dy,ζ,Πp,dΩf)
+      r = r + a_al(x,dy,ζ,Πp,dΩf,dΩ)
     end
     r
   end
@@ -300,10 +303,10 @@ dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( (conv∘(u,∇(du))) + (conv∘(du
 
 # Augmented lagrangian
 
-function a_al(x,dy,ζ,Πp,dΩ)
+function a_al(x,dy,ζ,Πp,dΩf,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
-  a_al_u_u(u,v_u,ζ,Πp,dΩ) + a_al_j_j(j,v_j,ζ,dΩ)
+  a_al_u_u(u,v_u,ζ,Πp,dΩf) + a_al_j_j(j,v_j,ζ,dΩ)
 end
 a_al_u_u(u,v_u,ζ,Πp,dΩ) = ∫( ζ*Πp(u)*(∇⋅v_u) )*dΩ
 a_al_j_j(j,v_j,ζ,dΩ) = ∫( ζ*(∇⋅j)*(∇⋅v_j) )*dΩ
