@@ -162,6 +162,8 @@ function params_solver(params::Dict{Symbol,Any})
   return solver
 end
 
+default_solver_params(s::Symbol) = default_solver_params(Val(s))
+
 function default_solver_params(::Val{:julia})
   return Dict(
     :solver => :julia,
