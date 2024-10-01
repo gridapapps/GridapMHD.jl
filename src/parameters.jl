@@ -589,5 +589,5 @@ function params_bcs_stabilization(params::Dict{Symbol,Any})
    :μ=>true,
   )
   optional = Dict(:domain=>params[:fluid][:domain])
-  _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:thin_wall]")
+  _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:stabilization]")
 end

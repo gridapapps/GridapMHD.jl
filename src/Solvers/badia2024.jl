@@ -16,7 +16,7 @@ function Badia2024Solver(op::FEOperator,params)
   U_u, U_p, U_j, U_φ = get_trial(op)
   V_u, V_p, V_j, V_φ = get_test(op)
 
-  diag_solvers = map(s -> get_block_solver(Val(s),params),params[:solver][:block_solvers])
+  diag_solvers = map(s -> get_block_solver(Val(s),params), params[:solver][:block_solvers])
 
   uj_block = NonlinearSystemBlock(1)
   p_block  = BiformBlock(a_Ip,U_p,V_p)
