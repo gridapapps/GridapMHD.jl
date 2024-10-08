@@ -227,6 +227,7 @@ function _expansion(;
     line = top_ha_line(model,Z)
     info[:line] = line
     info[:p_line] = ph(line)
+    toc!(t,"p-lines")
   end
   if verbose
     display(t)
@@ -347,12 +348,13 @@ function top_line(model,n=100)
 end
 
 function top_ha_line(model,Z,n=100)
+  δ = 1.e4*eps(Float64)
   pmin,pmax = _get_bounding_box(model)
-  xmin,xmax = pmin[1],pmax[1]
-  ymax = pmax[2]
-  # line = map( x -> x>0 ? Point(x,ymax,0.0) : Point(x,ymax/Z,0.0), range(xmin,xmax,n+1))
+  xmin,xmax = pmin[1]+δ,pmax[1]-δ
+  y1,y2 = pmax[2]-δ, pmax[2]/Z
+  line = map( x -> x>0 ? Point(x,y1,0.0) : Point(x,y2,0.0), range(xmin,xmax,n+1))
   # line = map( x -> x>0 ? Point(x,1.0,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
-  line = map( x -> x>0 ? Point(x,0.99,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
+  #line = map( x -> x>0 ? Point(x,0.99,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
   return line
 end
 
