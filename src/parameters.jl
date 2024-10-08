@@ -162,6 +162,8 @@ function params_solver(params::Dict{Symbol,Any})
   return solver
 end
 
+default_solver_params(s::Symbol) = default_solver_params(Val(s))
+
 function default_solver_params(::Val{:julia})
   return Dict(
     :solver => :julia,
@@ -211,6 +213,7 @@ function default_solver_params(::Val{:badia2024})
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
+    :initial_values => nothing,
   )
 end
 
@@ -586,5 +589,5 @@ function params_bcs_stabilization(params::Dict{Symbol,Any})
    :μ=>true,
   )
   optional = Dict(:domain=>params[:fluid][:domain])
-  _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:thin_wall]")
+  _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:stabilization]")
 end

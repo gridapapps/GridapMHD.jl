@@ -13,6 +13,9 @@ function weak_form(params,k)
 end
 
 function _weak_form(params,k)
+  Ω = params[:Ω]
+  dΩ = Measure(Ω,2*k)
+
   fluid = params[:fluid]
   Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
 
@@ -21,6 +24,9 @@ function _weak_form(params,k)
 
   bcs_params = retrieve_bcs_params(params,k)
   params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
+
+  reffe_p = params[:fespaces][:reffe_p]
+  Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
 
   function a(x,dy)
     r = a_mhd(x,dy,β,γ,B,σf,dΩf)
@@ -37,7 +43,7 @@ function _weak_form(params,k)
       r = r + a_solid(x,dy,σs,dΩs)
     end
     if abs(ζ) > eps(typeof(ζ))
-      r = r + a_al(x,dy,ζ,Πp,dΩf)
+      r = r + a_al(x,dy,ζ,Πp,dΩf,dΩ)
     end
     r
   end
@@ -157,7 +163,7 @@ retrieve_fluid_params(params,k) = retrieve_fluid_params(params[:model],params,k)
 
 function retrieve_fluid_params(model,params,k)
   fluid = params[:fluid]
-  Ωf    = _interior(model,fluid[:domain])
+  Ωf    = params[:Ωf]
   dΩf   = Measure(Ωf,2*k)
 
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
@@ -173,7 +179,7 @@ retrieve_solid_params(params,k) = retrieve_solid_params(params[:model],params,k)
 function retrieve_solid_params(model,params,k)
   solid = params[:solid]
   if solid !== nothing
-    Ωs  = _interior(model,solid[:domain])
+    Ωs  = params[:Ωs]
     dΩs = Measure(Ωs,2*k)
     σs  = solid[:σ]
     return Ωs, dΩs, σs
@@ -297,13 +303,13 @@ dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( (conv∘(u,∇(du))) + (conv∘(du
 
 # Augmented lagrangian
 
-function a_al(x,dy,ζ,Πp,dΩ)
+function a_al(x,dy,ζ,Πp,dΩf,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
-  a_al_u_u(u,v_u,ζ,Πp,dΩ) + a_al_j_j(j,v_j,ζ,dΩ)
+  a_al_u_u(u,v_u,ζ,Πp,dΩf) + a_al_j_j(j,v_j,ζ,dΩ)
 end
-a_al_u_u(u,v_u,ζ,Πp,dΩ) = ∫( ζ*Πp(∇⋅u)*Πp(∇⋅v_u) ) * dΩ
-a_al_j_j(j,v_j,ζ,dΩ) = ∫( ζ*(∇⋅j)*(∇⋅v_j) ) * dΩ
+a_al_u_u(u,v_u,ζ,Πp,dΩ) = ∫( ζ*(∇⋅u)*(∇⋅v_u) )*dΩ
+a_al_j_j(j,v_j,ζ,dΩ) = ∫( ζ*(∇⋅j)*(∇⋅v_j) )*dΩ
 
 # Solid equations
 
