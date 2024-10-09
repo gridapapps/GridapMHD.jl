@@ -16,7 +16,7 @@ function generate_refined_mesh(
   model = GridapP4est.with(ranks) do
     OctreeDistributedDiscreteModel(ranks,base_model,num_refs)
   end
-  return model
+  return model.dmodel
 end
 
 """
