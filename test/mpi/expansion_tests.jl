@@ -5,6 +5,6 @@ using SparseMatricesCSR
 
 using GridapMHD: expansion
 
-expansion(np=4,backend=:mpi)
+expansion(np=4,backend=:mpi,savelines=true)
 
 end

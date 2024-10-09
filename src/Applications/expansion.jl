@@ -339,9 +339,9 @@ function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in
 end
 
 function evaluate_line(uh,line)
-  model = get_background_model(uh)
+  model = get_background_model(get_triangulation(uh))
   # Simplexified model
-  smodel = Adaptivity.refine(model;refinement_method="simplexify")
+  smodel = Gridap.Adaptivity.refine(model;refinement_method="simplexify")
   strian = Triangulation(smodel)
   # Distributed change of domain
   uhi = GridapDistributed.DistributedCellField(

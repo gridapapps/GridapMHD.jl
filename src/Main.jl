@@ -190,7 +190,12 @@ function _solver(op,params)
 end
 
 #_solver(::Val{:julia},op,params) = NLSolver(show_trace=true,method=:newton)
-_solver(::Val{:julia},op,params) = GridapSolvers.NewtonSolver(LUSolver(),maxiter=params[:solver][:niter],rtol=1.e-6,verbose=true)
+function _solver(::Val{:julia},op,params)
+  verbose = i_am_main(get_parts(params[:model]))
+  GridapSolvers.NewtonSolver(
+    LUSolver(),maxiter=params[:solver][:niter],rtol=1.e-6,verbose=verbose
+  )
+end
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
 _solver(::Val{:li2019},op,params) = Li2019Solver(op,params)
 _solver(::Val{:badia2024},op,params) = Badia2024Solver(op,params)
