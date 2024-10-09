@@ -225,7 +225,7 @@ function _expansion(;
   if savelines
     line = top_ha_line(model,Z)
     info[:line] = line
-    info[:p_line] = ph(line)
+    info[:p_line] = evaluate_line(ph,line)
     toc!(t,"p-lines")
   end
   if verbose
@@ -259,7 +259,7 @@ function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   if !ispath(msh_file)
     msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
   end
-  model = GmshDiscreteModel(ranks,msh_file;has_affine_map=true)
+  model = UnstructuredDiscreteModel(GmshDiscreteModel(ranks,msh_file))
   params[:model] = model
   return model
 end
@@ -272,7 +272,7 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
     if !ispath(msh_file)
       msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
     end
-    base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
+    base_model = UnstructuredDiscreteModel(GmshDiscreteModel(msh_file))
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["fluid"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
@@ -292,7 +292,7 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
     if !ispath(msh_file)
       msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
     end
-    base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
+    base_model = UnstructuredDiscreteModel(GmshDiscreteModel(msh_file))
     add_tag_from_tags!(get_face_labeling(base_model),"interior",["fluid"])
     add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
@@ -338,6 +338,19 @@ function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in
  U
 end
 
+function evaluate_line(uh,line)
+  model = get_background_model(uh)
+  # Simplexified model
+  smodel = Adaptivity.refine(model;refinement_method="simplexify")
+  strian = Triangulation(smodel)
+  # Distributed change of domain
+  uhi = GridapDistributed.DistributedCellField(
+    map((uhi,ti) -> change_domain(uhi,ti,ReferenceDomain()),local_views(uh),local_views(strian)),
+    strian
+  )
+  return uhi(line)
+end
+
 function top_line(model,n=100)
   pmin,pmax = _get_bounding_box(model)
   xmin,xmax = pmin[1],pmax[1]
@@ -347,13 +360,11 @@ function top_line(model,n=100)
 end
 
 function top_ha_line(model,Z,n=100)
-  δ = 1.e4*eps(Float64)
+  δ = 1.e6*eps(Float64)
   pmin,pmax = _get_bounding_box(model)
   xmin,xmax = pmin[1]+δ,pmax[1]-δ
   y1,y2 = pmax[2]-δ, pmax[2]/Z
-  line = map( x -> x>0 ? Point(x,y1,0.0) : Point(x,y2,0.0), range(xmin,xmax,n+1))
-  # line = map( x -> x>0 ? Point(x,1.0,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
-  #line = map( x -> x>0 ? Point(x,0.99,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
+  line = map( x -> x>0 ? Point(x,y1,δ) : Point(x,y2,δ), range(xmin,xmax,n+1))
   return line
 end
 
