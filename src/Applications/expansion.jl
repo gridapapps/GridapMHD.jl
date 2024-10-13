@@ -56,6 +56,7 @@ function _expansion(;
   τ  = 100,
   ζ  = 0.0,
   order = 2,
+  order_j = order,
   μ = 0,
   inlet = :parabolic,
   initial_value = :zero,
@@ -116,7 +117,8 @@ function _expansion(;
   end
 
   params[:fespaces] = Dict{Symbol,Any}(
-    :order_u => order
+    :order_u => order,
+    :order_j => order_j,
   )
 
   params[:fluid] = Dict{Symbol,Any}(
@@ -264,6 +266,25 @@ function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   return model
 end
 
+function expansion_mesh(::Val{:gridap_SG},mesh::Dict,ranks,params)
+  @assert haskey(mesh,:num_refs)
+  num_refs = mesh[:num_refs]
+  if haskey(mesh,:base_mesh)
+    msh_file = mesh[:base_mesh]
+    if !ispath(msh_file)
+      msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
+    end
+    base_model = UnstructuredDiscreteModel(GmshDiscreteModel(ranks,msh_file))
+    add_tag_from_tags!(get_face_labeling(base_model),"interior",["fluid"])
+    add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
+  else
+    base_model = expansion_generate_base_mesh()
+  end
+  model = Meshers.generate_refined_mesh(ranks,base_model,num_refs)
+  params[:model] = model
+  return model
+end
+
 function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs)
   num_refs = mesh[:num_refs]
@@ -278,7 +299,7 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   else
     base_model = expansion_generate_base_mesh()
   end
-  model = Meshers.generate_refined_mesh(ranks,base_model,num_refs)
+  model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
   params[:model] = model
   return model
 end
@@ -299,7 +320,7 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
     base_model = expansion_generate_base_mesh()
   end
 
-  mh = Meshers.generate_mesh_hierarchy(ranks,base_model,num_refs_coarse,ranks_per_level)
+  mh = Meshers.generate_p4est_mesh_hierarchy(ranks,base_model,num_refs_coarse,ranks_per_level)
   params[:multigrid] = Dict{Symbol,Any}(
     :mh => mh,
     :num_refs_coarse => num_refs_coarse,
@@ -311,8 +332,8 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   return model
 end
 
-function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in every case
-
+# It ensures avg(u) = 1 in the outlet channel in every case
+function u_inlet(inlet,Ha,Z,β)
   u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/Z)*(y+1/Z)*(z-β*Z)*(z+β*Z),0,0)
 
   kp_inlet = GridapMHD.kp_shercliff_cartesian(β*Z,Ha/Z)
@@ -335,7 +356,8 @@ function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in
   else
     U = u_inlet_cte
   end
- U
+
+  return U
 end
 
 function evaluate_line(uh,line)
@@ -381,56 +403,35 @@ function evaluation_lines(model,Z,n=100)
   xline,yline,zline
 end
 
-function _get_bounding_box(x::AbstractVector{<:Point})
-  pmin,pmax = x[1],x[1]
+function _get_bounding_box(x::AbstractVector{<:Point{D}}) where D
+  pmin = fill(Inf,D)
+  pmax = fill(-Inf,D)
   for p in x
-    pmin = min.(pmin,p)
-    pmax = max.(pmax,p)
+    for d in 1:D
+      pmin[d] = min(pmin[d],p[d])
+      pmax[d] = max(pmax[d],p[d])
+    end
   end
-  pmin,pmax
+  pmin, pmax
 end
 
 function _get_bounding_box(model::DiscreteModel)
   _get_bounding_box(get_node_coordinates(model))
 end
 
-function _get_bounding_box(model::GridapDistributed.DistributedDiscreteModel)
-  boxes = map(_get_bounding_box,local_views(model))
-  boxes = gather(boxes,destination=:all)
-  boxes = map(boxes) do boxes
-    if ! isempty(boxes)
-      pmin,pmax = boxes[1]
-      for (bmin,bmax) in boxes
-        pmin = min.(pmin,bmin)
-        pmax = max.(pmax,bmax)
-      end
-      pmin,pmax
-    else
-      @unreachable
-    end
+function _get_bounding_box(
+  model::GridapDistributed.DistributedDiscreteModel{Dc}
+) where Dc
+  _pmin, _pmax = map(_get_bounding_box,local_views(model)) |> tuple_of_arrays
+  
+  pmin = fill(Inf,Dc)
+  pmax = fill(-Inf,Dc)
+  for d in 1:Dc
+    d_min = map(x -> x[d], _pmin)
+    d_max = map(x -> x[d], _pmax)
+    pmin[d] = PartitionedArrays.getany(reduction(min,d_min;destination=:all))
+    pmax[d] = PartitionedArrays.getany(reduction(max,d_max;destination=:all))
   end
-  pmin,pmax = PartitionedArrays.getany(boxes)
-  pmin,pmax
-end
-
-# CellField evaluations until comments in
-# https://github.com/gridap/GridapDistributed.jl/pull/146 are fixed
-
-function vector_field_eval(f,x)
-  fx = scalar_field_eval(f,x,1)
-  fy = scalar_field_eval(f,x,2)
-  fz = scalar_field_eval(f,x,3)
-  map(VectorValue,fx,fy,fz)
-end
-
-function scalar_field_eval(f,x,comp)
-  fx = (x->x[comp])∘f
-  fx = emit(fx(x))
-  PartitionedArrays.getany(fx)
-end
-
-function scalar_field_eval(f,x)
-  fx = f(x)
-  fx = emit(fx(x))
-  PartitionedArrays.getany(fx)
+  
+  return pmin, pmax
 end

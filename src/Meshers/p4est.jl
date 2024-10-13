@@ -1,6 +1,6 @@
 
 """
-    expansion_generate_mesh(ranks,num_refs)
+    generate_p4est_refined_mesh(ranks,base_model,num_refs)
 
   ranks      :: Number of processors of the distributed mesh
   base_model :: Base serial model
@@ -8,7 +8,7 @@
   
   Final mesh will have nc = num_cells(base_model)*2^(3*num_refs) cells.
 """
-function generate_refined_mesh(
+function generate_p4est_refined_mesh(
   ranks,
   base_model::DiscreteModel,
   num_refs::Integer
@@ -20,7 +20,7 @@ function generate_refined_mesh(
 end
 
 """
-    expansion_generate_mesh_hierarchy(level_ranks,num_refs)
+    generate_p4est_mesh_hierarchy(ranks,base_model,num_refs_coarse,ranks_per_level)
 
   ranks           :: Number of processors
   base_model      :: Base serial model
@@ -32,7 +32,7 @@ end
   where 
      nlevels = length(ranks_per_level)
 """
-function generate_mesh_hierarchy(
+function generate_p4est_mesh_hierarchy(
   ranks,
   base_model::DiscreteModel,
   num_refs_coarse::Integer,
@@ -45,4 +45,25 @@ function generate_mesh_hierarchy(
     return ModelHierarchy(ranks,model,ranks_per_level)
   end
   return mh
+end
+
+"""
+    generate_refined_mesh(ranks,base_model,num_refs)
+
+  ranks      :: Number of processors of the distributed mesh
+  base_model :: Base distributed model
+  num_refs   :: Number of refinements to perform. 
+  
+  Final mesh will have nc = num_cells(base_model)*2^(3*num_refs) cells.
+"""
+function generate_refined_mesh(
+  ranks,
+  base_model::GridapDistributed.DistributedDiscreteModel,
+  num_refs::Integer
+)
+  model = base_model
+  for i in 1:num_refs 
+    model = refine(model)
+  end
+  return model.model
 end
