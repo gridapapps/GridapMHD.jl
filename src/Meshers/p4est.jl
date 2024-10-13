@@ -65,5 +65,5 @@ function generate_refined_mesh(
   for i in 1:num_refs 
     model = refine(model)
   end
-  return model.model
+  return Gridap.Adaptivity.get_model(model)
 end
