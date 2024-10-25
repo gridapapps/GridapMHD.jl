@@ -162,8 +162,8 @@ function _expansion(;
   else
     @assert solid_coupling == :solid
     params[:bcs][:j] = Dict(
-      :tags => ["inlet", "outlet", "wall_exterior"],
-      :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
+      :tags => ["wall_exterior", "inlet", "outlet"],
+      :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
     )
     params[:solid] = Dict(:domain => "wall",:σ => 1.0)
   end
