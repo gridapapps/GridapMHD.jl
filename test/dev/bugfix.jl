@@ -11,7 +11,7 @@ using GridapGmsh
 using GridapMHD
 
 np = (2,2)
-ranks = with_mpi() do distribute
+ranks = with_debug() do distribute
   distribute(LinearIndices((prod(np),)))
 end
 
@@ -48,6 +48,10 @@ params[:bcs] = Dict{Symbol,Any}(
   ),
 )
 params[:solid] = Dict(:domain => "wall",:σ => 1.0)
+params[:fespaces] = Dict{Symbol,Any}(
+  :order_u => 2,
+  :order_j => 3,
+)
 
 model = GridapMHD.expansion_mesh(mesh,ranks,params)
 

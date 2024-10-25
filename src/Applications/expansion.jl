@@ -160,7 +160,7 @@ function _expansion(;
   else
     @assert solid_coupling == :solid
     params[:bcs][:j] = Dict(
-      :tags => ["inlet", "outlet"],
+      :tags => ["inlet", "outlet", "wall_exterior"],
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
     )
     params[:solid] = Dict(:domain => "wall",:σ => 1.0)
@@ -262,6 +262,7 @@ function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
     msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
   end
   model = UnstructuredDiscreteModel(GmshDiscreteModel(ranks,msh_file))
+  setup_expansion_mesh_tags!(model)
   params[:model] = model
   return model
 end
@@ -275,11 +276,10 @@ function expansion_mesh(::Val{:gridap_SG},mesh::Dict,ranks,params)
       msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
     end
     base_model = UnstructuredDiscreteModel(GmshDiscreteModel(ranks,msh_file))
-    add_tag_from_tags!(get_face_labeling(base_model),"interior",["fluid"])
-    add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
     base_model = expansion_generate_base_mesh()
   end
+  setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_refined_mesh(ranks,base_model,num_refs)
   params[:model] = model
   return model
@@ -294,11 +294,10 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
       msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
     end
     base_model = UnstructuredDiscreteModel(GmshDiscreteModel(msh_file))
-    add_tag_from_tags!(get_face_labeling(base_model),"interior",["fluid"])
-    add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
     base_model = expansion_generate_base_mesh()
   end
+  setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
   params[:model] = model
   return model
@@ -314,11 +313,10 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
       msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
     end
     base_model = UnstructuredDiscreteModel(GmshDiscreteModel(msh_file))
-    add_tag_from_tags!(get_face_labeling(base_model),"interior",["fluid"])
-    add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
   else
     base_model = expansion_generate_base_mesh()
   end
+  setup_expansion_mesh_tags!(base_model)
 
   mh = Meshers.generate_p4est_mesh_hierarchy(ranks,base_model,num_refs_coarse,ranks_per_level)
   params[:multigrid] = Dict{Symbol,Any}(
@@ -330,6 +328,36 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   model = get_model(mh,1)
   params[:model] = model
   return model
+end
+
+function setup_expansion_mesh_tags!(model::GridapDistributed.DistributedDiscreteModel)
+  map(setup_expansion_mesh_tags!,local_views(model))
+end
+
+function setup_expansion_mesh_tags!(model::DiscreteModel)
+  labels = get_face_labeling(model)
+
+  tags = labels.tag_to_name
+  solid = ["wall_interior","wall_exterior","wall_volume"] ⊂ tags
+
+  if "wall" ∉ tags
+    @assert solid
+    add_tag_from_tags!(labels,"wall",["wall_interior","wall_exterior","wall_volume"])
+  end
+  if "boundary" ∉ tags
+    if solid
+      add_tag_from_tags!(labels,"boundary",["inlet","outlet","wall_exterior"])
+    else
+      add_tag_from_tags!(labels,"boundary",["inlet","outlet","wall"])
+    end
+  end
+  if "interior" ∉ tags
+    if solid
+      add_tag_from_tags!(labels,"interior",["fluid","wall_volume","wall_interior"])
+    else
+      add_tag_from_tags!(labels,"interior",["fluid"])
+    end
+  end
 end
 
 # It ensures avg(u) = 1 in the outlet channel in every case
