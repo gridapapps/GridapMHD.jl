@@ -269,7 +269,8 @@ function _fe_space(::Val{:j},params)
   uses_mg = space_uses_multigrid(params[:solver])[3]
   model = uses_mg ? params[:multigrid][:mh] : params[:model]
 
-  reffe_j = ReferenceFE(raviart_thomas,Float64,k-1)
+  phi = rt_scaling(model,params[:fespaces])
+  reffe_j = ReferenceFE(raviart_thomas,Float64,k-1;basis_type=:jacobi,phi=phi)
   params[:fespaces][:reffe_j] = reffe_j
 
   j_bc = params[:bcs][:j][:values]
@@ -448,4 +449,13 @@ end
 
 function _get_cell_size(t::GridapDistributed.DistributedTriangulation)
   map(_get_cell_size,local_views(t))
+end
+
+_get_cell_size(m::DiscreteModelTypes) = _get_cell_size(Triangulation(m))
+
+_get_mesh_size(m::DiscreteModel) = minimum(_get_cell_size(m))
+
+function _get_mesh_size(m::GridapDistributed.DistributedDiscreteModel)
+  h = map(_get_mesh_size,local_views(m))
+  return reduce(min,h;init=one(eltype(h)))
 end

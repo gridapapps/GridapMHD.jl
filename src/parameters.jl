@@ -269,6 +269,7 @@ function params_fespaces(params::Dict{Symbol,Any})
    :p_space => false,
    :p_constraint => false,
    :φ_constraint => false,
+   :rt_scaling => false,
   )
   optional = Dict(
    :order_u => 2,
@@ -276,6 +277,7 @@ function params_fespaces(params::Dict{Symbol,Any})
    :p_space => :P,
    :p_constraint => nothing,
    :φ_constraint => nothing,
+   :rt_scaling => nothing,
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
   fespaces[:p_conformity] = p_conformity(params[:model],fespaces)
@@ -305,6 +307,18 @@ function p_conformity(Ω::GridapDistributed.DistributedTriangulation,feparams)
 end
 p_conformity(model::DiscreteModel,feparams) = p_conformity(Interior(model),feparams)
 p_conformity(model::GridapDistributed.DistributedDiscreteModel,feparams) = p_conformity(Interior(model),feparams)
+
+# Scaling for Raviart-Thomas basis functions
+function rt_scaling(model,feparams)
+  Dc = num_cell_dims(model)
+  if isnothing(feparams[:rt_scaling])
+    phi = GenericField(identity)
+  else
+    ξ = feparams[:rt_scaling]
+    phi = AffineMap(ξ*one(TensorValue{Dc,Dc,Float64}),zero(VectorValue{Dc,Float64}))
+  end
+  return phi
+end
 
 """
 Valid keys for `params[:multigrid]` are the following:

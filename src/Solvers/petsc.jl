@@ -6,6 +6,10 @@ get_block_solver(::Val{:petsc_gmres_schwarz},params) = PETScLinearSolver(petsc_g
 get_block_solver(::Val{:petsc_gmres_amg},params)     = PETScLinearSolver(petsc_gmres_amg_setup)
 get_block_solver(::Val{:petsc_from_options},params)  = PETScLinearSolver()
 
+# MUMPS
+
+MUMPS_MAX_MEM_INCREASE = 40 # TODO: Create preferences?
+
 function petsc_mumps_setup(ksp)
   pc       = Ref{GridapPETSc.PETSC.PC}()
   mumpsmat = Ref{GridapPETSc.PETSC.Mat}()
@@ -17,9 +21,9 @@ function petsc_mumps_setup(ksp)
   @check_error_code GridapPETSc.PETSC.PCFactorGetMatrix(pc[],mumpsmat)
   # @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  4, 1)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[],  7, 0)
+  @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 14, MUMPS_MAX_MEM_INCREASE)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 28, 2)
   @check_error_code GridapPETSc.PETSC.MatMumpsSetIcntl(mumpsmat[], 29, 1)
-  # @check_error_code GridapPETSc.PETSC.MatMumpsSetCntl(mumpsmat[], 3, 1.0e-6)
   @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
 end
 

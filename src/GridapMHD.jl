@@ -14,6 +14,7 @@ using DrWatson
 using Gridap
 using Gridap.Helpers, Gridap.Algebra, Gridap.CellData, Gridap.ReferenceFEs
 using Gridap.Geometry, Gridap.FESpaces, Gridap.MultiField, Gridap.ODEs
+using Gridap.Fields
 
 using PartitionedArrays
 using PartitionedArrays: getany

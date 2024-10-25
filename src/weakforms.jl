@@ -308,7 +308,7 @@ function a_al(x,dy,ζ,Πp,dΩf,dΩ)
   v_u, v_p, v_j, v_φ = dy
   a_al_u_u(u,v_u,ζ,Πp,dΩf) + a_al_j_j(j,v_j,ζ,dΩ)
 end
-a_al_u_u(u,v_u,ζ,Πp,dΩ) = ∫( ζ*(∇⋅u)*(∇⋅v_u) )*dΩ
+a_al_u_u(u,v_u,ζ,Πp,dΩ) = ∫( ζ*Πp(u)*(∇⋅v_u) )*dΩ
 a_al_j_j(j,v_j,ζ,dΩ) = ∫( ζ*(∇⋅j)*(∇⋅v_j) )*dΩ
 
 # Solid equations
