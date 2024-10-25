@@ -340,7 +340,7 @@ function setup_expansion_mesh_tags!(model::DiscreteModel)
   labels = get_face_labeling(model)
 
   tags = labels.tag_to_name
-  solid = ["wall_interior","wall_exterior","wall_volume"] ⊂ tags
+  solid = issubset(["wall_interior","wall_exterior","wall_volume"], tags)
 
   if "wall" ∉ tags
     @assert solid
