@@ -252,6 +252,7 @@ end
 # MHD equations
 
 conv(u,∇u) = (∇u')⋅u
+dconv(du,∇du,u,∇u) = conv(u,∇du) + conv(du,∇u)
 
 function a_mhd(x,dy,β,γ,B,σ,dΩ)
   u, p, j, φ = x
@@ -298,8 +299,7 @@ function dc_mhd(x,dx,dy,α,dΩ)
   v_u, v_p, v_j, v_φ = dy
   dc_mhd_u_u(u,du,v_u,α,dΩ)
 end
-dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( (conv∘(u,∇(du))) + (conv∘(du,∇(u))) ) ) * dΩ
-
+dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( dconv∘(du,∇(du),u,∇(u)) ) ) * dΩ
 
 # Augmented lagrangian
 
