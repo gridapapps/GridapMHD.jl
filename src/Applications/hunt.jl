@@ -54,6 +54,8 @@ function _hunt(;
   σw1=0.1,
   σw2=10.0,
   tw=0.0,
+  order = 2,
+  order_j = order,
   nsums = 10,
   vtk=true,
   title = "test",
@@ -63,12 +65,14 @@ function _hunt(;
   jac_assemble = false,
   solve = true,
   solver = :julia,
+  formulation = :mhd,
+  rt_scaling = false,
   verbose = true,
   BL_adapted = true,
   kmap_x = 1,
   kmap_y = 1,
   ranks_per_level = nothing
-  )
+)
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -105,11 +109,20 @@ function _hunt(;
   N = Ha^2/Re
   f̄ = (L/(ρ*u0^2))*VectorValue(f)
   B̄ = (1/B0)*VectorValue(B)
-  α = 1.0
-  β = 1.0/Re
-  γ = N
   σ̄1 = σw1/σ
   σ̄2 = σw2/σ
+
+  if formulation == :cfd # Option 1 (CFD)
+    α = 1.0
+    β = 1.0/Re
+    γ = N
+  elseif formulation == :mhd # Option 2 (MHD) is chosen in the experimental article
+    α = (1.0/N)
+    β = (1.0/Ha^2)
+    γ = 1.0
+  else
+    error("Unknown formulation")
+  end
 
   # DiscreteModel in terms of reduced quantities
 
@@ -119,29 +132,27 @@ function _hunt(;
     writevtk(model,"hunt_model")
   end
 
+  params[:fluid] = Dict{Symbol,Any}(
+    :domain=>nothing,
+    :α=>α,
+    :β=>β,
+    :γ=>γ,
+    :f=>f̄,
+    :B=>B̄,
+    :ζ=>ζ,
+  )
+
   if tw > 0.0
     σ_Ω = solid_conductivity(σ̄1,σ̄2,Ω,get_cell_gids(model),get_face_labeling(model))
     params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
-    params[:fluid] = Dict(
-      :domain=>"fluid",
-      :α=>α,
-      :β=>β,
-      :γ=>γ,
-      :B=>B̄,
-      :f=>f̄,
-      :ζ=>ζ,
-     )
-  else
-    params[:fluid] = Dict(
-      :domain=>nothing,
-      :α=>α,
-      :β=>β,
-      :γ=>γ,
-      :f=>f̄,
-      :B=>B̄,
-      :ζ=>ζ,
-    )
+    params[:fluid][:domain] = "fluid"
   end
+
+  params[:fespaces] = Dict{Symbol,Any}(
+    :order_u => order,
+    :order_j => order_j,
+    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing
+  )
 
   # Boundary conditions
 
@@ -255,13 +266,13 @@ end
 function hunt_mesh(
   parts,params,
   nc::Tuple,np::Tuple,L::Real,tw::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool,
-  ranks_per_level)
+  ranks_per_level
+)
   if isnothing(ranks_per_level) # Single grid
     model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
     params[:model] = model
   else # Multigrid
-    base_model = Meshers.hunt_generate_base_mesh(nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
-    mh = Meshers.generate_mesh_hierarchy(parts,base_model,0,ranks_per_level)
+    mh = Meshers.hunt_generate_mesh_hierarchy(parts,ranks_per_level,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
     params[:multigrid] = Dict{Symbol,Any}(
       :mh => mh,
       :num_refs_coarse => 0,

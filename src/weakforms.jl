@@ -237,8 +237,7 @@ function retrieve_bcs_params(model,params,k)
   for i in 1:length(params[:bcs][:stabilization])
     Λ = _skeleton(model,params[:bcs][:stabilization][i][:domain])
     dΛ = Measure(Λ,2*k)
-    _h = _get_cell_size(Λ)
-    h = CellField(_h,Λ)
+    h = get_cell_size(Λ)
     μ = params[:bcs][:stabilization][i][:μ]
     push!(params_Λ,(μ,h,dΛ))
   end

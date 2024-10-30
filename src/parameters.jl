@@ -222,7 +222,7 @@ uses_petsc(solver::Symbol) = uses_petsc(Val(solver))
 uses_petsc(::Val{:julia}) = false
 uses_petsc(::Val{:petsc}) = true
 uses_petsc(::Val{:li2019}) = true
-uses_petsc(::Val{:badia2024}) = true
+uses_petsc(::Val{:badia2024}) = false
 
 uses_multigrid(solver::Dict) = any(space_uses_multigrid(solver))
 space_uses_multigrid(solver::Dict) = space_uses_multigrid(Val(solver[:solver]),solver)
@@ -340,6 +340,7 @@ function params_multigrid(params::Dict{Symbol,Any})
   # Init some variables
   multigrid[:trials] = Dict{Symbol,Any}()
   multigrid[:tests] = Dict{Symbol,Any}()
+  multigrid[:variables] = getindex([:u,:p,:j,:φ],findall(space_uses_multigrid(solver)))
   
   return multigrid
 end

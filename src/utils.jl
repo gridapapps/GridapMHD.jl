@@ -48,7 +48,7 @@ end
 
 # Function that given a filter set a name to those elements that satisfy the
 # conditions of the filter
-function add_entity!(model,in,name)
+function add_entity!(model,is_in,name)
   labels = get_face_labeling(model)
   node_coordinates = get_node_coordinates(model)
   entity = num_entities(labels) + 1
@@ -56,7 +56,7 @@ function add_entity!(model,in,name)
     facets = get_face_nodes(model,d)
     for (i,facet) in enumerate(facets)
       coord = sum(node_coordinates[facet])/length(facet)
-      if in(coord)
+      if is_in(coord)
         labels.d_to_dface_to_entity[d+1][i] = entity
       end
     end

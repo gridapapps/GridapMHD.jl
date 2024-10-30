@@ -269,7 +269,7 @@ function _fe_space(::Val{:j},params)
   uses_mg = space_uses_multigrid(params[:solver])[3]
   model = uses_mg ? params[:multigrid][:mh] : params[:model]
 
-  phi = rt_scaling(model,params[:fespaces])
+  phi = rt_scaling(params[:model],params[:fespaces])
   reffe_j = ReferenceFE(raviart_thomas,Float64,k-1;basis_type=:jacobi,phi=phi)
   params[:fespaces][:reffe_j] = reffe_j
 
@@ -356,10 +356,11 @@ const TriangulationTypes = Union{Gridap.Triangulation,GridapDistributed.Distribu
 
 _interior(model,domain::DiscreteModelTypes) = Interior(domain)
 _interior(model,domain::TriangulationTypes) = domain
-_interior(model,domain::Nothing) = Triangulation(model) # This should be removed, but Gridap needs fixes
+_interior(model,domain::Nothing) = Triangulation(model)
 _interior(model,domain) = Interior(model,tags=domain)
 
 _boundary(model,domain::TriangulationTypes) = domain
+_boundary(model,domain::Nothing) = Boundary(model)
 _boundary(model,domain) = Boundary(model,tags=domain)
 
 _skeleton(model,domain::TriangulationTypes) = SkeletonTriangulation(domain)
@@ -375,18 +376,25 @@ function _setup_trians!(params)
   solid = params[:solid]
   Ωs = !isnothing(solid) ? _interior(params[:model],solid[:domain]) : nothing
 
-  if !uses_multigrid(params[:solver])
+  #if !uses_multigrid(params[:solver])
     params[:Ω]  = Ω
     params[:Ωf] = Ωf
     params[:Ωs] = Ωs
-  else
-    params[:multigrid][:Ω]  = Ω
-    params[:multigrid][:Ωf] = Ωf
-    params[:multigrid][:Ωs] = Ωs
-    params[:Ω]  = Ω[1]
-    params[:Ωf] = Ωf[1]
-    params[:Ωs] = Ωs[1]
+  #else
+  #  params[:multigrid][:Ω]  = Ω
+  #  params[:multigrid][:Ωf] = Ωf
+  #  params[:multigrid][:Ωs] = Ωs
+  #  params[:Ω]  = Ω[1]
+  #  params[:Ωf] = Ωf[1]
+  #  params[:Ωs] = Ωs[1]
+  #end
+
+  if uses_multigrid(params[:solver])
+    params[:multigrid][:Ω]  = params[:multigrid][:mh]
+    params[:multigrid][:Ωf] = params[:multigrid][:mh]
+    params[:multigrid][:Ωs] = params[:multigrid][:mh]
   end
+
 end
 
 # Random vector generation
@@ -441,21 +449,29 @@ function _allocate_solution(op::TransientFEOperator,args...)
   nothing
 end
 
-function _get_cell_size(t::Triangulation)
+# Mesh sizes
+
+get_cell_size(t::TriangulationTypes) = CellField(_get_cell_size(t),t)
+
+get_cell_size(m::DiscreteModelTypes) = get_cell_size(Triangulation(m))
+_get_cell_size(m::DiscreteModelTypes) = _get_cell_size(Triangulation(m))
+
+function _get_cell_size(t::Triangulation) :: Vector{Float64}
+  if iszero(num_cells(t))
+    return Float64[]
+  end
   meas = get_cell_measure(t)
   d = num_dims(t)
-  map(m->m^(1/d),meas)
+  return collect(Float64, meas .^ (1/d))
 end
 
 function _get_cell_size(t::GridapDistributed.DistributedTriangulation)
   map(_get_cell_size,local_views(t))
 end
 
-_get_cell_size(m::DiscreteModelTypes) = _get_cell_size(Triangulation(m))
+get_mesh_size(m::DiscreteModel) = minimum(_get_cell_size(m))
 
-_get_mesh_size(m::DiscreteModel) = minimum(_get_cell_size(m))
-
-function _get_mesh_size(m::GridapDistributed.DistributedDiscreteModel)
-  h = map(_get_mesh_size,local_views(m))
+function get_mesh_size(m::GridapDistributed.DistributedDiscreteModel)
+  h = map(get_mesh_size,local_views(m))
   return reduce(min,h;init=one(eltype(h)))
 end
