@@ -47,12 +47,17 @@ function _cavity(;
   L=1.0,
   u0=1.0,
   B0=norm(B),
-  vtk=true,
+  order = 2,
+  order_j = order,
+  formulation = :mhd,
+  rt_scaling = false,
   title="Cavity",
   path=datadir(),
   solver=:julia,
   ranks_per_level=nothing,
   verbose=true,
+  vtk=true,
+  closed_cavity=true
 )
 
   info = Dict{Symbol,Any}()
@@ -88,9 +93,19 @@ function _cavity(;
   N = Ha^2 / Re
   f̄ = (L / (ρ * u0^2)) * f
   B̄ = (1 / B0) * B
-  α = 1.0
-  β = 1.0 / Re
-  γ = N
+
+  if formulation == :cfd # Option 1 (CFD)
+    α = 1.0
+    β = 1.0/Re
+    γ = N
+  elseif formulation == :mhd # Option 2 (MHD) is chosen in the experimental article
+    α = (1.0/N)
+    β = (1.0/Ha^2)
+    γ = 1.0
+    f̄ = f̄ / N
+  else
+    error("Unknown formulation")
+  end
 
   params[:fluid] = Dict(
     :domain => nothing,
@@ -102,14 +117,28 @@ function _cavity(;
     :ζ => ζ,
   )
 
-  # Boundary conditions
+  # FESpaces and Boundary conditions
   uw = VectorValue(0.0, 0.0, 0.0)
   ul = VectorValue(1.0, 0.0, 0.0)
   ji = VectorValue(0.0, 0.0, 0.0)
-  params[:bcs] = Dict(
-    :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]),
-    :j => Dict(:tags => "insulating", :values => ji),
+  params[:fespaces] = Dict{Symbol,Any}(
+    :order_u => order,
+    :order_j => order_j,
+    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing
   )
+
+  if closed_cavity
+    params[:bcs] = Dict{Symbol,Any}(
+      :u => Dict(:tags => ["cavity", "lid"], :values => [uw, ul]),
+      :j => Dict(:tags => "insulating", :values => ji),
+    )
+    params[:fespaces][:p_constraint] = :zeromean
+  else
+    params[:bcs] = Dict{Symbol,Any}(
+      :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]), # Bottom wall is Newman
+      :j => Dict(:tags => "insulating", :values => ji),
+    )
+  end
 
   if !uses_petsc(params[:solver])
     xh,fullparams,info = main(params;output=info)
@@ -131,7 +160,12 @@ function _cavity(;
     ph = (ρ * u0^2) * p̄h
     jh = (σ * u0 * B0) * j̄h
     φh = (u0 * B0 * L) * φ̄h
-    writevtk(Ω, joinpath(path,title), order=2, cellfields=["uh" => uh, "ph" => ph, "jh" => jh, "phi" => φh])
+    div_jh = ∇·jh
+    div_uh = ∇·uh
+    writevtk(
+      Ω, joinpath(path,title), order=order, 
+      cellfields=["uh" => uh, "ph" => ph, "jh" => jh, "phi" => φh, "div_jh" => div_jh, "div_uh" => div_uh]
+    )
     toc!(t, "vtk")
   end
 
@@ -147,12 +181,23 @@ function _cavity(;
   return info, t
 end
 
-function add_cavity_tags!(model)
+function add_cavity_tags!(model::CartesianDiscreteModel)
   labels = get_face_labeling(model)
-  Γw = append!(collect(1:4), [9, 10, 13, 14], collect(17:21), collect(23:26))
-  Γl = append!(collect(5:8), [11, 12, 15, 16, 22])
-  add_tag_from_tags!(labels, "wall", Γw)
+  add_cavity_tags!(labels)
+end
+
+function add_cavity_tags!(model::GridapDistributed.DistributedDiscreteModel)
+  map(add_cavity_tags!, local_views(model))
+end
+
+function add_cavity_tags!(labels)
+  Γl = [22]
+  Γb = [21]
+  Γw = vcat(collect(1:20),collect(23:26))
   add_tag_from_tags!(labels, "lid", Γl)
+  add_tag_from_tags!(labels, "bottom", Γb)
+  add_tag_from_tags!(labels, "wall", Γw)
+  add_tag_from_tags!(labels, "cavity", ["wall","bottom"])
   add_tag_from_tags!(labels, "insulating", "boundary")
 end
 
@@ -171,9 +216,10 @@ function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level)
     add_cavity_tags!(model)
     params[:model] = model
   else # Multigrid
-    base_model = CartesianDiscreteModel(domain,nc)
-    add_cavity_tags!(base_model)
-    mh = Meshers.generate_mesh_hierarchy(parts,base_model,0,ranks_per_level)
+    mh = CartesianModelHierarchy(
+      parts,np_per_level,domain,nc;
+      add_labels! = add_cavity_tags!,
+    )
     params[:multigrid] = Dict{Symbol,Any}(
       :mh => mh,
       :num_refs_coarse => 0,

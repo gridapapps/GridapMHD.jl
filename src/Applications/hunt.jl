@@ -120,6 +120,7 @@ function _hunt(;
     α = (1.0/N)
     β = (1.0/Ha^2)
     γ = 1.0
+    f̄ = f̄ / N
   else
     error("Unknown formulation")
   end
@@ -157,8 +158,8 @@ function _hunt(;
   # Boundary conditions
 
   params[:bcs] = Dict(
-    :u=>Dict(:tags=>"noslip"),
-    :j=>Dict(:tags=>"insulating"),
+    :u => Dict(:tags=>"noslip"),
+    :j => Dict(:tags=>"insulating"),
   )
 
   toc!(t,"pre_process")
@@ -203,8 +204,7 @@ function _hunt(;
   u_ref(x) = analytical_hunt_u(L,L,μ,grad_pz,Ha,2*nsums,x)
   j_ref(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,2*nsums,x)
 
-  k = 2
-  dΩ_phys = Measure(Ω_phys,2*(k+1))
+  dΩ_phys = Measure(Ω_phys,order*(k+1))
   eu = u - uh
   ej = j - jh
   eu_h1 = sqrt(sum(∫( ∇(eu)⊙∇(eu) + eu⋅eu  )dΩ_phys))
@@ -228,7 +228,7 @@ function _hunt(;
     if tw > 0.0
       push!(cellfields,"σ"=>σ_Ω)
     end
-    writevtk(Ω_phys,joinpath(path,title),order=2,cellfields=cellfields)
+    writevtk(Ω_phys,joinpath(path,title),order=order,cellfields=cellfields)
     toc!(t,"vtk")
   end
   if verbose 

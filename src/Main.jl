@@ -230,8 +230,8 @@ function _fe_space(::Val{:u},params)
 
   Ωf = uses_mg ? params[:multigrid][:Ωf] : params[:Ωf]
 
-  T = VectorValue{num_cell_dims(model),Float64}
-  reffe_u = ReferenceFE(lagrangian,T,k)
+  Dc = num_cell_dims(model)
+  reffe_u = ReferenceFE(lagrangian,VectorValue{Dc,Float64},k)
   params[:fespaces][:reffe_u] = reffe_u
 
   u_bc = params[:bcs][:u][:values]
