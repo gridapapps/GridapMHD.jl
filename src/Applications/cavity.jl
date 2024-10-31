@@ -38,15 +38,16 @@ function _cavity(;
   distribute=nothing,
   np=1,
   nc=(4,4,4),
-  ν=1.0,
-  ρ=1.0,
-  σ=1.0,
-  ζ=0.0,
-  B=VectorValue(0.0, 0.0, 10.0),
-  f=VectorValue(0.0, 0.0, 0.0),
-  L=1.0,
-  u0=1.0,
-  B0=norm(B),
+  ν = 1.0,
+  ρ = 1.0,
+  σ = 1.0,
+  ζ = 0.0,   # Augmented Lagrangian weight  
+  μ = 0,     # Stabilization weight
+  B = VectorValue(0.0, 0.0, 10.0),
+  f = VectorValue(0.0, 0.0, 0.0),
+  L = 1.0,
+  u0 = 1.0,
+  B0 = norm(B),
   order = 2,
   order_j = order,
   formulation = :mhd,
@@ -138,6 +139,10 @@ function _cavity(;
       :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]), # Bottom wall is Newman
       :j => Dict(:tags => "insulating", :values => ji),
     )
+  end
+
+  if μ > 0
+    params[:bcs][:stabilization] = Dict(:μ=>μ)
   end
 
   if !uses_petsc(params[:solver])

@@ -47,7 +47,8 @@ function _hunt(;
   σ=1.0,
   B=(0.0,10.0,0.0),
   f=(0.0,0.0,1.0),
-  ζ=0.0,
+  ζ  = 0.0, # Augmented Lagrangian weight  
+  μ  = 0,   # Stabilization weight
   L=1.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
@@ -161,6 +162,10 @@ function _hunt(;
     :u => Dict(:tags=>"noslip"),
     :j => Dict(:tags=>"insulating"),
   )
+
+  if μ > 0
+    params[:bcs][:stabilization] = Dict(:μ=>μ)
+  end
 
   toc!(t,"pre_process")
 
