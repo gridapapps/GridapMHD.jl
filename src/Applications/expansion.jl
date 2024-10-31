@@ -69,6 +69,8 @@ function _expansion(;
 )
   @assert solid_coupling ∈ [:none,:thin_wall,:solid]
   @assert inlet ∈ [:parabolic,:shercliff,:constant]
+  @assert initial_value ∈ [:zero,:inlet,:solve]
+  @assert formulation ∈ [:cfd,:mhd]
 
   info   = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -179,6 +181,8 @@ function _expansion(;
     params[:x0] = Dict(
       :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0
     )
+  else
+    params[:x0] = initial_value
   end
 
   # Solver options

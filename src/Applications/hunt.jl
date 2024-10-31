@@ -67,6 +67,7 @@ function _hunt(;
   solve = true,
   solver = :julia,
   formulation = :mhd,
+  initial_value = :zero,
   rt_scaling = false,
   verbose = true,
   BL_adapted = true,
@@ -74,6 +75,8 @@ function _hunt(;
   kmap_y = 1,
   ranks_per_level = nothing
 )
+  @assert formulation ∈ [:cfd,:mhd]
+  @assert initial_value ∈ [:zero,:solve]
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -163,6 +166,8 @@ function _hunt(;
     :j => Dict(:tags=>"insulating"),
   )
 
+  params[:x0] = initial_value
+
   if μ > 0
     params[:bcs][:stabilization] = Dict(:μ=>μ)
   end
@@ -209,7 +214,7 @@ function _hunt(;
   u_ref(x) = analytical_hunt_u(L,L,μ,grad_pz,Ha,2*nsums,x)
   j_ref(x) = analytical_hunt_j(L,L,σ,μ,grad_pz,Ha,2*nsums,x)
 
-  dΩ_phys = Measure(Ω_phys,order*(k+1))
+  dΩ_phys = Measure(Ω_phys,2*(order+1))
   eu = u - uh
   ej = j - jh
   eu_h1 = sqrt(sum(∫( ∇(eu)⊙∇(eu) + eu⋅eu  )dΩ_phys))

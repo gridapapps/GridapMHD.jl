@@ -51,6 +51,7 @@ function _cavity(;
   order = 2,
   order_j = order,
   formulation = :mhd,
+  initial_value = :zero,
   rt_scaling = false,
   title="Cavity",
   path=datadir(),
@@ -58,8 +59,11 @@ function _cavity(;
   ranks_per_level=nothing,
   verbose=true,
   vtk=true,
+  convection=false,
   closed_cavity=true
 )
+  @assert formulation ∈ [:cfd,:mhd]
+  @assert initial_value ∈ [:zero,:solve]
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -116,6 +120,7 @@ function _cavity(;
     :f => f̄,
     :B => B̄,
     :ζ => ζ,
+    :convection => convection,
   )
 
   # FESpaces and Boundary conditions
@@ -127,6 +132,8 @@ function _cavity(;
     :order_j => order_j,
     :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing
   )
+
+  params[:x0] = initial_value
 
   if closed_cavity
     params[:bcs] = Dict{Symbol,Any}(
