@@ -235,7 +235,7 @@ function _fe_space(::Val{:u},params)
 
   u_bc = params[:bcs][:u][:values]
   V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
-  U_u = _trial_fe_space(V_u,u_bc,params[:transient])
+  U_u = _trial_fe_space(V_u,u_bc,params)
 
   if uses_mg
     params[:multigrid][:trials][:u] = U_u
@@ -258,7 +258,7 @@ function _fe_space(::Val{:p},params)
   params[:fespaces][:reffe_p] = reffe_p
 
   V_p = TestFESpace(Ωf,reffe_p;conformity,constraint)
-  U_p = _trial_fe_space(V_p,nothing,params[:transient])
+  U_p = _trial_fe_space(V_p,nothing,params)
 
   return U_p, V_p
 end
@@ -274,7 +274,7 @@ function _fe_space(::Val{:j},params)
 
   j_bc = params[:bcs][:j][:values]
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
-  U_j = _trial_fe_space(V_j,j_bc,params[:transient])
+  U_j = _trial_fe_space(V_j,j_bc,params)
 
   if uses_mg
     params[:multigrid][:trials][:j] = U_j
@@ -296,15 +296,15 @@ function _fe_space(::Val{:φ},params)
   params[:fespaces][:reffe_φ] = reffe_φ
 
   V_φ = TestFESpace(model,reffe_φ;conformity,constraint)
-  U_φ = _trial_fe_space(V_φ,nothing,params[:transient])
+  U_φ = _trial_fe_space(V_φ,nothing,params)
 
   return U_φ, V_φ
 end
 
-function _trial_fe_space(V,v_bc,transient)
+function _trial_fe_space(V,v_bc,params)
   if isnothing(v_bc) || (isa(v_bc,Number) && iszero(v_bc))
     return V
-  elseif !isnothing(transient)
+  elseif has_transient(params)
     return TransientTrialFESpace(V,v_bc)
   else
     return TrialFESpace(V,v_bc)
@@ -315,10 +315,10 @@ end
 
 function _fe_operator(U,V,params)
   mfs = _multi_field_style(params)
-  if !has_transient(params)
-    _fe_operator(mfs,U,V,params)
-  else
+  if has_transient(params)
     _ode_fe_operator(mfs,U,V,params)
+  else
+    _fe_operator(mfs,U,V,params)
   end
 end
 
