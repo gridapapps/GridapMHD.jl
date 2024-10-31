@@ -84,53 +84,54 @@ It also checks the validity of the main parameter dictionary `params`.
 """
 function add_default_params(_params)
   mandatory = Dict(
-    :ptimer=>false,
-    :debug=>false,
-    :solve=>true,
-    :res_assemble=>false,
-    :jac_assemble=>false,
-    :model=>true,
-    :fluid=>true,
-    :solid=>false,
-    :bcs=>true,
-    :fespaces=>false,
-    :solver=>true,
-    :multigrid=>false,
-    :check_valid=>false,
-    :ode=>false,
-    :transient=>false,
+    :ptimer => false,
+    :debug => false,
+    :solve => true,
+    :res_assemble => false,
+    :jac_assemble => false,
+    :model => true,
+    :fluid => true,
+    :solid => false,
+    :bcs => true,
+    :fespaces => false,
+    :solver => true,
+    :multigrid => false,
+    :check_valid => false,
+    :transient => false,
+    :x0 => false,
   )
   _check_mandatory(_params,mandatory,"")
   optional = Dict(
-    :ptimer=>default_ptimer(_params[:model]),
-    :debug=>false,
-    :res_assemble=>false,
-    :jac_assemble=>false,
-    :solid=>nothing,
-    :fespaces=>nothing,
-    :multigrid=>nothing,
-    :check_valid=>true,
-    :ode=>nothing,
-    :transient=>default_transient(_params),
+    :ptimer => default_ptimer(_params[:model]),
+    :debug => false,
+    :res_assemble => false,
+    :jac_assemble => false,
+    :solid => nothing,
+    :fespaces => nothing,
+    :multigrid => nothing,
+    :check_valid => true,
+    :transient => nothing,
+    :x0 => :zero,
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
   _check_unused(params,mandatory,params,"")
   # Process sub-params
   params[:fluid] = params_fluid(params)
-  if params[:solid] !== nothing
+  if !isnothing(params[:solid])
     params[:solid] = params_solid(params)
   end
   params[:bcs] = params_bcs(params)
   params[:fespaces] = params_fespaces(params)
   params[:solver] = params_solver(params)
   params[:multigrid] = params_multigrid(params)
+  if !isnothing(params[:transient])
+    params[:transient] = params_transient(params)
+  end
   params
 end
 
 default_ptimer(model) = PTimer(DebugArray(LinearIndices((1,))))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_parts(model))
-
-default_transient(params) = haskey(params,:ode) && !isnothing(params[:ode])
 
 """
 Valid keys for `params[:solver]` are the following:
@@ -172,7 +173,6 @@ function default_solver_params(::Val{:julia})
     :solver_postpro => ((cache,info) -> nothing),
     :niter          => 10,
     :rtol           => 1e-5,
-    :initial_values => nothing,
   )
 end
 
@@ -185,7 +185,6 @@ function default_solver_params(::Val{:petsc})
     :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0",
     :niter          => 100,
     :rtol           => 1e-5,
-    :initial_values => nothing,
   )
 end
 
@@ -199,7 +198,6 @@ function default_solver_params(::Val{:li2019})
     :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
-    :initial_values => nothing,
   )
 end
 
@@ -213,7 +211,6 @@ function default_solver_params(::Val{:badia2024})
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 80,
     :rtol           => 1e-5,
-    :initial_values => nothing,
   )
 end
 
@@ -605,4 +602,37 @@ function params_bcs_stabilization(params::Dict{Symbol,Any})
   )
   optional = Dict(:domain=>params[:fluid][:domain])
   _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:stabilization]")
+end
+
+function params_transient(params::Dict{Symbol,Any})
+  mandatory = Dict(
+    :t0 => true,
+    :tf => true,
+    :Δt => true,
+    :solver => false,
+  )
+  optional = Dict(
+   :solver => :theta,
+  )
+  transient = _check_mandatory_and_add_optional_weak(params[:transient],mandatory,optional,params,"[:transient]")
+  if isa(transient[:solver],Symbol)
+    transient[:solver] = default_transient_solver_params(transient[:solver])
+  else
+    optional_solver = default_solver_params(transient[:solver][:solver])
+    transient[:solver] = _add_optional_weak(transient[:solver],optional_solver,params,"[:solver]")
+  end
+  return transient
+end
+
+function default_solver_params(::Val{:theta})
+  return Dict(
+    :solver => :theta,
+    :θ => 0.5,
+  )
+end
+
+function default_solver_params(::Val{:forward})
+  return Dict(
+    :solver => :forward,
+  )
 end

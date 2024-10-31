@@ -173,10 +173,9 @@ function _channel(;
 
   toc!(t,"pre_process")
 
-
   params[:solver][:niter] = niter
   if initial_value == :inlet
-    params[:solver][:initial_values] = Dict(
+    params[:x0] = Dict(
       :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0)
   end
   if params[:solver][:solver] == :petsc

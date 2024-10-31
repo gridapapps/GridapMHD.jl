@@ -120,7 +120,7 @@ function _expansion(;
   params[:fespaces] = Dict{Symbol,Any}(
     :order_u => order,
     :order_j => order_j,
-    :rt_scaling => rt_scaling ? 1.0/_get_mesh_size(model) : nothing
+    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing
   )
 
   params[:fluid] = Dict{Symbol,Any}(
@@ -176,7 +176,7 @@ function _expansion(;
 
   j_zero = VectorValue(0.0,0.0,0.0)
   if initial_value == :inlet
-    params[:solver][:initial_values] = Dict(
+    params[:x0] = Dict(
       :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0
     )
   end
