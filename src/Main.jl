@@ -136,7 +136,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
 
   mfs = _multi_field_style(params)
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
-  if !params[:transient]
+  if !has_transient(params)
     U = MultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
   else
     U = TransientMultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
@@ -183,7 +183,7 @@ end
 
 function _solver(op,params)
   solver = _solver(Val(params[:solver][:solver]),op,params)
-  if !isnothing(params[:transient])
+  if has_transient(params)
     solver = _ode_solver(solver,params)
   end
   return solver
@@ -315,7 +315,7 @@ end
 
 function _fe_operator(U,V,params)
   mfs = _multi_field_style(params)
-  if isnothing(params[:transient])
+  if !has_transient(params)
     _fe_operator(mfs,U,V,params)
   else
     _ode_fe_operator(mfs,U,V,params)
@@ -417,6 +417,8 @@ function _solve(xh,solver,op::TransientFEOperator,params)
   solve(solver,op,t0,tf,xh), cache
 end
 
+# Initial guess for the solver
+
 function initial_guess(op::FEOperator,params)
   U = get_trial(op)
   initial_guess(params[:x0],U,op,params)
@@ -428,13 +430,23 @@ function initial_guess(op::TransientFEOperator,params)
   initial_guess(params[:x0],U0,op,params)
 end
 
-initial_guess(x0::Symbol,trial,op,params) = initial_guess(Val(x0),trial,op,params)
-initial_guess(::Val{:zero},trial,op,params) = zero(trial)
-initial_guess(::Val{:solve},trial,op,params) = @notimplemented
-
 function initial_guess(x0::Dict,trial,op,params)
   vals = [x0[:u],x0[:p],x0[:j],x0[:φ]]
   interpolate(vals,trial)
+end
+
+initial_guess(x0::Symbol,trial,op,params) = initial_guess(Val(x0),trial,op,params)
+initial_guess(::Val{:zero},trial,op,params) = zero(trial)
+
+function initial_guess(::Val{:solve},trial,op,params)
+  @notimplementedif isa(op,TransientFEOperator)
+  @assert params[:fluid][:convection] "Convection must be enabled to use initial guess :solve"
+  params[:fluid][:convection] = false
+  xh = initial_guess(:zero,trial,op,params)
+  solver = _solver(op,params)
+  xh, cache = _solve(xh,solver,op,params)
+  params[:fluid][:convection] = true
+  return xh
 end
 
 # Mesh sizes

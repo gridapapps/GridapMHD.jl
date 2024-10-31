@@ -5,7 +5,7 @@ function weak_form(params)
 end
 
 function weak_form(params,k)
-  if !params[:transient]
+  if !has_transient(params)
     _weak_form(params,k)
   else
     _ode_weak_form(params,k)

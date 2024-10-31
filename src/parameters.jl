@@ -604,6 +604,22 @@ function params_bcs_stabilization(params::Dict{Symbol,Any})
   _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:stabilization]")
 end
 
+"""
+Transient parameters
+
+Valid keys for the dictionaries in `params[:transient]` are the following.
+
+# Mandatory keys
+
+- `:t0`: Initial time
+- `:tf`: Final time
+- `:Δt`: Time step
+
+# Optional keys
+
+- `:solver`: Solver name and parameters for the transient solver. Possible options 
+             are `[:theta, :forward]`. Defaults to `:theta`.
+"""
 function params_transient(params::Dict{Symbol,Any})
   mandatory = Dict(
     :t0 => true,
@@ -623,6 +639,8 @@ function params_transient(params::Dict{Symbol,Any})
   end
   return transient
 end
+
+has_transient(params) = haskey(params,:transient) && !isnothing(params[:transient])
 
 function default_solver_params(::Val{:theta})
   return Dict(
