@@ -71,6 +71,9 @@ function _channel(;
   rt_scaling = false,
   formulation = :mhd
 )
+  @assert inlet ∈ [:parabolic,:shercliff,:constant]
+  @assert initial_value ∈ [:zero,:inlet,:solve]
+  @assert formulation ∈ [:cfd,:mhd]
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -102,9 +105,8 @@ function _channel(;
 
   # Reduced quantities
   Lx,Ly,Lz = sizes
-  L = Ly
-  Re = u0*L/ν
-  Ha = B0*L*sqrt(σ/(ρ*ν))
+  Re = u0*Ly/ν
+  Ha = B0*Ly*sqrt(σ/(ρ*ν))
   N = Ha^2/Re
 
   if formulation == :cfd # Option 1 (CFD)
@@ -204,7 +206,7 @@ function _channel(;
   uh = u0*ūh
   ph = (ρ*u0^2)*p̄h
   jh = (σ*u0*B0)*j̄h
-  φh = (u0*B0*L)*φ̄h
+  φh = (u0*B0*Ly)*φ̄h
   div_jh = ∇·jh
   div_uh = ∇·uh
   Grad_p = ∇·ph
