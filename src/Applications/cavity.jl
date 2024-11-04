@@ -176,7 +176,8 @@ function _cavity(;
     div_uh = ∇·uh
     writevtk(
       Ω, joinpath(path,title), order=max(order,order_j), 
-      cellfields=["uh" => uh, "ph" => ph, "jh" => jh, "phi" => φh, "div_jh" => div_jh, "div_uh" => div_uh]
+      cellfields=["uh" => uh, "ph" => ph, "jh" => jh, "phi" => φh, "div_jh" => div_jh, "div_uh" => div_uh],
+      append=false
     )
     toc!(t, "vtk")
   end

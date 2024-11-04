@@ -238,7 +238,7 @@ function _hunt(;
     if tw > 0.0
       push!(cellfields,"σ"=>σ_Ω)
     end
-    writevtk(Ω_phys,joinpath(path,title),order=max(order,order_j),cellfields=cellfields)
+    writevtk(Ω_phys,joinpath(path,title),order=max(order,order_j),cellfields=cellfields,append=false)
     toc!(t,"vtk")
   end
   if verbose 
