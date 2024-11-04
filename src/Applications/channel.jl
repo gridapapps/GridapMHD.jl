@@ -37,22 +37,22 @@ end
 function _channel(;
   distribute = nothing,
   np = nothing,
-  n=2,
-  nc=(n,n,n),
-  a = 1.0,
-  L = 1.0,
-  sizes = (L,a,a),
-  k = 2,
-  ν=1.0,
-  ρ=1.0,
-  σ=1.0,
-  B=(0.0,1.0,0.0),
-  f=(0.0,0.0,0.0),
-  ζ=0.0,
-  u0=1.0,
-  B0=norm(VectorValue(B)),
-  nsums = 10,
-  vtk=true,
+  nc=(4,2,2),
+  L = 1.0, # Channel length (x-axis)
+  w = 1.0, # Channel width (y/z-axis)
+  sizes = (L,w,w),
+  order = 2,
+  order_j = 2,
+  ν = 1.0,
+  ρ = 1.0,
+  σ = 1.0,
+  B = (0.0,1.0,0.0),
+  f = (0.0,0.0,0.0),
+  ζ = 0.0,
+  μ = 0.0,
+  u0 = 1.0,
+  B0 = norm(VectorValue(B)),
+  vtk = true,
   title = "channel",
   path  = datadir(),
   debug = false,
@@ -61,17 +61,16 @@ function _channel(;
   solve = true,
   solver = :julia,
   verbose = true,
-  man_solution = nothing,
   nonuniform_B = false,
-  inlet=:parabolic,
+  inlet = :parabolic,
   γB = 0.45,
-  μ = 0.0,
-  niter=10,
   bl_orders=(1,1,1),
-  initial_value=:zero,
-  convection=true,
-  petsc_options="",
-  )
+  initial_value = :zero,
+  convection = true,
+  np_per_level = nothing,
+  rt_scaling = false,
+  formulation = :mhd
+)
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -99,46 +98,46 @@ function _channel(;
   if isa(solver,Symbol)
     solver = default_solver_params(Val(solver))
   end
-
   params[:solver] = solver
 
   # Reduced quantities
-  ax,ay,az = sizes
-  L = ay
+  Lx,Ly,Lz = sizes
+  L = Ly
   Re = u0*L/ν
   Ha = B0*L*sqrt(σ/(ρ*ν))
   N = Ha^2/Re
-  α = 1.0
-  β = 1.0/Re
-  γ = N
-  f̄ = VectorValue(f)
-  γB = γB*(30/ax)*(ay/1)
+
+  if formulation == :cfd # Option 1 (CFD)
+    α = 1.0
+    β = 1.0/Re
+    γ = N
+    f̄ = VectorValue(f)
+  elseif formulation == :mhd # Option 2 (MHD) is chosen in the experimental article
+    α = (1.0/N)
+    β = (1.0/Ha^2)
+    γ = 1.0
+    f̄ = VectorValue(f)/N
+  else
+    error("Unknown formulation")
+  end
+
+  γB = γB*(30/Lx)*(Ly/1)
 
   if nonuniform_B
-    B̄ = magnetic_field(;γ=γB,Ha,Re,d=ay)
+    B̄ = channel_magnetic_field(;γ=γB,Ha,Re,d=Ly)
     Bx = x-> B0 * B̄(x)
   else
     B̄ = (1/norm(B))*VectorValue(B)
     Bx = x-> VectorValue(B)
   end
-  h = ax/nc[1]
 
-
-  Z_u = 2/ay
-  β_u = az/2
+  Z_u = 2/Ly
+  β_u = Lz/2
   ū = u_inlet(inlet,Ha,Z_u,β_u)
 
-
-  if nonuniform_B
-    disc_dirs = 1
-    disc_factor = γB
-  else
-    disc_dirs = []
-    disc_factor = nothing
-  end
-
-  params[:model] = _channel_model(parts,np,sizes,nc;bl_orders,disc_dirs,disc_factor)
-
+  disc_dirs = nonuniform_B ? 1 : []
+  disc_factor = nonuniform_B ? γB : nothing
+  model = channel_mesh(parts,np,sizes,nc,params;bl_orders,disc_dirs,disc_factor,np_per_level)
 
   if debug && vtk
     writevtk(params[:model],joinpath(path,"$(title)_model"))
@@ -146,7 +145,10 @@ function _channel(;
 
   # FE Space parameters
   params[:fespaces] = Dict(
-  :k => k)
+    :order => order,
+    :order_j => order_j,
+    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing
+  )
 
   # Fluid parameters
   params[:fluid] = Dict(
@@ -173,16 +175,10 @@ function _channel(;
 
   toc!(t,"pre_process")
 
-  params[:solver][:niter] = niter
   if initial_value == :inlet
     params[:x0] = Dict(
-      :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0)
-  end
-  if params[:solver][:solver] == :petsc
-    if petsc_options != ""
-      params[:solver][:petsc_options] = petsc_options
-    end
-    params[:solver][:petsc_options] *= " -snes_max_funcs $(niter+1)"
+      :u=>ū,:j=>j_zero,:p=>0.0,:φ=>0.0
+    )
   end
 
   # Solve it
@@ -197,14 +193,12 @@ function _channel(;
     end
   end
 
-  Ω = Interior(params[:model])
-  # Ω_phys = L == 1.0 ? Ω : _warp(model,Ω,L)
-  Ω_phys = Ω
-
+  Ω = Interior(model)
+  k = max(order,order_j)
   degree = k*2
-  dΩ = Measure(Ω_phys,degree)
-  l2(u,dΩ) = √(∑( ∫(u ⊙ u)dΩ ))
-  h1(u,dΩ) = √(∑( ∫( ∇(u) ⊙ ∇(u) + u ⊙ u)dΩ ))
+  dΩ = Measure(Ω,degree)
+  l2(u,dΩ) = sqrt(sum( ∫(u ⊙ u)dΩ ))
+  h1(u,dΩ) = sqrt(sum( ∫( ∇(u) ⊙ ∇(u) + u ⊙ u)dΩ ))
 
   ūh,p̄h,j̄h,φ̄h = xh
   uh = u0*ūh
@@ -215,76 +209,95 @@ function _channel(;
   div_uh = ∇·uh
   Grad_p = ∇·ph
 
-
   info[:ncells] = num_cells(params[:model])
   info[:Re] = Re
   info[:Ha] = Ha
 
   if vtk
-    writevtk(Ω_phys,joinpath(path,title),
-      order=2,
-      cellfields=[
-        "uh"=>uh,
-        "ph"=>ph,
-        "jh"=>jh,
-        "phi"=>φh,
-        "B"=>Bx,
-        "div_jh"=>div_jh,
-        "div_uh"=>div_uh,
-        "Grad_p"=>Grad_p],)
+    writevtk(
+      Ω, joinpath(path,title),
+      order = k,
+      cellfields = [
+        "uh"     => uh,
+        "ph"     => ph,
+        "jh"     => jh,
+        "phi"    => φh,
+        "B"      => Bx,
+        "div_jh" => div_jh,
+        "div_uh" => div_uh,
+        "Grad_p" => Grad_p
+      ],
+      append = false
+    )
     toc!(t,"vtk")
   end
 
   info, t
 end
 
-function inlet_profile(L)
-  u_2 = inlet_profile_1d(L[2])
-  u_3 = inlet_profile_1d(L[3])
-  function inlet_profile_fun(x)
-    VectorValue( u_2(x[2])*u_3(x[3]), 0.0, 0.0  )
-  end
+function channel_add_tags!(labels::GridapDistributed.DistributedFaceLabeling)
+  map(channel_add_tags!,local_views(labels))
 end
 
-function inlet_profile_1d(L)
-  function inlet_profile_1d_fun(x)
-    -((2/L)^2)*x*(x-L)
-  end
-end
+function channel_add_tags!(labels::FaceLabeling)
+  D = length(labels.d_to_dface_to_entity) - 1
+  p = (D == 2) ? QUAD : HEX
 
-function _channel_model(parts,np,sizes,nc;
-  bl_orders=(1,2,2),disc_dirs=1,disc_factor=1)
-  D = length(nc)
-  domain = ntuple(Val{D*2}()) do i
-    isodd(i) ? -0.5*sizes[(i+1)÷2] : 0.5*sizes[(i+1)÷2]
-  end
-  map1 = boundary_layer_map(domain,bl_orders)
-  map2 = discontinuity_map(domain,disc_dirs,disc_factor)
-  model = CartesianDiscreteModel(parts,np,domain,nc,map=map1∘map2)
-  p = Polytope(Gridap.Helpers.tfill(HEX_AXIS,Val{D}()))
   facets_i = [2*D-1]
   facets_o = [2*D]
   facets_w = [1:2*(D-1);]
   facets_ins = [1:2;]
+
   faces_i = facets_i .+ get_offset(p,D-1)
   faces_o = facets_o .+ get_offset(p,D-1)
   faces_w = facets_w .+ get_offset(p,D-1)
   faces_ins = facets_ins .+ get_offset(p,D-1)
   faces_w = reduce(union, get_faces(p)[faces_w] ) |> sort
   faces_ins = reduce(union, get_faces(p)[faces_ins] ) |> sort
-  map(local_views(model)) do model
-    labels = get_face_labeling(model)
-    add_tag!(labels,"inlet",faces_i)
-    add_tag!(labels,"outlet",faces_o)
-    add_tag!(labels,"walls",faces_w)
-    add_tag!(labels,"insulating",faces_ins)
-  end
-  model
+  
+  add_tag!(labels,"inlet",faces_i)
+  add_tag!(labels,"outlet",faces_o)
+  add_tag!(labels,"walls",faces_w)
+  add_tag!(labels,"insulating",faces_ins)
 end
 
+function channel_stretch_map(domain,bl_orders=(1,2,2),disc_dirs=1,disc_factor=1)
+  map1 = boundary_layer_map(domain,bl_orders)
+  map2 = discontinuity_map(domain,disc_dirs,disc_factor)
+  return map1∘map2
+end
 
-function magnetic_field(;kwargs...)
-  B = magnetic_field_1d(;kwargs...)
+function channel_mesh(
+  parts,np,sizes,nc,params;
+  bl_orders=(1,2,2),disc_dirs=1,disc_factor=1,np_per_level=nothing
+)
+  D = length(nc)
+  domain = ntuple(Val{D*2}()) do i
+    isodd(i) ? -0.5*sizes[(i+1)÷2] : 0.5*sizes[(i+1)÷2]
+  end
+  coord_map = channel_stretch_map(domain,bl_orders,disc_dirs,disc_factor)
+  if isnothing(np_per_level)
+    model = CartesianDiscreteModel(parts,np,domain,nc,map=coord_map)
+    channel_add_tags!(get_face_labeling(model))
+  else
+    mh = GridapSolvers.CartesianModelHierarchy(
+      parts,np_per_level,domain,nc;
+      nrefs = (1,2,2), # Only refine y-z plane
+      map = coord_map, add_labels! = channel_add_tags!
+    )
+    params[:multigrid] = Dict{Symbol,Any}(
+      :mh => mh,
+      :num_refs_coarse => 0,
+      :ranks_per_level => np_per_level,
+    )
+    model = get_model(mh,1)
+  end
+  params[:model] = model
+  return model
+end
+
+function channel_magnetic_field(;kwargs...)
+  B = channel_magnetic_field_1d(;kwargs...)
   dB(x) = ForwardDiff.derivative(B,x)
   d²B(x) = ForwardDiff.derivative(dB,x)
   d³B(x) = ForwardDiff.derivative(d²B,x)
@@ -299,8 +312,7 @@ function magnetic_field(;kwargs...)
   end
 end
 
-
-function magnetic_field_1d(;γ=0.45,Ha=1,Re=0,d=1,c=0)
+function channel_magnetic_field_1d(;γ=0.45,Ha=1,Re=0,d=1,c=0)
   Ha_Re_crit = 1/200
   bmin = Ha_Re_crit * Re / Ha
   b0 = 1-bmin

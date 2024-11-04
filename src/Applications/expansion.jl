@@ -383,7 +383,7 @@ function u_inlet(inlet,Ha,Z,β)
   u_inlet_cte = VectorValue(Z,0.0,0.0)
 
   if inlet == :parabolic
-	U = u_inlet_parabolic
+	  U = u_inlet_parabolic
   elseif inlet == :shercliff
     Ha > 10 || @warn "Shercliff inlet is not accurate for Ha=$Ha"
     U = u_inlet_shercliff

@@ -59,7 +59,7 @@ function _cavity(;
   ranks_per_level=nothing,
   verbose=true,
   vtk=true,
-  convection=false,
+  convection=true,
   closed_cavity=true
 )
   @assert formulation ∈ [:cfd,:mhd]
