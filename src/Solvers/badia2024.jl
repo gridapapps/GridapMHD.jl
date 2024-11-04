@@ -33,13 +33,15 @@ function Badia2024Solver(op::FEOperator,params)
   verbose = i_am_main(get_parts(model))
   nl_rtol = params[:solver][:rtol]
   l_rtol  = nl_rtol/10.0
+  atol = params[:solver][:atol]
   
-  m = params[:solver][:niter]
-  l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=1e-14,verbose=verbose,name="Global System - FGMRES + Badia2024")
+  m = params[:solver][:niter_ls]
+  l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=atol,verbose=verbose,name="Global System - FGMRES + Badia2024")
   #SolverInterfaces.set_depth!(l_solver,2)
   l_solver.log.depth = 2
 
   # Nonlinear Solver
-  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=10,atol=1e-14,rtol=nl_rtol,verbose=verbose)
+  niter = params[:solver][:niter]
+  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=niter,atol=atol,rtol=nl_rtol,verbose=verbose)
   return nl_solver
 end

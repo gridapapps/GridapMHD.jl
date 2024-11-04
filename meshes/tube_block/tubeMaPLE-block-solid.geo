@@ -1,19 +1,20 @@
 
-// (Externally written) Mesh parameters^M
-r=1.2626048580501072;
-R=1.0;
-N_r=12;
-n=4;
-N_a=40;
-N_L=12;
-L=4.0;
-p=0.9;
-q=0.5;
+// Mesh parameters
 
+R=1.0; // Outer radius
+L=4.0; // Tube length
+p=0.9; // Inner wall radius
+q=0.5; // Inner block radius
+
+r=1.2; // Progression for non-uniform radial nodes
+N_r=12; // Number of radial nodes
+N_a=40; // Number of azimutal nodes ( N_a/4 points per circle quadrant)
+N_L=12; // Number of longitudinal nodes
 
 // Circle
 
-//+Centre
+// Centre
+
 Point(1) = {0.0, 0.0, -0.5*L, 1.0};
 
 //+
@@ -88,7 +89,7 @@ Circle(15) = {12, 1, 13};
 //+
 Circle(16) = {13, 1, 10};
 
-//Radious in the BL
+// Radius in the BL
 
 //+
 Line (17) = {2,10};
@@ -99,7 +100,7 @@ Line (19) = {4,12};
 //+
 Line (20) = {5,13};
 
-//Surfaces
+// Surfaces
 
 //+
 Curve Loop(1) = {9, 5, -10, -13}; 		Plane Surface(1) = {1};
@@ -119,24 +120,24 @@ Curve Loop(7) = {18, 14, -19, -2}; 		Plane Surface(7) = {7};
 Curve Loop(8) = {19, 15, -20, -3}; 		Plane Surface(8) = {8};
 //+
 Curve Loop(9) = {20, 16, -17, -4}; 		Plane Surface(9) = {9};
-//Azimutal nodes
+
+// Azimutal nodes
 
 Transfinite Curve {1, 2, 3, 4, 5, 6 , 7, 8, 13, 14, 15, 16} = N_a/4;
 
-//Radial nodes (internal)
+// Radial nodes (internal)
 
 n = (p-q)/(R-p)*(r^(-N_r)-1)/(1-r);
 
-Transfinite Curve {9, 10, 11, 12} = n;
+Transfinite Curve {9, 10, 11, 12} = n Using Progression r;
 
-//Radial nodes (BL)
+// Radial nodes (BL)
 
-Transfinite Curve {17, 18, 19, 20} = N_r Using Progression r;
+Transfinite Curve {17, 18, 19, 20} = N_r Using Progression 1/r;
 
 // Superficial Mesh
 
 Transfinite Surface {:};
-//Recombine Surface {1, 2, 3, 4, 5};
 
 // Extrusion
 

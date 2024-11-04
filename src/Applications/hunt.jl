@@ -66,7 +66,7 @@ function _hunt(;
   jac_assemble = false,
   solve = true,
   solver = :julia,
-  formulation = :mhd,
+  formulation = :cfd,
   initial_value = :zero,
   rt_scaling = false,
   verbose = true,
@@ -238,7 +238,7 @@ function _hunt(;
     if tw > 0.0
       push!(cellfields,"σ"=>σ_Ω)
     end
-    writevtk(Ω_phys,joinpath(path,title),order=order,cellfields=cellfields)
+    writevtk(Ω_phys,joinpath(path,title),order=max(order,order_j),cellfields=cellfields)
     toc!(t,"vtk")
   end
   if verbose 

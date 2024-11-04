@@ -47,11 +47,12 @@ function Li2019Solver(op::FEOperator,params)
   nl_rtol = params[:solver][:rtol]
   l_rtol  = nl_rtol/10.0
   
-  m = params[:solver][:niter]
+  m = params[:solver][:niter_ls]
   l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=1e-14,verbose=verbose)
 
   # Nonlinear Solver
-  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=10,atol=1e-14,rtol=nl_rtol,verbose=verbose)
+  niter = params[:solver][:niter]
+  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=niter,atol=1e-14,rtol=nl_rtol,verbose=verbose)
   return nl_solver
 end
 

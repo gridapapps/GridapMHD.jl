@@ -196,8 +196,10 @@ function default_solver_params(::Val{:li2019})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
-    :niter          => 80,
+    :niter          => 20,
+    :niter_ls       => 80,
     :rtol           => 1e-5,
+    :atol           => 1.e-14,
   )
 end
 
@@ -209,8 +211,10 @@ function default_solver_params(::Val{:badia2024})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
-    :niter          => 80,
-    :rtol           => 1e-5,
+    :niter          => 20,      # Maximum Nonlinear iterations
+    :niter_ls       => 15,      # Maximum linear iterations
+    :rtol           => 1e-5,    # Relative tolerance
+    :atol           => 1.e-14,  # Absolute tolerance
   )
 end
 
@@ -597,10 +601,12 @@ or with a `Integer`/`String` tag in the underlying discrete model.
 """
 function params_bcs_stabilization(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>false,
-   :μ=>true,
+   :domain => false,
+   :μ => true,
   )
-  optional = Dict(:domain=>params[:fluid][:domain])
+  optional = Dict(
+    :domain => params[:fluid][:domain],
+  )
   _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:stabilization]")
 end
 

@@ -223,7 +223,7 @@ function _expansion(;
     Ω = Interior(model,tags="fluid")
     writevtk(
       Ω,joinpath(path,title),
-      order=order,
+      order=max(order,order_j),
       cellfields=[
         "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p],
       append=false
