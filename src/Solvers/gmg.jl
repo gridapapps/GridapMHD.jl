@@ -17,8 +17,8 @@ function gmg_solver(::Val{(:u,:j)},params)
   nlevs = num_levels(mh)
   k = params[:fespaces][:k]
   qdegree = map(lev -> 2*k+1,1:nlevs)
-  is_nonlinear = params[:fluid][:convection]
-
+  is_nonlinear = has_convection(params)
+  
   reffe_p = params[:fespaces][:reffe_p]
   Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
   

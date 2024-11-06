@@ -368,21 +368,30 @@ Valid keys for `params[:fluid]` are the following.
 """
 function params_fluid(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :α=>true,
-   :β=>true,
-   :γ=>true,
-   :B=>true,
-   :f=>false,
-   :σ=>false,
-   :ζ=>false,
-   :g=>false,
-   :convection=>false,
+   :domain => true,
+   :α => true,
+   :β => true,
+   :γ => true,
+   :B => true,
+   :f => false,
+   :σ => false,
+   :ζ => false,
+   :g => false,
+   :convection => false,
   )
-  optional = Dict(:σ=>1.0,:f=>VectorValue(0,0,0),:ζ=>0.0,:g=>VectorValue(0,0,0),:convection=>true)
+  optional = Dict(
+    :σ => 1.0,
+    :f => VectorValue(0,0,0),
+    :ζ => 0.0,
+    :g => VectorValue(0,0,0),
+    :convection => :newton
+  )
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
-  fluid
+  @assert fluid[:convection] in (:none,:newton,:picard)
+  return fluid
 end
+
+has_convection(params) = haskey(params[:fluid],:convection) && params[:fluid][:convection] != :none
 
 """
 Valid keys for `params[:solid]` are the following

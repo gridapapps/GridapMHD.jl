@@ -66,7 +66,7 @@ function _channel(;
   γB = 0.45,
   bl_orders=(1,1,1),
   initial_value = :zero,
-  convection = true,
+  convection = :newton,
   np_per_level = nothing,
   rt_scaling = false,
   formulation = :mhd
@@ -74,6 +74,7 @@ function _channel(;
   @assert inlet ∈ [:parabolic,:shercliff,:constant]
   @assert initial_value ∈ [:zero,:inlet,:solve]
   @assert formulation ∈ [:cfd,:mhd]
+  @assert convection ∈ [:newton,:picard,:none]
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(

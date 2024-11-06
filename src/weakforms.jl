@@ -68,20 +68,24 @@ function _weak_form(params,k)
   end
 
   function dc(x,dx,dy)
-    r = dc_mhd(x,dx,dy,α,dΩf)
+    if fluid[:convection] == :picard
+      r = p_dc_mhd(x,dx,dy,α,dΩf)
+    else
+      r = n_dc_mhd(x,dx,dy,α,dΩf)
+    end
     r
   end
 
   function res(x,dy)
     r = a(x,dy) - ℓ(dy)
-    if fluid[:convection]
+    if has_convection(params)
       r = r + c(x,dy)
     end
     r
   end
   function jac(x,dx,dy)
     r = a(dx,dy)
-    if fluid[:convection]
+    if has_convection(params)
       r = r + dc(x,dx,dy)
     end
     r
@@ -145,7 +149,11 @@ function _ode_weak_form(params,k)
   end
 
   function dc(x,dx,dy)
-    r = dc_mhd(x,dx,dy,α,dΩf)
+    if fluid[:convection] == :picard
+      r = p_dc_mhd(x,dx,dy,α,dΩf)
+    else
+      r = n_dc_mhd(x,dx,dy,α,dΩf)
+    end
     r
   end
 
@@ -285,6 +293,8 @@ function ℓ_mhd(dy,f,dΩ)
 end
 ℓ_mhd_u(v_u,f,dΩ) = ∫( v_u⋅f )*dΩ
 
+# Convection
+
 function c_mhd(x,dy,α,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
@@ -292,13 +302,25 @@ function c_mhd(x,dy,α,dΩ)
 end
 c_mhd_u_u(u,v_u,α,dΩ) = ∫( α*v_u⋅(conv∘(u,∇(u))) ) * dΩ
 
-function dc_mhd(x,dx,dy,α,dΩ)
+dc_mhd(x,dx,dy,α,dΩ) = n_dc_mhd(x,dx,dy,α,dΩ) # Default to full Newton iteration
+
+# Convection derivative: Newton iteration
+function n_dc_mhd(x,dx,dy,α,dΩ)
   u, p, j, φ = x
   du , dp , dj , dφ  = dx
   v_u, v_p, v_j, v_φ = dy
-  dc_mhd_u_u(u,du,v_u,α,dΩ)
+  n_dc_mhd_u_u(u,du,v_u,α,dΩ)
 end
-dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( dconv∘(du,∇(du),u,∇(u)) ) ) * dΩ
+n_dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( dconv∘(du,∇(du),u,∇(u)) ) ) * dΩ
+
+# Convection derivative: Picard iteration
+function p_dc_mhd(x,dx,dy,α,dΩ)
+  u, p, j, φ = x
+  du , dp , dj , dφ  = dx
+  v_u, v_p, v_j, v_φ = dy
+  p_dc_mhd_u_u(u,du,v_u,α,dΩ)
+end
+p_dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( conv∘(u,∇(du)) ) ) * dΩ
 
 # Augmented lagrangian
 

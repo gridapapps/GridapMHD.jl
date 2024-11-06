@@ -440,12 +440,14 @@ initial_guess(::Val{:zero},trial,op,params) = zero(trial)
 
 function initial_guess(::Val{:solve},trial,op,params)
   @notimplementedif isa(op,TransientFEOperator)
-  @assert params[:fluid][:convection] "Convection must be enabled to use initial guess :solve"
-  params[:fluid][:convection] = false
+  @assert has_convection(params) "Convection must be enabled to use initial guess :solve"
+
+  convection = params[:fluid][:convection]
+  params[:fluid][:convection] = :none
   xh = initial_guess(:zero,trial,op,params)
   solver = _solver(op,params)
   xh, cache = _solve(xh,solver,op,params)
-  params[:fluid][:convection] = true
+  params[:fluid][:convection] = convection
   return xh
 end
 

@@ -41,7 +41,7 @@ params[:fluid] = Dict{Symbol,Any}(
   :f => VectorValue(0.0,0.0,0.0),
   :B => VectorValue(0.0,1.0,0.0),
   :ζ => 1.0,
-  :convection => true,
+  :convection => :newton,
 )
 u_in = GridapMHD.u_inlet(:parabolic,1.0,4.0,1.0)
 params[:bcs] = Dict{Symbol,Any}(

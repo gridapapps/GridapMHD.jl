@@ -59,11 +59,12 @@ function _cavity(;
   ranks_per_level=nothing,
   verbose=true,
   vtk=true,
-  convection=true,
+  convection=:newton,
   closed_cavity=true
 )
   @assert formulation ∈ [:cfd,:mhd]
   @assert initial_value ∈ [:zero,:solve]
+  @assert convection ∈ [:newton,:picard,:none]
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(

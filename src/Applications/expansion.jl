@@ -62,7 +62,7 @@ function _expansion(;
   initial_value = :zero,
   solid_coupling = :none,
   niter = nothing,
-  convection = :true,
+  convection = :newton,
   rt_scaling = false,
   savelines = false,
   petsc_options = "",
@@ -71,6 +71,7 @@ function _expansion(;
   @assert inlet ∈ [:parabolic,:shercliff,:constant]
   @assert initial_value ∈ [:zero,:inlet,:solve]
   @assert formulation ∈ [:cfd,:mhd]
+  @assert convection ∈ [:newton,:picard,:none]
 
   info   = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
