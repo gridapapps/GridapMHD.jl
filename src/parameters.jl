@@ -98,6 +98,7 @@ function add_default_params(_params)
     :multigrid => false,
     :check_valid => false,
     :transient => false,
+    :continuation => false,
     :x0 => false,
   )
   _check_mandatory(_params,mandatory,"")
@@ -111,6 +112,7 @@ function add_default_params(_params)
     :multigrid => nothing,
     :check_valid => true,
     :transient => nothing,
+    :continuation => nothing,
     :x0 => :zero,
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
@@ -127,11 +129,34 @@ function add_default_params(_params)
   if !isnothing(params[:transient])
     params[:transient] = params_transient(params)
   end
+  if !isnothing(params[:continuation])
+    params[:continuation] = params_continuation(params)
+  end
   params
 end
 
 default_ptimer(model) = PTimer(DebugArray(LinearIndices((1,))))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_parts(model))
+
+"""
+Duplicates all paramaters in `params`, such that 
+  - isbits objects (e.g. numbers and lighweight structs) are deep-copied. 
+  - heavier objects are copied by reference.
+
+This is useful to create a new set of parameters where 
+constants can be modified without affecting the original ones.
+"""
+function duplicate_params(params)
+  new_params = Dict{Symbol,Any}()
+  for (key,value) in params
+    if isa(value,Dict)
+      new_params[key] = duplicate_params(value)
+    else
+      new_params[key] = value
+    end
+  end
+  return new_params
+end
 
 """
 Valid keys for `params[:solver]` are the following:
@@ -669,3 +694,27 @@ function default_solver_params(::Val{:forward})
     :solver => :forward,
   )
 end
+
+"""
+Continuation parameters
+
+Valid keys for the dictionaries in `params[:continuation]` are the following.
+
+# Mandatory keys
+
+- `:niter`: Number of nonlinear iterations per continuation step. 
+- `:alphas`: Array of continuation parameters.
+
+"""
+function params_continuation(params::Dict{Symbol,Any})
+  mandatory = Dict{Symbol,Any}(
+    :niter => true,
+    :alphas => true,
+  )
+  optional = Dict{Symbol,Any}()
+  continuation = _check_mandatory_and_add_optional_weak(params[:continuation],mandatory,optional,params,"[:continuation]")
+  @assert length(continuation[:niter]) == length(continuation[:alphas])
+  return continuation
+end
+
+has_continuation(params) = haskey(params,:continuation) && !isnothing(params[:continuation])

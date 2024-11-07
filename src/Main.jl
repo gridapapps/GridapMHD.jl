@@ -317,6 +317,8 @@ function _fe_operator(U,V,params)
   mfs = _multi_field_style(params)
   if has_transient(params)
     _ode_fe_operator(mfs,U,V,params)
+  elseif has_continuation(params)
+    _continuation_fe_operator(mfs,U,V,params)
   else
     _fe_operator(mfs,U,V,params)
   end
@@ -339,13 +341,32 @@ function _fe_operator(::BlockMultiFieldStyle,U,V,params)
   return FEOperator(res,jac,U,V,assem)
 end
 
-function _ode_fe_operator(::ConsecutiveMultiFieldStyle,U,V,params)
+function _ode_fe_operator(mfs,U,V,params)
   k = params[:fespaces][:k]
   res, jac, jac_t = weak_form(params,k)
   Tm = params[:solver][:matrix_type]
   Tv = params[:solver][:vector_type]
   assem = SparseMatrixAssembler(Tm,Tv,U(0),V(0))
   return TransientFEOperator(res,(jac,jac_t),U,V,assembler=assem)
+end
+
+function _continuation_fe_operator(mfs,U,V,params)
+  niter  = params[:continuation][:niter]
+  alphas = params[:continuation][:alphas]
+  nsteps = length(niter)
+
+  ops = map(alphas) do α
+    p = duplicate_params(params)
+    p[:fluid][:α] = α
+    _fe_operator(mfs,U,V,p)
+  end
+
+  op = _fe_operator(mfs,U,V,params)
+  for step in nsteps:-1:1
+    op = ContinuationFEOperator(ops[step],op,niter[step])
+  end
+
+  return op
 end
 
 # Sub-triangulations
