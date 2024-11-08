@@ -73,7 +73,8 @@ function _hunt(;
   BL_adapted = true,
   kmap_x = 1,
   kmap_y = 1,
-  ranks_per_level = nothing
+  ranks_per_level = nothing,
+  simplexify = false
 )
   @assert formulation ∈ [:cfd,:mhd]
   @assert initial_value ∈ [:zero,:solve]
@@ -131,7 +132,10 @@ function _hunt(;
 
   # DiscreteModel in terms of reduced quantities
 
-  model = hunt_mesh(parts,params,nc,rank_partition,L,tw,Ha,kmap_x,kmap_y,BL_adapted,ranks_per_level)
+  model = hunt_mesh(
+    parts,params,nc,rank_partition,L,tw,Ha,kmap_x,kmap_y,BL_adapted;
+    ranks_per_level,simplexify
+  )
   Ω = Interior(model)
   if debug && vtk
     writevtk(model,"hunt_model")
@@ -275,12 +279,11 @@ end
 
 function hunt_mesh(
   parts,params,
-  nc::Tuple,np::Tuple,L::Real,tw::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool,
-  ranks_per_level
+  nc::Tuple,np::Tuple,L::Real,tw::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool;
+  ranks_per_level = nothing, simplexify = false
 )
   if isnothing(ranks_per_level) # Single grid
-    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
-    params[:model] = model
+    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted) 
   else # Multigrid
     mh = Meshers.hunt_generate_mesh_hierarchy(parts,ranks_per_level,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
     params[:multigrid] = Dict{Symbol,Any}(
@@ -289,8 +292,11 @@ function hunt_mesh(
       :ranks_per_level => ranks_per_level,
     )
     model = get_model(mh,1)
-    params[:model] = model
   end
+  if simplexify
+    model = simplexify(model)
+  end
+  params[:model] = model
   return model
 end
 

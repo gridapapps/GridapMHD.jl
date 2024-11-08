@@ -69,7 +69,8 @@ function _channel(;
   convection = :newton,
   np_per_level = nothing,
   rt_scaling = false,
-  formulation = :mhd
+  formulation = :mhd,
+  simplexify = false
 )
   @assert inlet ∈ [:parabolic,:shercliff,:constant]
   @assert initial_value ∈ [:zero,:inlet,:solve]
@@ -140,7 +141,7 @@ function _channel(;
 
   disc_dirs = nonuniform_B ? 1 : []
   disc_factor = nonuniform_B ? γB : nothing
-  model = channel_mesh(parts,np,sizes,nc,params;bl_orders,disc_dirs,disc_factor,np_per_level)
+  model = channel_mesh(parts,np,sizes,nc,params;bl_orders,disc_dirs,disc_factor,np_per_level,simplexify)
 
   if debug && vtk
     writevtk(params[:model],joinpath(path,"$(title)_model"))
@@ -272,7 +273,8 @@ end
 
 function channel_mesh(
   parts,np,sizes,nc,params;
-  bl_orders=(1,2,2),disc_dirs=1,disc_factor=1,np_per_level=nothing
+  bl_orders=(1,2,2),disc_dirs=1,disc_factor=1,
+  np_per_level=nothing,simplexify=false
 )
   D = length(nc)
   domain = ntuple(Val{D*2}()) do i
@@ -294,6 +296,9 @@ function channel_mesh(
       :ranks_per_level => np_per_level,
     )
     model = get_model(mh,1)
+  end
+  if simplexify
+    model = simplexify(model)
   end
   params[:model] = model
   return model
