@@ -288,6 +288,9 @@ function expansion_mesh(::Val{:gridap_SG},mesh::Dict,ranks,params)
   end
   setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_refined_mesh(ranks,base_model,num_refs)
+  if hashey(mesh,:simplexify) && mesh[:simplexify]
+    model = simplexify(model)
+  end
   params[:model] = model
   return model
 end
@@ -306,6 +309,9 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   end
   setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
+  if hashey(mesh,:simplexify) && mesh[:simplexify]
+    model = simplexify(model)
+  end
   params[:model] = model
   return model
 end
