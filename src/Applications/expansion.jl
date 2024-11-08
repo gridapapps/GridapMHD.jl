@@ -63,6 +63,7 @@ function _expansion(;
   solid_coupling = :none,
   niter = nothing,
   convection = :newton,
+  fluid_disc = :Qk_dPkm1,
   rt_scaling = false,
   savelines = false,
   petsc_options = "",
@@ -123,7 +124,8 @@ function _expansion(;
   params[:fespaces] = Dict{Symbol,Any}(
     :order_u => order,
     :order_j => order_j,
-    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing
+    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing,
+    :fluid_disc => fluid_disc,
   )
 
   params[:fluid] = Dict{Symbol,Any}(

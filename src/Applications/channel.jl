@@ -70,7 +70,8 @@ function _channel(;
   np_per_level = nothing,
   rt_scaling = false,
   formulation = :mhd,
-  simplexify = false
+  simplexify = false,
+  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV)
 )
   @assert inlet ∈ [:parabolic,:shercliff,:constant]
   @assert initial_value ∈ [:zero,:inlet,:solve]
@@ -151,7 +152,8 @@ function _channel(;
   params[:fespaces] = Dict(
     :order => order,
     :order_j => order_j,
-    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing
+    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing,
+    :fluid_disc => fluid_disc,
   )
 
   # Fluid parameters
