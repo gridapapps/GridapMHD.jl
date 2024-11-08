@@ -252,9 +252,17 @@ function _fe_space(::Val{:p},params)
   k = params[:fespaces][:order_u]
   Ωf = params[:Ωf]
 
-  reffe_p = ReferenceFE(lagrangian,Float64,k-1;space=params[:fespaces][:p_space])
-  conformity = p_conformity(Ωf,params[:fespaces])
+  order = params[:fespaces][:p_order](k)
+  space = params[:fespaces][:p_space]
+  conformity = params[:fespaces][:p_conformity]
   constraint = params[:fespaces][:p_constraint]
+
+  reffe_p = ReferenceFE(lagrangian,Float64,order;space)
+  if uses_macro_elements(params)
+    rrule = params[:fespaces][:rrule]
+    subreffes = Fill(reffe_p,Adaptivity.num_subcells(rrule))
+    reffe_p = Gridap.Adaptivity.MacroReferenceFE(rrule,subreffes;conformity)
+  end
   params[:fespaces][:reffe_p] = reffe_p
 
   V_p = TestFESpace(Ωf,reffe_p;conformity,constraint)
@@ -470,31 +478,4 @@ function initial_guess(::Val{:solve},trial,op,params)
   xh, cache = _solve(xh,solver,op,params)
   params[:fluid][:convection] = convection
   return xh
-end
-
-# Mesh sizes
-
-get_cell_size(t::TriangulationTypes) = CellField(_get_cell_size(t),t)
-
-get_cell_size(m::DiscreteModelTypes) = get_cell_size(Triangulation(m))
-_get_cell_size(m::DiscreteModelTypes) = _get_cell_size(Triangulation(m))
-
-function _get_cell_size(t::Triangulation) :: Vector{Float64}
-  if iszero(num_cells(t))
-    return Float64[]
-  end
-  meas = get_cell_measure(t)
-  d = num_dims(t)
-  return collect(Float64, meas .^ (1/d))
-end
-
-function _get_cell_size(t::GridapDistributed.DistributedTriangulation)
-  map(_get_cell_size,local_views(t))
-end
-
-get_mesh_size(m::DiscreteModel) = minimum(_get_cell_size(m))
-
-function get_mesh_size(m::GridapDistributed.DistributedDiscreteModel)
-  h = map(get_mesh_size,local_views(m))
-  return reduce(min,h;init=one(eltype(h)))
 end

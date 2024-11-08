@@ -40,11 +40,11 @@ include("Solvers/li2019.jl")
 include("Solvers/badia2024.jl")
 
 # Main driver
-include("Fixes.jl")
+include("gridap_extras.jl")
 include("utils.jl")
 include("parameters.jl")
 include("weakforms.jl")
-include("Main.jl")
+include("main.jl")
 
 # Applications
 include("Applications/hunt.jl")

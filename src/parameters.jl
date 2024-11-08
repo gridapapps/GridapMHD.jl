@@ -281,7 +281,7 @@ Valid keys for `params[:fespaces]` are the following:
 # Optional keys
 -  `:order_u`: Polynomial degree for the fluid velocity. Default is 2.
 -  `:order_j`: Polynomial degree for the current density. Default is :order_u.
--  `:p_space`: FESpace conformity for pressure. Possible values are [:P,:Q]
+-  `:fluid_disc`: Discretization for the fluid. Default is :Qk_dPkm1 for hexahedra and :SV for tetrahedra.
 -  `:constraint_p`: Constraint for the pressure. Default is nothing.
 -  `:constraint_φ`: Constraint for the electric potential. Default is nothing.
 """
@@ -289,50 +289,70 @@ function params_fespaces(params::Dict{Symbol,Any})
   if !haskey(params,:fespaces) || isa(params[:fespaces],Nothing)
     params[:fespaces] = Dict{Symbol,Any}()
   end
+  poly = first(get_polytopes(params[:model]))
   mandatory = Dict(
-   :order_u => false,
-   :order_j => false,
-   :p_space => false,
-   :p_constraint => false,
-   :φ_constraint => false,
-   :rt_scaling => false,
+    :order_u => false,
+    :order_j => false,
+    :p_constraint => false,
+    :φ_constraint => false,
+    :rt_scaling => false,
+    :fluid_disc => false,
   )
   optional = Dict(
-   :order_u => 2,
-   :order_j => haskey(params[:fespaces],:order_u) ? params[:fespaces][:order_u] : 2,
-   :p_space => :P,
-   :p_constraint => nothing,
-   :φ_constraint => nothing,
-   :rt_scaling => nothing,
+    :order_u => 2,
+    :order_j => ifelse(haskey(params[:fespaces],:order_u),params[:fespaces][:order_u],2),
+    :p_constraint => nothing,
+    :φ_constraint => nothing,
+    :rt_scaling => nothing,
+    :fluid_disc => ifelse(is_n_cube(poly),:Qk_dPkm1,:SV),
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
-  fespaces[:p_conformity] = p_conformity(params[:model],fespaces)
+
   fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j]) # Maximal polynomial degree
+  @assert haskey(FLUID_DISCRETIZATIONS[poly],fespaces[:fluid_disc])
+  merge!(fespaces,FLUID_DISCRETIZATIONS[poly][fespaces[:fluid_disc]])
+  
   return fespaces
 end
 
-function p_conformity(poly::Polytope,feparams)
-  p_space = feparams[:p_space]
-  if is_n_cube(poly) && (p_space == :P)
-    conf = :L2
-  else
-    conf = :H1
-  end
-  return conf
+"""
+  List of supported velocity-pressure pairs for the fluid discretization.
+"""
+const FLUID_DISCRETIZATIONS = (;
+  HEX => FLUID_DISCRETIZATIONS_HEX,
+  TET => FLUID_DISCRETIZATIONS_TET,
+)
+
+const FLUID_DISCRETIZATIONS_HEX = (;
+  :Qk_dPkm1 => (;
+    :p_space => :P,
+    :p_conformity => :L2,
+    :p_order => (k) -> k-1,
+  ),
+  :Qk_Qkm1 => (; # Taylor Hood
+    :p_space => :Q,
+    :p_conformity => :H1,
+    :p_order => (k) -> k-1,
+  ),
+)
+
+const FLUID_DISCRETIZATIONS_TET = (;
+  :Pk_Pkm1 => (; # Taylor Hood
+    :p_space => :P,
+    :p_conformity => :H1,
+    :p_order => (k) -> k-1,
+  ),
+  :SV => (; # Scott-Vogelius (Pk_dPkm1) with macro-elements
+    :p_space => :P,
+    :p_conformity => :L2,
+    :p_order => (k) -> k-1,
+    :rrule => Gridap.Adaptivity.BarycentricRefinementRule(TET)
+  ),        
+)
+
+function uses_macro_elements(params::Dict)
+  haskey(params[:fespaces],:rrule)
 end
-function p_conformity(Ω::Triangulation,feparams)
-  reffes = get_reffes(Ω)
-  @assert length(reffes) == 1
-  return p_conformity(get_polytope(first(reffes)),feparams)
-end
-function p_conformity(Ω::GridapDistributed.DistributedTriangulation,feparams)
-  p = map(local_views(Ω)) do Ωi
-    p_conformity(Ωi,feparams)
-  end
-  return getany(p) # We assume same polytope in all parts
-end
-p_conformity(model::DiscreteModel,feparams) = p_conformity(Interior(model),feparams)
-p_conformity(model::GridapDistributed.DistributedDiscreteModel,feparams) = p_conformity(Interior(model),feparams)
 
 # Scaling for Raviart-Thomas basis functions
 function rt_scaling(model,feparams)
@@ -393,16 +413,16 @@ Valid keys for `params[:fluid]` are the following.
 """
 function params_fluid(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain => true,
-   :α => true,
-   :β => true,
-   :γ => true,
-   :B => true,
-   :f => false,
-   :σ => false,
-   :ζ => false,
-   :g => false,
-   :convection => false,
+    :domain => true,
+    :α => true,
+    :β => true,
+    :γ => true,
+    :B => true,
+    :f => false,
+    :σ => false,
+    :ζ => false,
+    :g => false,
+    :convection => false,
   )
   optional = Dict(
     :σ => 1.0,
@@ -430,13 +450,15 @@ Valid keys for `params[:solid]` are the following
 """
 function params_solid(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :σ=>false,
+    :domain=>true,
+    :σ=>false,
   )
   optional = Dict(:σ=>1)
   solid = _check_mandatory_and_add_optional(params[:solid],mandatory,optional,params,"[:solid]")
   solid
 end
+
+has_solid(params) = haskey(params,:solid) && !isnothing(params[:solid])
 
 """
 Valid keys for `params[:bcs]` are the following
@@ -460,22 +482,22 @@ Valid keys for `params[:bcs]` are the following
 """
 function params_bcs(params)
   mandatory = Dict(
-   :u=>true,
-   :j=>true,
-   :φ=>false,
-   :t=>false,
-   :thin_wall=>false,
-   :f => false,
-   :B => false,
-   :stabilization=>false,
+    :u=>true,
+    :j=>true,
+    :φ=>false,
+    :t=>false,
+    :thin_wall=>false,
+    :f => false,
+    :B => false,
+    :stabilization=>false,
   )
   optional = Dict(
-   :φ=>[],
-   :t=>[],
-   :thin_wall=>[],
-   :f =>[],
-   :B =>[],
-   :stabilization=>[],
+    :φ=>[],
+    :t=>[],
+    :thin_wall=>[],
+    :f =>[],
+    :B =>[],
+    :stabilization=>[],
   )
   bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")
   # Sub params
@@ -508,8 +530,8 @@ Valid keys for `params[:bcs][:u]` are the following
 """
 function params_bcs_u(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :tags=>true,
-   :values=>false,
+    :tags=>true,
+    :values=>false,
   )
   _check_mandatory(params[:bcs][:u],mandatory,"[:bcs][:u]")
   optional = Dict(
@@ -535,8 +557,8 @@ Valid keys for `params[:bcs][:j]` are the following
 """
 function params_bcs_j(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :tags=>true,
-   :values=>false,
+    :tags=>true,
+    :values=>false,
   )
   _check_mandatory(params[:bcs][:j],mandatory,"[:bcs][:j]")
   optional = Dict(
@@ -558,8 +580,8 @@ Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 """
 function params_bcs_φ(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :value=>true,
+    :domain=>true,
+    :value=>true,
   )
   optional = Dict()
   _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
@@ -576,8 +598,8 @@ Valid keys for the dictionaries in `params[:bcs][:t]` are the following.
 """
 function params_bcs_t(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :value=>true,
+    :domain=>true,
+    :value=>true,
   )
   optional = Dict()
   _check_mandatory_and_add_optional_weak(params[:bcs][:t],mandatory,optional,params,"[:bcs][:t]")
@@ -605,10 +627,10 @@ The thin wall law is imposed weakly via a penalty parameter `τ`.
 """
 function params_bcs_thin_wall(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :cw=>true,
-   :τ=>true,
-   :jw=>false,
+    :domain=>true,
+    :cw=>true,
+    :τ=>true,
+    :jw=>false,
   )
   optional = Dict(:jw=>0)
   _check_mandatory_and_add_optional_weak(params[:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
@@ -635,8 +657,8 @@ or with a `Integer`/`String` tag in the underlying discrete model.
 """
 function params_bcs_stabilization(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain => false,
-   :μ => true,
+    :domain => false,
+    :μ => true,
   )
   optional = Dict(
     :domain => params[:fluid][:domain],
@@ -668,7 +690,7 @@ function params_transient(params::Dict{Symbol,Any})
     :solver => false,
   )
   optional = Dict(
-   :solver => :theta,
+    :solver => :theta,
   )
   transient = _check_mandatory_and_add_optional_weak(params[:transient],mandatory,optional,params,"[:transient]")
   if isa(transient[:solver],Symbol)

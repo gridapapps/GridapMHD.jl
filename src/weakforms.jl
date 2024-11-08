@@ -39,7 +39,7 @@ function _weak_form(params,k)
     for p in params_Λ
       r = r + a_Λ(x,dy,p...)
     end
-    if solid !== nothing
+    if has_solid(params)
       r = r + a_solid(x,dy,σs,dΩs)
     end
     if abs(ζ) > eps(typeof(ζ))
@@ -105,6 +105,9 @@ function _ode_weak_form(params,k)
   bcs_params = retrieve_bcs_params(params,k)
   params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
+  reffe_p = params[:fespaces][:reffe_p]
+  Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
+
   m(t,x,dy) = m_u(x,dy,dΩf)
 
   a_dt(t,x,dy) = a_dut(x,dy,dΩf)
@@ -120,11 +123,11 @@ function _ode_weak_form(params,k)
     for p in params_Λ
       r = r + a_Λ(x,dy,p...)
     end
-    if solid !== nothing
+    if has_solid(params)
       r = r + a_solid(x,dy,σs,dΩs)
     end
     if abs(ζ) > eps(typeof(ζ))
-      r = r + a_al(x,dy,ζ,dΩf)
+      r = r + a_al(x,dy,ζ,Πp,dΩf,dΩ)
     end
     r
   end

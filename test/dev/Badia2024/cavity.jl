@@ -72,7 +72,6 @@ _params = Dict(
   :solver => :julia,
   :fespaces => Dict(
     :order_u => 2,
-    :p_space => :P,
   ),
 )
 

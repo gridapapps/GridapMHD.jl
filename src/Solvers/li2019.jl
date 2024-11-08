@@ -91,8 +91,8 @@ function li2019_laplacian(dΩ,params)
   n_Γ = get_normal_vector(Γ)
   n_Λ = get_normal_vector(Λ)
 
-  h_e_Λ = get_edge_measures(Λ,dΛ)
-  h_e_Γ = get_edge_measures(Γ,dΓ)
+  h_e_Λ = get_cell_size(Λ)
+  h_e_Γ = get_cell_size(Γ)
 
   β = 100.0
   function a_Δp(u,v)
@@ -104,9 +104,4 @@ function li2019_laplacian(dΩ,params)
     return r
   end
   return a_Δp
-end
-
-get_edge_measures(Ω::Triangulation,dΩ) = sqrt∘CellField(get_array(∫(1)dΩ),Ω)
-function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ)
-  return sqrt∘CellField(map(get_array,local_views(∫(1)*dΩ)),Ω)
 end
