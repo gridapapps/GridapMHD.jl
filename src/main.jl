@@ -231,6 +231,12 @@ function _fe_space(::Val{:u},params)
 
   Dc = num_cell_dims(model)
   reffe_u = ReferenceFE(lagrangian,VectorValue{Dc,Float64},k)
+  if uses_macro_elements(params)
+    rrule = params[:fespaces][:rrule]
+    reffe_u = Gridap.Adaptivity.MacroReferenceFE(
+      rrule,reffe_u;conformity = H1Conformity()
+    )
+  end
   params[:fespaces][:reffe_u] = reffe_u
 
   u_bc = params[:bcs][:u][:values]

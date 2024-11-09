@@ -63,22 +63,22 @@ end
 function Gridap.Adaptivity.MacroReferenceFE(
   rrule::Gridap.Adaptivity.RefinementRule,
   reffes::AbstractVector{<:Tuple};
-  conformity = Conformity(first(reffes))
+  macro_kwargs...
 )
   polys = Gridap.Adaptivity.get_cell_polytopes(rrule)
   _reffes = map(polys,reffes) do p,r
     basis, args, kwargs = r
     ReferenceFE(p,basis,args...;kwargs...)
   end
-  return Gridap.Adaptivity.MacroReferenceFE(rrule,_reffes;conformity)
+  return Gridap.Adaptivity.MacroReferenceFE(rrule,_reffes;macro_kwargs...)
 end
 
 function Gridap.Adaptivity.MacroReferenceFE(
   rrule::Gridap.Adaptivity.RefinementRule,
   reffe::Tuple;
-  conformity = Conformity(first(reffes))
+  macro_kwargs...
 )
   basis, args, kwargs = reffe
   reffes = ReferenceFE(rrule.ref_grid,basis,args...;kwargs...)
-  return Gridap.Adaptivity.MacroReferenceFE(rrule,reffes;conformity)
+  return Gridap.Adaptivity.MacroReferenceFE(rrule,reffes;macro_kwargs...)
 end
