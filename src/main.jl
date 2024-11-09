@@ -260,8 +260,9 @@ function _fe_space(::Val{:p},params)
   reffe_p = ReferenceFE(lagrangian,Float64,order;space)
   if uses_macro_elements(params)
     rrule = params[:fespaces][:rrule]
-    subreffes = Fill(reffe_p,Adaptivity.num_subcells(rrule))
-    reffe_p = Gridap.Adaptivity.MacroReferenceFE(rrule,subreffes;conformity)
+    reffe_p = Gridap.Adaptivity.MacroReferenceFE(
+      rrule,reffe_p;conformity = conformity_from_symbol(conformity)
+    )
   end
   params[:fespaces][:reffe_p] = reffe_p
 
@@ -378,9 +379,6 @@ function _continuation_fe_operator(mfs,U,V,params)
 end
 
 # Sub-triangulations
-
-const DiscreteModelTypes = Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel}
-const TriangulationTypes = Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation}
 
 _interior(model,domain::DiscreteModelTypes) = Interior(domain)
 _interior(model,domain::TriangulationTypes) = domain

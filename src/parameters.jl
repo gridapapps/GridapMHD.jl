@@ -309,45 +309,43 @@ function params_fespaces(params::Dict{Symbol,Any})
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
 
   fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j]) # Maximal polynomial degree
-  @assert haskey(FLUID_DISCRETIZATIONS[poly],fespaces[:fluid_disc])
-  merge!(fespaces,FLUID_DISCRETIZATIONS[poly][fespaces[:fluid_disc]])
+  @assert haskey(FLUID_DISCRETIZATIONS[Symbol(poly)],fespaces[:fluid_disc])
+  merge!(fespaces,pairs(FLUID_DISCRETIZATIONS[Symbol(poly)][fespaces[:fluid_disc]]))
   
   return fespaces
 end
 
 """
-  List of supported velocity-pressure pairs for the fluid discretization.
+    const FLUID_DISCRETIZATIONS
+
+List of possible fluid discretizations for the (velocity,pressure) pair.
 """
 const FLUID_DISCRETIZATIONS = (;
-  HEX => FLUID_DISCRETIZATIONS_HEX,
-  TET => FLUID_DISCRETIZATIONS_TET,
-)
-
-const FLUID_DISCRETIZATIONS_HEX = (;
-  :Qk_dPkm1 => (;
-    :p_space => :P,
-    :p_conformity => :L2,
-    :p_order => (k) -> k-1,
+  :HEX => (; # Hexahedra
+    :Qk_dPkm1 => (;
+      :p_space => :P,
+      :p_conformity => :L2,
+      :p_order => (k) -> k-1,
+    ),
+    :Qk_Qkm1 => (; # Taylor Hood
+      :p_space => :Q,
+      :p_conformity => :H1,
+      :p_order => (k) -> k-1,
+    ),
   ),
-  :Qk_Qkm1 => (; # Taylor Hood
-    :p_space => :Q,
-    :p_conformity => :H1,
-    :p_order => (k) -> k-1,
-  ),
-)
-
-const FLUID_DISCRETIZATIONS_TET = (;
-  :Pk_Pkm1 => (; # Taylor Hood
-    :p_space => :P,
-    :p_conformity => :H1,
-    :p_order => (k) -> k-1,
-  ),
-  :SV => (; # Scott-Vogelius (Pk_dPkm1) with macro-elements
-    :p_space => :P,
-    :p_conformity => :L2,
-    :p_order => (k) -> k-1,
-    :rrule => Gridap.Adaptivity.BarycentricRefinementRule(TET)
-  ),        
+  :TET => (; # Tetrahedra
+    :Pk_Pkm1 => (; # Taylor Hood
+      :p_space => :P,
+      :p_conformity => :H1,
+      :p_order => (k) -> k-1,
+    ),
+    :SV => (; # Scott-Vogelius (Pk_dPkm1) with macro-elements
+      :p_space => :P,
+      :p_conformity => :L2,
+      :p_order => (k) -> k-1,
+      :rrule => Gridap.Adaptivity.BarycentricRefinementRule(TET)
+    ),        
+  )
 )
 
 function uses_macro_elements(params::Dict)
@@ -535,7 +533,7 @@ function params_bcs_u(params::Dict{Symbol,Any})
   )
   _check_mandatory(params[:bcs][:u],mandatory,"[:bcs][:u]")
   optional = Dict(
-    :values=>zero_values(params[:bcs][:u][:tags]),
+    :values => zero_values(params[:bcs][:u][:tags]),
   )
   u = _add_optional(params[:bcs][:u],mandatory,optional,params,"[:bcs][:u]")
   _check_unused(u,mandatory,params,"[:bcs][:u]")

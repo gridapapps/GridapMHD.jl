@@ -296,7 +296,7 @@ function hunt_mesh(
     model = get_model(mh,1)
   end
   if simplexify
-    model = simplexify(model)
+    model = Gridap.simplexify(model)
   end
   params[:model] = model
   return model

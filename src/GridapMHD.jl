@@ -2,9 +2,7 @@ module GridapMHD
 
 using Random
 using LinearAlgebra
-using SparseArrays
-using SparseMatricesCSR
-using BlockArrays
+using SparseArrays, SparseMatricesCSR, BlockArrays, FillArrays
 using ForwardDiff
 
 using FileIO

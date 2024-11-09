@@ -63,4 +63,14 @@ hunt(
   kmap_y = 3
 )
 
+hunt(
+  nc=(2,2),
+  L=1.0,
+  B=(0.,50.,0.),
+  order=3,
+  title="hunt",
+  solver=:julia,
+  simplexify=true,
+)
+
 end # module

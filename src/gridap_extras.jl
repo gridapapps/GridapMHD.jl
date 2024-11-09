@@ -1,4 +1,9 @@
 
+# Quality of life definitions
+
+const DiscreteModelTypes = Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel}
+const TriangulationTypes = Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation}
+
 # Get polytopes
 
 function Geometry.get_polytopes(model::GridapDistributed.DistributedDiscreteModel)
@@ -43,3 +48,37 @@ function get_mesh_size(m::GridapDistributed.DistributedDiscreteModel)
   return reduce(min,h;init=one(eltype(h)))
 end
 
+# MacroReferenceFEs
+
+function conformity_from_symbol(sym::Symbol)
+  if sym == :H1
+    return H1Conformity()
+  elseif sym == :L2
+    return L2Conformity()
+  else
+    @assert false
+  end
+end
+
+function Gridap.Adaptivity.MacroReferenceFE(
+  rrule::Gridap.Adaptivity.RefinementRule,
+  reffes::AbstractVector{<:Tuple};
+  conformity = Conformity(first(reffes))
+)
+  polys = Gridap.Adaptivity.get_cell_polytopes(rrule)
+  _reffes = map(polys,reffes) do p,r
+    basis, args, kwargs = r
+    ReferenceFE(p,basis,args...;kwargs...)
+  end
+  return Gridap.Adaptivity.MacroReferenceFE(rrule,_reffes;conformity)
+end
+
+function Gridap.Adaptivity.MacroReferenceFE(
+  rrule::Gridap.Adaptivity.RefinementRule,
+  reffe::Tuple;
+  conformity = Conformity(first(reffes))
+)
+  basis, args, kwargs = reffe
+  reffes = ReferenceFE(rrule.ref_grid,basis,args...;kwargs...)
+  return Gridap.Adaptivity.MacroReferenceFE(rrule,reffes;conformity)
+end
