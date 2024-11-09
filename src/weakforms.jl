@@ -25,8 +25,7 @@ function _weak_form(params,k)
   bcs_params = retrieve_bcs_params(params,k)
   params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
-  reffe_p = params[:fespaces][:reffe_p]
-  Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
+  Πp = local_projection_operator(params,k)
 
   function a(x,dy)
     r = a_mhd(x,dy,β,γ,B,σf,dΩf)
@@ -105,8 +104,7 @@ function _ode_weak_form(params,k)
   bcs_params = retrieve_bcs_params(params,k)
   params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
-  reffe_p = params[:fespaces][:reffe_p]
-  Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
+  Πp = local_projection_operator(params,k)
 
   m(t,x,dy) = m_u(x,dy,dΩf)
 
@@ -330,10 +328,25 @@ p_dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( conv∘(u,∇(du)) ) ) * dΩ
 function a_al(x,dy,ζ,Πp,dΩf,dΩ)
   u, p, j, φ = x
   v_u, v_p, v_j, v_φ = dy
-  a_al_u_u(u,v_u,ζ,Πp,dΩf) + a_al_j_j(j,v_j,ζ,dΩ)
+  if isnothing(Πp)
+    a_al_sf(u,v_u,ζ,dΩf) + a_al_sf(j,v_j,ζ,dΩ)
+  else
+    a_al_sf(u,v_u,ζ,Πp,dΩf) + a_al_sf(j,v_j,ζ,dΩ)
+  end
 end
-a_al_u_u(u,v_u,ζ,Πp,dΩ) = ∫( ζ*Πp(u)*(∇⋅v_u) )*dΩ
-a_al_j_j(j,v_j,ζ,dΩ) = ∫( ζ*(∇⋅j)*(∇⋅v_j) )*dΩ
+a_al_sf(x,y,ζ,Π,dΩ) = ∫(ζ*Π(x)*(∇⋅y))*dΩ
+a_al_sf(x,y,ζ,dΩ) = ∫(ζ*(∇⋅x)*(∇⋅y))*dΩ
+
+function local_projection_operator(params,k)
+  fluid_disc = params[:fespaces][:fluid_disc]
+  if fluid_disc ∈ (:SV,)
+    return nothing
+  end
+  
+  reffe_p = params[:fespaces][:reffe_p]
+  Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
+  return Πp
+end
 
 # Solid equations
 

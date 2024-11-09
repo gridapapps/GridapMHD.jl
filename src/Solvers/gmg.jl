@@ -39,7 +39,7 @@ function gmg_solver(::Val{(:u,:j)},params)
         r = r + a_thin_wall_j_j(dj,v_j,p...)
       end
       if abs(ζ) > eps(typeof(ζ))
-        r = r + a_al_u_u(du,v_u,ζ,Πp,dΩf) + a_al_j_j(dj,v_j,ζ,dΩf)
+        r = r + a_al_sf(du,v_u,ζ,Πp,dΩf) + a_al_sf(dj,v_j,ζ,dΩf)
       end
       return r
     end
@@ -59,7 +59,7 @@ function gmg_solver(::Val{(:u,:j)},params)
         r = r + a_thin_wall_j_j(dj,v_j,p...)
       end
       if abs(ζ) > eps(typeof(ζ))
-        r = r + a_al_u_u(du,v_u,ζ,Πp,dΩf) + a_al_j_j(dj,v_j,ζ,dΩf)
+        r = r + a_al_sf(du,v_u,ζ,Πp,dΩf) + a_al_sf(dj,v_j,ζ,dΩf)
       end
       return r
     end
@@ -76,7 +76,7 @@ function gmg_solver(::Val{(:u,:j)},params)
         dc_mhd_u_u(u,du,v_u,α,dΩf)
       end
       if abs(ζ) > eps(typeof(ζ))
-        r = r + a_al_u_u(du,v_u,ζ,Πp,dΩf)
+        r = r + a_al_sf(du,v_u,ζ,Πp,dΩf)
       end
       return r
     end
@@ -87,14 +87,14 @@ function gmg_solver(::Val{(:u,:j)},params)
     _, _, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(model,params,k)
     Ωf = Triangulation(model)
     dΩf = Measure(Ωf,2*k)
-    l((u,j),(v_u,v_j)) = a_al_u_u(u,v_u,ζ,Πp,dΩf) + a_al_j_j(j,v_j,ζ,dΩf)
+    l((u,j),(v_u,v_j)) = a_al_sf(u,v_u,ζ,Πp,dΩf) + a_al_sf(j,v_j,ζ,dΩf)
     return l
   end
   function rhs_u(model)
     _, _, α, β, γ, σf, f, B, ζ = retrieve_fluid_params(model,params,k)
     Ωf = Triangulation(model)
     dΩf = Measure(Ωf,2*k)
-    l(u,v_u) = a_al_u_u(u,v_u,ζ,Πp,dΩf)
+    l(u,v_u) = a_al_sf(u,v_u,ζ,Πp,dΩf)
     return l
   end
 
