@@ -60,7 +60,9 @@ function _cavity(;
   verbose=true,
   vtk=true,
   convection=:newton,
-  closed_cavity=true
+  closed_cavity=true,
+  simplexify = false,
+  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV)
 )
   @assert formulation ∈ [:cfd,:mhd]
   @assert initial_value ∈ [:zero,:solve]
@@ -91,7 +93,7 @@ function _cavity(;
   params[:solver] = solver
 
   # Model
-  model = cavity_mesh(parts,params,nc,np,L,ranks_per_level)
+  model = cavity_mesh(parts,params,nc,np,L,ranks_per_level,simplexify)
 
   # Reduced quantities
   Re = u0 * L / ν
@@ -131,7 +133,8 @@ function _cavity(;
   params[:fespaces] = Dict{Symbol,Any}(
     :order_u => order,
     :order_j => order_j,
-    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing
+    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing,
+    :fluid_disc => fluid_disc,
   )
 
   params[:x0] = initial_value
@@ -215,15 +218,15 @@ function add_cavity_tags!(labels)
   add_tag_from_tags!(labels, "insulating", "boundary")
 end
 
-function cavity_mesh(parts,params,nc::Int,np,L,ranks_per_level)
-  return cavity_mesh(parts,params,(nc,nc,nc),np,L,ranks_per_level)
+function cavity_mesh(parts,params,nc::Int,np,L,ranks_per_level,simplexify)
+  return cavity_mesh(parts,params,(nc,nc,nc),np,L,ranks_per_level,simplexify)
 end
 
-function cavity_mesh(parts,params,nc::Tuple,np::Int,L,ranks_per_level)
-  return cavity_mesh(parts,params,nc,(np,1,1),L,ranks_per_level)
+function cavity_mesh(parts,params,nc::Tuple,np::Int,L,ranks_per_level,simplexify)
+  return cavity_mesh(parts,params,nc,(np,1,1),L,ranks_per_level,simplexify)
 end
 
-function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level)
+function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,simplexify)
   domain = (0.0,L,0.0,L,0.0,L)
   if isnothing(ranks_per_level) # Single grid
     model = CartesianDiscreteModel(parts,np,domain,nc)
@@ -241,6 +244,9 @@ function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level)
     )
     model = get_model(mh,1)
     params[:model] = model
+  end
+  if simplexify
+    model = Gridap.simplexify(model)
   end
   return model
 end
