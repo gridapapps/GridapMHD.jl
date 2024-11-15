@@ -24,6 +24,16 @@ hunt(
 )
 
 hunt(
+  nc=(10,10),
+  L=1.0,
+  B=(0.,50.,0.),
+  order=3,
+  title="hunt",
+  solver=:julia,
+  simplexify=true,
+)
+
+hunt(
   nc=(4,4),
   np=(1,1),
   backend=:mpi,
@@ -61,16 +71,6 @@ hunt(
   BL_adapted=false,
   kmap_x = 3,
   kmap_y = 3
-)
-
-hunt(
-  nc=(4,4),
-  L=1.0,
-  B=(0.,50.,0.),
-  order=3,
-  title="hunt",
-  solver=:julia,
-  simplexify=true,
 )
 
 end # module

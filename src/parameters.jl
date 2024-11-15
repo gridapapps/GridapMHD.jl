@@ -308,10 +308,21 @@ function params_fespaces(params::Dict{Symbol,Any})
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
 
-  fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j]) # Maximal polynomial degree
+  # Add discretization parameters
   @assert haskey(FLUID_DISCRETIZATIONS[Symbol(poly)],fespaces[:fluid_disc])
   merge!(fespaces,pairs(FLUID_DISCRETIZATIONS[Symbol(poly)][fespaces[:fluid_disc]]))
-  
+  fespaces[:p_order] = fespaces[:p_order](fespaces[:order_u])
+
+  # Integration
+  fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j]) # Maximal polynomial degree
+  fespaces[:q] = max( # Quadrature order
+    2*(fespaces[:order_u] - 1),              # UU-Laplacian
+    3*fespaces[:order_u] - 1,                # UU-Convection
+    2*fespaces[:order_j],                    # JJ-Mass
+    fespaces[:order_u] + fespaces[:order_j], # UJ-Coupling
+  )
+  fespaces[:quadratures] = generate_quadratures(poly,fespaces)
+
   return fespaces
 end
 
@@ -364,9 +375,33 @@ function rt_scaling(model,feparams)
   return phi
 end
 
+function generate_quadratures(poly::Polytope{D},feparams) where D
+  fluid_disc = feparams[:fluid_disc]
+  qdegree = feparams[:q]
+
+  fpolys = ReferenceFEs.get_reffaces(poly)[2:end] # Skip 0-dfaces
+  if fluid_disc == :SV
+    # TODO: This should be made more general, to ensure all d-faces are properly 
+    # refined if need be. In the case of SV, there is not subdivision of the 
+    # facets and edges, so its fine.
+    quads = map(enumerate(fpolys)) do (d,p)
+      if d == D
+        Quadrature(
+          poly,Gridap.Adaptivity.CompositeQuadrature(),feparams[:rrule],qdegree
+        )
+      else
+        Quadrature(p,qdegree)
+      end
+    end
+  else
+    quads = map(p -> Quadrature(p,qdegree), fpolys)
+  end
+
+  return quads
+end
+
 """
 Valid keys for `params[:multigrid]` are the following:
-
 """
 function params_multigrid(params::Dict{Symbol,Any})
   solver = params[:solver]

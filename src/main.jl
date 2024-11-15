@@ -255,15 +255,13 @@ end
 function _fe_space(::Val{:p},params)
   @notimplementedif space_uses_multigrid(params[:solver])[2]
 
-  k = params[:fespaces][:order_u]
   Ωf = params[:Ωf]
-
-  order = params[:fespaces][:p_order](k)
+  k = params[:fespaces][:p_order]
   space = params[:fespaces][:p_space]
   conformity = params[:fespaces][:p_conformity]
   constraint = params[:fespaces][:p_constraint]
 
-  reffe_p = ReferenceFE(lagrangian,Float64,order;space)
+  reffe_p = ReferenceFE(lagrangian,Float64,k;space)
   if uses_macro_elements(params)
     rrule = params[:fespaces][:rrule]
     reffe_p = Gridap.Adaptivity.MacroReferenceFE(

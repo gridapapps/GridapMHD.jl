@@ -171,9 +171,10 @@ end
 retrieve_fluid_params(params,k) = retrieve_fluid_params(params[:model],params,k)
 
 function retrieve_fluid_params(model,params,k)
-  fluid = params[:fluid]
-  Ωf    = params[:Ωf]
-  dΩf   = Measure(Ωf,2*k)
+  fluid  = params[:fluid]
+  quad3D = params[:fespaces][:quadratures][3]
+  Ωf  = params[:Ωf]
+  dΩf = Measure(Ωf,quad3D)
 
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
   f = fluid[:f]
@@ -186,10 +187,11 @@ end
 retrieve_solid_params(params,k) = retrieve_solid_params(params[:model],params,k)
 
 function retrieve_solid_params(model,params,k)
-  solid = params[:solid]
+  quad3D = params[:fespaces][:quadratures][3]
+  solid  = params[:solid]
   if solid !== nothing
     Ωs  = params[:Ωs]
-    dΩs = Measure(Ωs,2*k)
+    dΩs = Measure(Ωs,quad3D)
     σs  = solid[:σ]
     return Ωs, dΩs, σs
   else
@@ -200,13 +202,15 @@ end
 retrieve_bcs_params(params,k) = retrieve_bcs_params(params[:model],params,k)
 
 function retrieve_bcs_params(model,params,k)
+  quad3D = params[:fespaces][:quadratures][3]
+  quad2D = params[:fespaces][:quadratures][2]
   bcs = params[:bcs]
 
   params_φ = []
   for i in 1:length(bcs[:φ])
     φ_i = bcs[:φ][i][:value]
     Γ   = _boundary(model,bcs[:φ][i][:domain])
-    dΓ  = Measure(Γ,2*k)
+    dΓ  = Measure(Γ,quad2D)
     n_Γ = get_normal_vector(Γ)
     push!(params_φ,(φ_i,n_Γ,dΓ))
   end
@@ -217,7 +221,7 @@ function retrieve_bcs_params(model,params,k)
     cw_i = bcs[:thin_wall][i][:cw]
     jw_i = bcs[:thin_wall][i][:jw]
     Γ    = _boundary(model,bcs[:thin_wall][i][:domain])
-    dΓ   = Measure(Γ,2*k)
+    dΓ   = Measure(Γ,quad2D)
     n_Γ  = get_normal_vector(Γ)
     push!(params_thin_wall,(τ_i,cw_i,jw_i,n_Γ,dΓ))
   end
@@ -230,7 +234,7 @@ function retrieve_bcs_params(model,params,k)
   for i in 1:length(bcs[:f])
     f_i  = bcs[:f][i][:value]
     Ω_i  = _interior(model,bcs[:f][i][:domain])
-    dΩ_i = Measure(Ω_i,2*k)
+    dΩ_i = Measure(Ω_i,quad3D)
     push!(params_f,(f_i,dΩ_i))
   end
 
@@ -238,14 +242,14 @@ function retrieve_bcs_params(model,params,k)
   for i in 1:length(bcs[:B])
     B_i  = bcs[:B][i][:value]
     Ω_i  = _interior(model,bcs[:B][i][:domain])
-    dΩ_i = Measure(Ω_i,2*k)
+    dΩ_i = Measure(Ω_i,quad3D)
     push!(params_f,(γ,B_i,dΩ_i))
   end
 
   params_Λ = []
   for i in 1:length(params[:bcs][:stabilization])
     Λ = _skeleton(model,params[:bcs][:stabilization][i][:domain])
-    dΛ = Measure(Λ,2*k)
+    dΛ = Measure(Λ,quad2D)
     h = get_cell_size(Λ)
     μ = params[:bcs][:stabilization][i][:μ]
     push!(params_Λ,(μ,h,dΛ))
