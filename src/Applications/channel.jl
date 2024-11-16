@@ -150,7 +150,7 @@ function _channel(;
 
   # FE Space parameters
   params[:fespaces] = Dict(
-    :order => order,
+    :order_u => order,
     :order_j => order_j,
     :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing,
     :fluid_disc => fluid_disc,
