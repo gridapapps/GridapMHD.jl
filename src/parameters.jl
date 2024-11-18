@@ -132,6 +132,7 @@ function add_default_params(_params)
   if !isnothing(params[:continuation])
     params[:continuation] = params_continuation(params)
   end
+  display_params(params)
   params
 end
 
@@ -156,6 +157,30 @@ function duplicate_params(params)
     end
   end
   return new_params
+end
+
+function display_params(params)
+  map_main(params[:ptimer].parts) do _
+    msg = params_to_string(params)
+    @info string("Parameters :: \n",msg...)
+  end
+end
+
+function params_to_string(params)
+  msg = String[]
+  for (key,value) in params
+    if isa(value,Dict)
+      sub_msg = params_to_string(value)
+      push!(msg,"  > $key => { \n")
+      for m in sub_msg
+        push!(msg,"  $m")
+      end
+      push!(msg,"  } \n")
+    elseif isa(value,Union{Number,String,Symbol,Nothing})
+      push!(msg,"  > $key => $value \n")
+    end
+  end
+  return msg
 end
 
 """
@@ -355,7 +380,7 @@ const FLUID_DISCRETIZATIONS = (;
       :p_conformity => :L2,
       :p_order => (k) -> k-1,
       :rrule => Gridap.Adaptivity.BarycentricRefinementRule(TET)
-    ),        
+    ),
   )
 )
 
@@ -390,7 +415,7 @@ function generate_quadratures(poly::Polytope{D},feparams) where D
           poly,Gridap.Adaptivity.CompositeQuadrature(),feparams[:rrule],qdegree
         )
       else
-        Quadrature(p,qdegree)
+        Quadrature(p,2*qdegree)
       end
     end
   else
