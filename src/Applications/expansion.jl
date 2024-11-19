@@ -105,7 +105,6 @@ function _expansion(;
   toc!(t,"model")
 
   # Parameters and bounday conditions
-
   # Fluid parameters
 
   Re = Ha^2/N
