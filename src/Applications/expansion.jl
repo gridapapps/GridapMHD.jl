@@ -224,11 +224,13 @@ function _expansion(;
 
   if vtk
     Ω = Interior(model,tags="fluid")
+    iorder = (fluid_disc == :SV) ? 2*order : max(order,order_j)
     writevtk(
       Ω,joinpath(path,title),
-      order=max(order,order_j),
+      order=iorder,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p],
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p
+      ],
       append=false
     )
     toc!(t,"vtk")
@@ -312,9 +314,9 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
   if haskey(mesh,:simplexify) && mesh[:simplexify]
-    ref_model = Gridap.Adaptivity.refine(Gridap.Geometry.UnstructuredDiscreteModel(model), refinement_method = "barycentric")
-    #model = simplexify(model)
-    model = Gridap.Adaptivity.get_model(ref_model)
+    #ref_model = Gridap.Adaptivity.refine(Gridap.Geometry.UnstructuredDiscreteModel(model), refinement_method = "barycentric")
+    model = simplexify(model)
+    #model = Gridap.Adaptivity.get_model(ref_model)
   end
   params[:model] = model
   return model
