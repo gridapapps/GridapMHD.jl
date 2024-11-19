@@ -312,7 +312,9 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
   if haskey(mesh,:simplexify) && mesh[:simplexify]
-    model = simplexify(model)
+    ref_model = Gridap.Adaptivity.refine(Gridap.Geometry.UnstructuredDiscreteModel(model), refinement_method = "barycentric")
+    #model = simplexify(model)
+    model = Gridap.Adaptivity.get_model(ref_model)
   end
   params[:model] = model
   return model
