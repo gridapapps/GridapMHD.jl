@@ -375,6 +375,11 @@ const FLUID_DISCRETIZATIONS = (;
       :p_conformity => :H1,
       :p_order => (k) -> k-1,
     ),
+    :Pk_dPkm1 => (; # Scott-Vogelius
+      :p_space => :P,
+      :p_conformity => :L2,
+      :p_order => (k) -> k-1,
+    ),
     :SV => (; # Scott-Vogelius (Pk_dPkm1) with macro-elements
       :p_space => :P,
       :p_conformity => :L2,
