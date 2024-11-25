@@ -223,7 +223,7 @@ function _expansion(;
 
   if vtk
     Ω = Interior(model,tags="fluid")
-    iorder = (fluid_disc == :SV) ? 2*order : max(order,order_j)
+    iorder = min(3,max(order,order_j))
     writevtk(
       Ω,joinpath(path,title),
       order=iorder,

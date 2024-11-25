@@ -347,6 +347,7 @@ function params_fespaces(params::Dict{Symbol,Any})
     fespaces[:order_u] + fespaces[:order_j], # UJ-Coupling
   )
   fespaces[:quadratures] = generate_quadratures(poly,fespaces)
+  fespaces[:poly] = poly
 
   return fespaces
 end

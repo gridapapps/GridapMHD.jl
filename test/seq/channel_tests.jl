@@ -1,9 +1,33 @@
 module ChannelTestsSequential
 
 using GridapMHD: channel
-using GridapPETSc, SparseMatricesCSR
+using GridapPETSc, SparseMatricesCSR, SparseArrays
 
-#channel(nc=(4,4,4),vtk=true)
+solver = Dict(
+  :solver        => :badia2024,
+  :matrix_type   => SparseMatrixCSC{Float64,Int},
+  :vector_type   => Vector{Float64},
+  :block_solvers => [:julia,:cg_jacobi,:cg_jacobi],
+  :petsc_options => "-ksp_error_if_not_converged true -ksp_converged_reason",
+  :rtol => 1.e-10
+)
+
+channel(
+  nc=(4,2,2),
+  order = 3,
+  order_j = 4,
+  L = 2.0,
+  w = 1.0,
+  ζ = 50.0,
+  B = (0.0,50.0,0.0),
+  bl_orders=(1,2,2),
+  rt_scaling = true,
+  convection = :none,
+  simplexify = true,
+  fluid_disc = :Pk_dPkm1,
+  solver = solver,
+  vtk=true
+)
 
 solver = Dict(
   :solver        => :badia2024,
@@ -16,7 +40,7 @@ solver = Dict(
 
 channel(
   backend=:mpi,
-  np=(2,1,1),
+  np=(1,1,1),
   solver=solver,
   sizes=(6,3,3),
   nc=(4,4,4),

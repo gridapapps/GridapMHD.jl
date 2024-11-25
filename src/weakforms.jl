@@ -342,8 +342,9 @@ a_al_sf(x,y,ζ,Π,dΩ) = ∫(ζ*Π(x)*(∇⋅y))*dΩ
 a_al_sf(x,y,ζ,dΩ) = ∫(ζ*(∇⋅x)*(∇⋅y))*dΩ
 
 function local_projection_operator(params,k)
+  poly = params[:fespaces][:poly]
   fluid_disc = params[:fespaces][:fluid_disc]
-  if fluid_disc ∈ (:SV,)
+  if (poly == TET) && fluid_disc ∈ (:SV,:Pk_dPkm1)
     return nothing
   end
   

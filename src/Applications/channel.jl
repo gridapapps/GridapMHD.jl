@@ -220,9 +220,10 @@ function _channel(;
   info[:Ha] = Ha
 
   if vtk
+    vtk_order = minimum(k,3) 
     writevtk(
       Ω, joinpath(path,title),
-      order = k,
+      order = vtk_order,
       cellfields = [
         "uh"     => uh,
         "ph"     => ph,
@@ -301,6 +302,8 @@ function channel_mesh(
   end
   if simplexify
     model = Gridap.simplexify(model)
+    model = Gridap.Adaptivity.refine(model, refinement_method = "barycentric")
+    model = Gridap.Adaptivity.get_model(model)
   end
   params[:model] = model
   return model
