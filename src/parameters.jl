@@ -322,6 +322,7 @@ function params_fespaces(params::Dict{Symbol,Any})
     :φ_constraint => false,
     :rt_scaling => false,
     :fluid_disc => false,
+    :current_disc => false,
   )
   optional = Dict(
     :order_u => 2,
@@ -330,13 +331,17 @@ function params_fespaces(params::Dict{Symbol,Any})
     :φ_constraint => nothing,
     :rt_scaling => nothing,
     :fluid_disc => ifelse(is_n_cube(poly),:Qk_dPkm1,:SV),
+    :current_disc => :RT,
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
 
   # Add discretization parameters
   @assert haskey(FLUID_DISCRETIZATIONS[Symbol(poly)],fespaces[:fluid_disc])
   merge!(fespaces,pairs(FLUID_DISCRETIZATIONS[Symbol(poly)][fespaces[:fluid_disc]]))
+  @assert haskey(CURRENT_DISCRETIZATIONS[Symbol(poly)],fespaces[:current_disc])
+  merge!(fespaces,pairs(CURRENT_DISCRETIZATIONS[Symbol(poly)][fespaces[:current_disc]]))
   fespaces[:p_order] = fespaces[:p_order](fespaces[:order_u])
+  fespaces[:φ_order] = fespaces[:φ_order](fespaces[:order_j])
 
   # Integration
   fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j]) # Maximal polynomial degree
@@ -390,6 +395,33 @@ const FLUID_DISCRETIZATIONS = (;
   )
 )
 
+"""
+    const CURRENT_DISCRETIZATIONS
+
+List of possible current discretizations for the (current,potential) pair.
+"""
+const CURRENT_DISCRETIZATIONS = (;
+  :HEX => (; # Hexahedra
+    :RT => (; # Raviart-Thomas
+      :φ_space => :Q,
+      :φ_conformity => :L2,
+      :φ_order => (k) -> k-1,
+    ),
+  ),
+  :TET => (; # Tetrahedra
+    :RT => (; # Raviart-Thomas
+      :φ_space => :P,
+      :φ_conformity => :L2,
+      :φ_order => (k) -> k-1,
+    ),
+    :BDM => (; # Brezzi-Douglas-Marini
+      :φ_space => :P,
+      :φ_conformity => :L2,
+      :φ_order => (k) -> k-1,
+    ),
+  )
+)
+
 function uses_macro_elements(params::Dict)
   haskey(params[:fespaces],:rrule)
 end
@@ -397,11 +429,18 @@ end
 # Scaling for Raviart-Thomas basis functions
 function rt_scaling(model,feparams)
   Dc = num_cell_dims(model)
-  if isnothing(feparams[:rt_scaling])
-    phi = GenericField(identity)
+  current_disc = feparams[:current_disc]
+
+  # TODO: Unify this from the Gridap side
+  if current_disc == :RT
+    if isnothing(feparams[:rt_scaling])
+      phi = GenericField(identity)
+    else
+      ξ = feparams[:rt_scaling]
+      phi = AffineMap(ξ*one(TensorValue{Dc,Dc,Float64}),zero(VectorValue{Dc,Float64}))
+    end
   else
-    ξ = feparams[:rt_scaling]
-    phi = AffineMap(ξ*one(TensorValue{Dc,Dc,Float64}),zero(VectorValue{Dc,Float64}))
+    phi = isnothing(feparams[:rt_scaling]) ? 1.0 : feparams[:rt_scaling]
   end
   return phi
 end

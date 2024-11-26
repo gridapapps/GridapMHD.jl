@@ -62,7 +62,8 @@ function _cavity(;
   convection=:newton,
   closed_cavity=true,
   simplexify = false,
-  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV)
+  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV),
+  current_disc = :RT,
 )
   @assert formulation ∈ [:cfd,:mhd]
   @assert initial_value ∈ [:zero,:solve]
@@ -135,6 +136,7 @@ function _cavity(;
     :order_j => order_j,
     :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing,
     :fluid_disc => fluid_disc,
+    :current_disc => current_disc,
   )
 
   params[:x0] = initial_value

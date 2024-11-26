@@ -71,7 +71,8 @@ function _channel(;
   rt_scaling = false,
   formulation = :mhd,
   simplexify = false,
-  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV)
+  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV),
+  current_disc = :RT,
 )
   @assert inlet ∈ [:parabolic,:shercliff,:constant]
   @assert initial_value ∈ [:zero,:inlet,:solve]
@@ -154,6 +155,7 @@ function _channel(;
     :order_j => order_j,
     :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing,
     :fluid_disc => fluid_disc,
+    :current_disc => current_disc,
   )
 
   # Fluid parameters
@@ -220,7 +222,7 @@ function _channel(;
   info[:Ha] = Ha
 
   if vtk
-    vtk_order = minimum(k,3) 
+    vtk_order = min(k,3) 
     writevtk(
       Ω, joinpath(path,title),
       order = vtk_order,

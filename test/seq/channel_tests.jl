@@ -25,6 +25,7 @@ channel(
   convection = :none,
   simplexify = true,
   fluid_disc = :Pk_dPkm1,
+  current_disc = :BDM,
   solver = solver,
   vtk=true
 )

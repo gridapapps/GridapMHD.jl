@@ -281,8 +281,13 @@ function _fe_space(::Val{:j},params)
   uses_mg = space_uses_multigrid(params[:solver])[3]
   model = uses_mg ? params[:multigrid][:mh] : params[:model]
 
-  phi = rt_scaling(params[:model],params[:fespaces])
-  reffe_j = ReferenceFE(raviart_thomas,Float64,k-1;basis_type=:jacobi,phi=phi)
+  phi  = rt_scaling(params[:model],params[:fespaces])
+  if params[:fespaces][:current_disc] == :RT
+    reffe_j = ReferenceFE(raviart_thomas,Float64,k-1;basis_type=:jacobi,phi=phi)
+  else
+    @assert params[:fespaces][:current_disc] == :BDM
+    reffe_j = ReferenceFE(bdm,Float64,k;phi=phi)
+  end
   params[:fespaces][:reffe_j] = reffe_j
 
   j_bc = params[:bcs][:j][:values]
@@ -300,14 +305,15 @@ end
 
 function _fe_space(::Val{:φ},params)
   @notimplementedif space_uses_multigrid(params[:solver])[4]
-  k = params[:fespaces][:order_j]
+  k = params[:fespaces][:φ_order]
   model = params[:model]
 
-  reffe_φ = ReferenceFE(lagrangian,Float64,k-1)
-  conformity = :L2
-  constraint = params[:fespaces][:φ_constraint]
+  space = params[:fespaces][:φ_space]
+  reffe_φ = ReferenceFE(lagrangian,Float64,k;space)
   params[:fespaces][:reffe_φ] = reffe_φ
 
+  conformity = params[:fespaces][:φ_conformity]
+  constraint = params[:fespaces][:φ_constraint]
   V_φ = TestFESpace(model,reffe_φ;conformity,constraint)
   U_φ = _trial_fe_space(V_φ,nothing,params)
 
