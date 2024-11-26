@@ -15,7 +15,7 @@ solver = Dict(
 channel(
   nc=(4,2,2),
   order = 3,
-  order_j = 4,
+  order_j = 3,
   L = 2.0,
   w = 1.0,
   ζ = 50.0,

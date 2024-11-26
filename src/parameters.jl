@@ -374,6 +374,11 @@ const FLUID_DISCRETIZATIONS = (;
       :p_conformity => :H1,
       :p_order => (k) -> k-1,
     ),
+    :RT => (; # Raviart-Thomas
+      :p_space => :Q,
+      :p_conformity => :L2,
+      :p_order => (k) -> k-1,
+    ),
   ),
   :TET => (; # Tetrahedra
     :Pk_Pkm1 => (; # Taylor Hood
@@ -394,6 +399,21 @@ const FLUID_DISCRETIZATIONS = (;
     ),
   )
 )
+
+function get_fluid_reffe_pair(disc::Symbol,poly::Polytope,feparams)
+  if poly == HEX 
+
+    if disc == :Qk_dPkm1
+      
+    else
+
+    end
+  elseif poly == TET
+
+  else
+    @notimplemented "Only HEX and TET supported for now."
+  end
+end
 
 """
     const CURRENT_DISCRETIZATIONS
