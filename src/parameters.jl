@@ -413,8 +413,8 @@ function fluid_discretization(disc::Symbol,poly::Polytope,feparams)
       reffe_u = LagrangianRefFE(VectorValue{D,Float64},poly,k)
       reffe_p = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:rrule] = rrule
-      feparams[:reffe_u] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_u;conformity=:H1)
-      feparams[:reffe_p] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_p;conformity=:L2)
+      feparams[:reffe_u] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_u;conformity=H1Conformity())
+      feparams[:reffe_p] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_p;conformity=L2Conformity())
       feparams[:order_p] = k-1
       feparams[:p_conformity] = :L2
     elseif disc == :RT # Raviart-Thomas
@@ -450,7 +450,7 @@ const CURRENT_DISCRETIZATIONS = (;
 
 function current_discretization(disc::Symbol,poly::Polytope,feparams)
   k = feparams[:order_j]
-  phi = rt_scaling(params[:model],params[:fespaces])
+  phi = rt_scaling(poly,feparams)
   if poly == HEX # Hexahedral meshes
     if disc == :RT
       feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1;basis_type=:jacobi,phi=phi)
@@ -490,8 +490,8 @@ function uses_macro_elements(params::Dict)
 end
 
 # Scaling for Raviart-Thomas basis functions
-function rt_scaling(model,feparams)
-  Dc = num_cell_dims(model)
+function rt_scaling(poly,feparams)
+  Dc = num_dims(poly)
   current_disc = feparams[:current_disc]
 
   # TODO: Unify this from the Gridap side

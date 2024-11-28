@@ -74,8 +74,8 @@ function _hunt(;
   kmap_x = 1,
   kmap_y = 1,
   ranks_per_level = nothing,
-  simplexify = false,
-  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV),
+  adaptivity_method = 0,
+  fluid_disc = ifelse(iszero(adaptivity_method),:Qk_dPkm1,:SV),
   current_disc = :RT,
 )
   @assert formulation ∈ [:cfd,:mhd]
@@ -136,7 +136,7 @@ function _hunt(;
 
   model = hunt_mesh(
     parts,params,nc,rank_partition,L,tw,Ha,kmap_x,kmap_y,BL_adapted;
-    ranks_per_level,simplexify
+    ranks_per_level,adaptivity_method
   )
   Ω = Interior(model)
   if debug && vtk
@@ -284,12 +284,12 @@ end
 function hunt_mesh(
   parts,params,
   nc::Tuple,np::Tuple,L::Real,tw::Real,Ha::Real,kmap_x::Number,kmap_y::Number,BL_adapted::Bool;
-  ranks_per_level = nothing, simplexify = false
+  ranks_per_level = nothing, adaptivity_method = 0
 )
   if isnothing(ranks_per_level) # Single grid
-    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted) 
+    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted,mesh_postpro) 
   else # Multigrid
-    mh = Meshers.hunt_generate_mesh_hierarchy(parts,ranks_per_level,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
+    mh = Meshers.hunt_generate_mesh_hierarchy(parts,ranks_per_level,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted,mesh_postpro)
     params[:multigrid] = Dict{Symbol,Any}(
       :mh => mh,
       :num_refs_coarse => 0,
@@ -297,9 +297,7 @@ function hunt_mesh(
     )
     model = get_model(mh,1)
   end
-  if simplexify
-    model = Gridap.simplexify(model)
-  end
+  model = Meshers.adapt_mesh(model,adaptivity_method)
   params[:model] = model
   return model
 end

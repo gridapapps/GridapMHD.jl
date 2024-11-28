@@ -22,6 +22,11 @@ hunt(
   title="hunt",
   solver=solver,
   ζ=100.0,
+  order = 3,
+  order_j = 3,
+  simplexify = true,
+  fluid_disc = :Pk_dPkm1,
+  current_disc = :BDM,
 )
 
 # Badia2024, with GMG solver for u-j sub-block

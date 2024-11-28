@@ -293,8 +293,8 @@ function expansion_mesh(::Val{:gridap_SG},mesh::Dict,ranks,params)
   end
   setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_refined_mesh(ranks,base_model,num_refs)
-  if haskey(mesh,:simplexify) && mesh[:simplexify]
-    model = simplexify(model)
+  if haskey(mesh,:adaptivity_method)
+    model = Meshers.adapt_mesh(model,adaptivity_method)
   end
   params[:model] = model
   return model
@@ -314,32 +314,9 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   end
   setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
-  if haskey(mesh,:simplexify) && mesh[:simplexify]
-    #ref_model = Gridap.Adaptivity.refine(Gridap.Geometry.UnstructuredDiscreteModel(model), refinement_method = "barycentric")
-    model = simplexify(model)
-    #model = Gridap.Adaptivity.get_model(ref_model)
+  if haskey(mesh,:adaptivity_method)
+    model = Meshers.adapt_mesh(model,adaptivity_method)
   end
-  params[:model] = model
-  return model
-end
-
-function expansion_mesh(::Val{:p4est_SG_barycentric},mesh::Dict,ranks,params)
-  @assert haskey(mesh,:num_refs)
-  num_refs = mesh[:num_refs]
-  if haskey(mesh,:base_mesh)
-    msh_file = mesh[:base_mesh]
-    if !ispath(msh_file)
-      msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
-    end
-    base_model = UnstructuredDiscreteModel(GmshDiscreteModel(msh_file))
-  else
-    base_model = expansion_generate_base_mesh()
-  end
-  setup_expansion_mesh_tags!(base_model)
-  model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
-  model = simplexify(model)
-  model = Gridap.Adaptivity.refine(model, refinement_method = "barycentric")
-  model = Gridap.Adaptivity.get_model(model)
   params[:model] = model
   return model
 end

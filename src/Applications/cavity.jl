@@ -61,8 +61,8 @@ function _cavity(;
   vtk=true,
   convection=:newton,
   closed_cavity=true,
-  simplexify = false,
-  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV),
+  adaptivity_method = 0,
+  fluid_disc = ifelse(iszero(adaptivity_method),:Qk_dPkm1,:SV),
   current_disc = :RT,
 )
   @assert formulation ∈ [:cfd,:mhd]
@@ -94,7 +94,7 @@ function _cavity(;
   params[:solver] = solver
 
   # Model
-  model = cavity_mesh(parts,params,nc,np,L,ranks_per_level,simplexify)
+  model = cavity_mesh(parts,params,nc,np,L,ranks_per_level,adaptivity_method)
 
   # Reduced quantities
   Re = u0 * L / ν
@@ -228,7 +228,7 @@ function cavity_mesh(parts,params,nc::Tuple,np::Int,L,ranks_per_level,simplexify
   return cavity_mesh(parts,params,nc,(np,1,1),L,ranks_per_level,simplexify)
 end
 
-function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,simplexify)
+function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivity_method)
   domain = (0.0,L,0.0,L,0.0,L)
   if isnothing(ranks_per_level) # Single grid
     model = CartesianDiscreteModel(parts,np,domain,nc)
@@ -247,8 +247,6 @@ function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,simplexi
     model = get_model(mh,1)
     params[:model] = model
   end
-  if simplexify
-    model = Gridap.simplexify(model)
-  end
+  model = Meshers.adapt_mesh(model,adaptivity_method)
   return model
 end

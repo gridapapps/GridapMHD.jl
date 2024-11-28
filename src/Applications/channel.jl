@@ -70,8 +70,8 @@ function _channel(;
   np_per_level = nothing,
   rt_scaling = false,
   formulation = :mhd,
-  simplexify = false,
-  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV),
+  adaptivity_method = 0,
+  fluid_disc = ifelse(iszero(adaptivity_method),:Qk_dPkm1,:SV),
   current_disc = :RT,
 )
   @assert inlet ∈ [:parabolic,:shercliff,:constant]
@@ -143,7 +143,7 @@ function _channel(;
 
   disc_dirs = nonuniform_B ? 1 : []
   disc_factor = nonuniform_B ? γB : nothing
-  model = channel_mesh(parts,np,sizes,nc,params;bl_orders,disc_dirs,disc_factor,np_per_level,simplexify)
+  model = channel_mesh(parts,np,sizes,nc,params;bl_orders,disc_dirs,disc_factor,np_per_level,adaptivity_method)
 
   if debug && vtk
     writevtk(params[:model],joinpath(path,"$(title)_model"))
@@ -279,7 +279,7 @@ end
 function channel_mesh(
   parts,np,sizes,nc,params;
   bl_orders=(1,2,2),disc_dirs=1,disc_factor=1,
-  np_per_level=nothing,simplexify=false
+  np_per_level=nothing,adaptivity_method = 0
 )
   D = length(nc)
   domain = ntuple(Val{D*2}()) do i
@@ -302,11 +302,7 @@ function channel_mesh(
     )
     model = get_model(mh,1)
   end
-  if simplexify
-    model = Gridap.simplexify(model)
-    model = Gridap.Adaptivity.refine(model, refinement_method = "barycentric")
-    model = Gridap.Adaptivity.get_model(model)
-  end
+  model = Meshers.adapt_mesh(model,adaptivity_method)
   params[:model] = model
   return model
 end

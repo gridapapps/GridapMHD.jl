@@ -82,3 +82,15 @@ function Gridap.Adaptivity.MacroReferenceFE(
   reffes = ReferenceFE(rrule.ref_grid,basis,args...;kwargs...)
   return Gridap.Adaptivity.MacroReferenceFE(rrule,reffes;macro_kwargs...)
 end
+
+function Gridap.Adaptivity.MacroReferenceFE(
+  rrule::Gridap.Adaptivity.RefinementRule,
+  reffe::ReferenceFE;
+  macro_kwargs...
+)
+  reffes = Fill(reffe,Gridap.Adaptivity.num_subcells(rrule))
+  return Gridap.Adaptivity.MacroReferenceFE(rrule,reffes;macro_kwargs...)
+end
+
+# Local projection operators
+

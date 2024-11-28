@@ -8,6 +8,7 @@ module Meshers
 
   include("tools.jl")
   include("p4est.jl")
+  include("adaptivity.jl")
   
   export generate_refined_mesh
   export generate_mesh_hierarchy
