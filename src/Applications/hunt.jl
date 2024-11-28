@@ -75,7 +75,8 @@ function _hunt(;
   kmap_y = 1,
   ranks_per_level = nothing,
   simplexify = false,
-  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV)
+  fluid_disc = ifelse(!simplexify,:Qk_dPkm1,:SV),
+  current_disc = :RT,
 )
   @assert formulation ∈ [:cfd,:mhd]
   @assert initial_value ∈ [:zero,:solve]
@@ -162,7 +163,8 @@ function _hunt(;
     :order_u => order,
     :order_j => order_j,
     :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing,
-    :fluid_disc => fluid_disc
+    :fluid_disc => fluid_disc,
+    :current_disc => current_disc,
   )
 
   # Boundary conditions

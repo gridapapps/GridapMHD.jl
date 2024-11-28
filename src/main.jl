@@ -223,22 +223,11 @@ _multi_field_style(::Val{:badia2024}) = BlockMultiFieldStyle(3,(2,1,1),(1,3,2,4)
 # FESpaces
 
 function _fe_space(::Val{:u},params)
-  k = params[:fespaces][:order_u]
-  model = params[:model]
   uses_mg = space_uses_multigrid(params[:solver])[1]
 
   Ωf = uses_mg ? params[:multigrid][:Ωf] : params[:Ωf]
 
-  Dc = num_cell_dims(model)
-  reffe_u = ReferenceFE(lagrangian,VectorValue{Dc,Float64},k)
-  if uses_macro_elements(params)
-    rrule = params[:fespaces][:rrule]
-    reffe_u = Gridap.Adaptivity.MacroReferenceFE(
-      rrule,reffe_u;conformity = H1Conformity()
-    )
-  end
-  params[:fespaces][:reffe_u] = reffe_u
-
+  reffe_u = params[:fespaces][:reffe_u]
   u_bc = params[:bcs][:u][:values]
   V_u = TestFESpace(Ωf,reffe_u;dirichlet_tags=params[:bcs][:u][:tags])
   U_u = _trial_fe_space(V_u,u_bc,params)
@@ -256,20 +245,10 @@ function _fe_space(::Val{:p},params)
   @notimplementedif space_uses_multigrid(params[:solver])[2]
 
   Ωf = params[:Ωf]
-  k = params[:fespaces][:p_order]
-  space = params[:fespaces][:p_space]
   conformity = params[:fespaces][:p_conformity]
   constraint = params[:fespaces][:p_constraint]
 
-  reffe_p = ReferenceFE(lagrangian,Float64,k;space)
-  if uses_macro_elements(params)
-    rrule = params[:fespaces][:rrule]
-    reffe_p = Gridap.Adaptivity.MacroReferenceFE(
-      rrule,reffe_p;conformity = conformity_from_symbol(conformity)
-    )
-  end
-  params[:fespaces][:reffe_p] = reffe_p
-
+  reffe_p = params[:fespaces][:reffe_p]
   V_p = TestFESpace(Ωf,reffe_p;conformity,constraint)
   U_p = _trial_fe_space(V_p,nothing,params)
 
@@ -281,15 +260,7 @@ function _fe_space(::Val{:j},params)
   uses_mg = space_uses_multigrid(params[:solver])[3]
   model = uses_mg ? params[:multigrid][:mh] : params[:model]
 
-  phi  = rt_scaling(params[:model],params[:fespaces])
-  if params[:fespaces][:current_disc] == :RT
-    reffe_j = ReferenceFE(raviart_thomas,Float64,k-1;basis_type=:jacobi,phi=phi)
-  else
-    @assert params[:fespaces][:current_disc] == :BDM
-    reffe_j = ReferenceFE(bdm,Float64,k;phi=phi)
-  end
-  params[:fespaces][:reffe_j] = reffe_j
-
+  reffe_j = params[:fespaces][:reffe_j]
   j_bc = params[:bcs][:j][:values]
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
   U_j = _trial_fe_space(V_j,j_bc,params)
@@ -305,13 +276,9 @@ end
 
 function _fe_space(::Val{:φ},params)
   @notimplementedif space_uses_multigrid(params[:solver])[4]
-  k = params[:fespaces][:φ_order]
   model = params[:model]
 
-  space = params[:fespaces][:φ_space]
-  reffe_φ = ReferenceFE(lagrangian,Float64,k;space)
-  params[:fespaces][:reffe_φ] = reffe_φ
-
+  reffe_φ = params[:fespaces][:reffe_φ]
   conformity = params[:fespaces][:φ_conformity]
   constraint = params[:fespaces][:φ_constraint]
   V_φ = TestFESpace(model,reffe_φ;conformity,constraint)

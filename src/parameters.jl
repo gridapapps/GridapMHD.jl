@@ -336,12 +336,8 @@ function params_fespaces(params::Dict{Symbol,Any})
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
 
   # Add discretization parameters
-  @assert haskey(FLUID_DISCRETIZATIONS[Symbol(poly)],fespaces[:fluid_disc])
-  merge!(fespaces,pairs(FLUID_DISCRETIZATIONS[Symbol(poly)][fespaces[:fluid_disc]]))
-  @assert haskey(CURRENT_DISCRETIZATIONS[Symbol(poly)],fespaces[:current_disc])
-  merge!(fespaces,pairs(CURRENT_DISCRETIZATIONS[Symbol(poly)][fespaces[:current_disc]]))
-  fespaces[:p_order] = fespaces[:p_order](fespaces[:order_u])
-  fespaces[:φ_order] = fespaces[:φ_order](fespaces[:order_j])
+  fluid_discretization(fespaces[:fluid_disc],poly,fespaces)
+  current_discretization(fespaces[:current_disc],poly,fespaces)
 
   # Integration
   fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j]) # Maximal polynomial degree
@@ -360,56 +356,78 @@ end
 """
     const FLUID_DISCRETIZATIONS
 
-List of possible fluid discretizations for the (velocity,pressure) pair.
+List of possible fluid discretizations for the (u,p) pair.
 """
 const FLUID_DISCRETIZATIONS = (;
-  :HEX => (; # Hexahedra
-    :Qk_dPkm1 => (;
-      :p_space => :P,
-      :p_conformity => :L2,
-      :p_order => (k) -> k-1,
-    ),
-    :Qk_Qkm1 => (; # Taylor Hood
-      :p_space => :Q,
-      :p_conformity => :H1,
-      :p_order => (k) -> k-1,
-    ),
-    :RT => (; # Raviart-Thomas
-      :p_space => :Q,
-      :p_conformity => :L2,
-      :p_order => (k) -> k-1,
-    ),
+  :HEX => ( # Hexahedra
+    :Qk_dPkm1,
+    :Qk_Qkm1, # Taylor-Hood
+    :RT,      # Raviart-Thomas
   ),
-  :TET => (; # Tetrahedra
-    :Pk_Pkm1 => (; # Taylor Hood
-      :p_space => :P,
-      :p_conformity => :H1,
-      :p_order => (k) -> k-1,
-    ),
-    :Pk_dPkm1 => (; # Scott-Vogelius
-      :p_space => :P,
-      :p_conformity => :L2,
-      :p_order => (k) -> k-1,
-    ),
-    :SV => (; # Scott-Vogelius (Pk_dPkm1) with macro-elements
-      :p_space => :P,
-      :p_conformity => :L2,
-      :p_order => (k) -> k-1,
-      :rrule => Gridap.Adaptivity.BarycentricRefinementRule(TET)
-    ),
+  :TET => ( # Tetrahedra
+    :Pk_Pkm1,  # Taylor-Hood
+    :Pk_dPkm1, # Scott-Vogelius
+    :SV,       # Scott-Vogelius with macro-elements
+    :RT,       # Raviart-Thomas
   )
 )
 
-function get_fluid_reffe_pair(disc::Symbol,poly::Polytope,feparams)
-  if poly == HEX 
-
+function fluid_discretization(disc::Symbol,poly::Polytope,feparams)
+  D = num_dims(poly)
+  k = feparams[:order_u]
+  if poly == HEX # Hexahedral meshes
     if disc == :Qk_dPkm1
-      
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:p_conformity] = :L2
+    elseif disc == :Qk_Qkm1 # Taylor-Hood
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
+      feparams[:order_p] = k-1
+      feparams[:p_conformity] = :H1
+    elseif disc == :RT # Raviart-Thomas
+      feparams[:reffe_u] = RaviartThomasRefFE(Float64,poly,k-1)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
+      feparams[:order_p] = k-1
+      feparams[:p_conformity] = :L2
     else
-
+      @notimplemented "
+        Fluid discretization $disc not implemented for hexahedra. 
+        Available discretizations are $(FLUID_DISCRETIZATIONS[:HEX])
+      "
     end
-  elseif poly == TET
-
+  elseif poly == TET # Tetrahedral meshes
+    if disc == :Pk_Pkm1 # Taylor-Hood
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:p_conformity] = :H1
+    elseif disc == :Pk_dPkm1 # Scott-Vogelius
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:p_conformity] = :L2
+    elseif disc == :SV # Scott-Vogelius with macro-elements
+      rrule = Gridap.Adaptivity.BarycentricRefinementRule(TET)
+      reffe_u = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      reffe_p = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:rrule] = rrule
+      feparams[:reffe_u] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_u;conformity=:H1)
+      feparams[:reffe_p] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_p;conformity=:L2)
+      feparams[:order_p] = k-1
+      feparams[:p_conformity] = :L2
+    elseif disc == :RT # Raviart-Thomas
+      feparams[:reffe_u] = RaviartThomasRefFE(Float64,poly,k-1)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:p_conformity] = :L2
+    else
+      @notimplemented "
+        Fluid discretization $disc not implemented for tetrahedra. 
+        Available discretizations are $(FLUID_DISCRETIZATIONS[:TET])
+      "
+    end
   else
     @notimplemented "Only HEX and TET supported for now."
   end
@@ -418,29 +436,54 @@ end
 """
     const CURRENT_DISCRETIZATIONS
 
-List of possible current discretizations for the (current,potential) pair.
+List of possible current discretizations for the (j,φ) pair.
 """
 const CURRENT_DISCRETIZATIONS = (;
-  :HEX => (; # Hexahedra
-    :RT => (; # Raviart-Thomas
-      :φ_space => :Q,
-      :φ_conformity => :L2,
-      :φ_order => (k) -> k-1,
-    ),
+  :HEX => ( # Hexahedra
+    :RT,  # Raviart-Thomas
   ),
-  :TET => (; # Tetrahedra
-    :RT => (; # Raviart-Thomas
-      :φ_space => :P,
-      :φ_conformity => :L2,
-      :φ_order => (k) -> k-1,
-    ),
-    :BDM => (; # Brezzi-Douglas-Marini
-      :φ_space => :P,
-      :φ_conformity => :L2,
-      :φ_order => (k) -> k-1,
-    ),
+  :TET => ( # Tetrahedra
+    :RT,  # Raviart-Thomas
+    :BDM, # Brezzi-Douglas-Marini
   )
 )
+
+function current_discretization(disc::Symbol,poly::Polytope,feparams)
+  k = feparams[:order_j]
+  phi = rt_scaling(params[:model],params[:fespaces])
+  if poly == HEX # Hexahedral meshes
+    if disc == :RT
+      feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1;basis_type=:jacobi,phi=phi)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
+      feparams[:order_φ] = k-1
+      feparams[:φ_conformity] = :L2
+    else
+      @notimplemented "
+        Current discretization $disc not implemented for hexahedra. 
+        Available discretizations are $(CURRENT_DISCRETIZATIONS[:HEX])
+      "
+    end
+  elseif poly == TET # Tetrahedral meshes
+    if disc == :RT
+      feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1;basis_type=:jacobi,phi=phi)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_φ] = k-1
+      feparams[:φ_conformity] = :L2
+    elseif disc == :BDM
+      feparams[:reffe_j] = BDMRefFE(Float64,poly,k;phi=phi)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_φ] = k-1
+      feparams[:φ_conformity] = :L2
+    else
+      @notimplemented "
+        Current discretization $disc not implemented for tetrahedra. 
+        Available discretizations are $(CURRENT_DISCRETIZATIONS[:TET])
+      "
+    end
+  else
+    @notimplemented "Only HEX and TET supported for now."
+  end
+end
 
 function uses_macro_elements(params::Dict)
   haskey(params[:fespaces],:rrule)
@@ -605,22 +648,22 @@ Valid keys for `params[:bcs]` are the following
 """
 function params_bcs(params)
   mandatory = Dict(
-    :u=>true,
-    :j=>true,
-    :φ=>false,
-    :t=>false,
-    :thin_wall=>false,
+    :u => true,
+    :j => true,
+    :φ => false,
+    :t => false,
+    :thin_wall => false,
     :f => false,
     :B => false,
-    :stabilization=>false,
+    :stabilization => false,
   )
   optional = Dict(
-    :φ=>[],
-    :t=>[],
-    :thin_wall=>[],
-    :f =>[],
-    :B =>[],
-    :stabilization=>[],
+    :φ => [],
+    :t => [],
+    :thin_wall => [],
+    :f => [],
+    :B => [],
+    :stabilization => [],
   )
   bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")
   # Sub params
@@ -750,10 +793,10 @@ The thin wall law is imposed weakly via a penalty parameter `τ`.
 """
 function params_bcs_thin_wall(params::Dict{Symbol,Any})
   mandatory = Dict(
-    :domain=>true,
-    :cw=>true,
-    :τ=>true,
-    :jw=>false,
+    :domain => true,
+    :cw => true,
+    :τ  => true,
+    :jw => false,
   )
   optional = Dict(:jw=>0)
   _check_mandatory_and_add_optional_weak(params[:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
@@ -853,7 +896,7 @@ Valid keys for the dictionaries in `params[:continuation]` are the following.
 """
 function params_continuation(params::Dict{Symbol,Any})
   mandatory = Dict{Symbol,Any}(
-    :niter => true,
+    :niter  => true,
     :alphas => true,
   )
   optional = Dict{Symbol,Any}()
