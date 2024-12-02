@@ -17,12 +17,10 @@ function _weak_form(params,k)
   dΩ = Measure(Ω,2*k)
 
   fluid = params[:fluid]
-  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
-
-  solid = params[:solid]
-  Ωs, dΩs, σs = retrieve_solid_params(params,k)
-
-  bcs_params = retrieve_bcs_params(params,k)
+  dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params)
+  dΩs, σs = retrieve_solid_params(params)
+  bcs_params = retrieve_bcs_params(params)
+  hdiv_params = retrieve_hdiv_fluid_params(params)
   params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
   Πp = local_projection_operator(params,k)
@@ -41,6 +39,9 @@ function _weak_form(params,k)
     if has_solid(params)
       r = r + a_solid(x,dy,σs,dΩs)
     end
+    if !isnothing(hdiv_params)
+      r = r + a_HDiv(x,dy,hdiv_params...)
+    end
     if abs(ζ) > eps(typeof(ζ))
       r = r + a_al(x,dy,ζ,Πp,dΩf,dΩ)
     end
@@ -57,6 +58,9 @@ function _weak_form(params,k)
     end
     for p in params_f
       r = r + ℓ_f(dy,p...)
+    end
+    if !isnothing(hdiv_params)
+      r = r + ℓ_HDiv(dy,hdiv_params...)
     end
     r
   end
@@ -96,12 +100,10 @@ end
 function _ode_weak_form(params,k)
 
   fluid = params[:fluid]
-  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
-
-  solid = params[:solid]
-  Ωs, dΩs, σs = retrieve_solid_params(params,k)
-
-  bcs_params = retrieve_bcs_params(params,k)
+  dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params)
+  dΩs, σs = retrieve_solid_params(params)
+  bcs_params = retrieve_bcs_params(params)
+  hdiv_params = retrieve_hdiv_fluid_params(params)
   params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
 
   Πp = local_projection_operator(params,k)
@@ -124,6 +126,9 @@ function _ode_weak_form(params,k)
     if has_solid(params)
       r = r + a_solid(x,dy,σs,dΩs)
     end
+    if !isnothing(hdiv_params)
+      r = r + a_HDiv(x,dy,hdiv_params...)
+    end
     if abs(ζ) > eps(typeof(ζ))
       r = r + a_al(x,dy,ζ,Πp,dΩf,dΩ)
     end
@@ -140,6 +145,9 @@ function _ode_weak_form(params,k)
     end
     for p in params_f
       r = r + ℓ_f(dy,time_eval(p,t)...)
+    end
+    if !isnothing(hdiv_params)
+      r = r + ℓ_HDiv(x,dy,hdiv_params...)
     end
     r
   end
@@ -168,50 +176,72 @@ end
 ############################################################################################
 # Parameter retrieval
 
-retrieve_fluid_params(params,k) = retrieve_fluid_params(params[:model],params,k)
+retrieve_fluid_params(params) = retrieve_fluid_params(params[:model],params)
 
-function retrieve_fluid_params(model,params,k)
+function retrieve_fluid_params(model,params)
   fluid  = params[:fluid]
-  quad3D = params[:fespaces][:quadratures][3]
   Ωf  = params[:Ωf]
-  dΩf = Measure(Ωf,quad3D)
+  dΩf = measure(params,Ωf)
 
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
-  f = fluid[:f]
-  B = fluid[:B]
-  ζ = fluid[:ζ]
-  g = fluid[:g]
-  return Ωf, dΩf, α, β, γ, σf, f, B, ζ, g
+  f, B, ζ, g = fluid[:f], fluid[:B], fluid[:ζ], fluid[:g]
+  return dΩf, α, β, γ, σf, f, B, ζ, g
 end
 
-retrieve_solid_params(params,k) = retrieve_solid_params(params[:model],params,k)
+retrieve_hdiv_fluid_params(params) = retrieve_hdiv_fluid_params(params[:model],params)
 
-function retrieve_solid_params(model,params,k)
-  quad3D = params[:fespaces][:quadratures][3]
+function retrieve_hdiv_fluid_params(model,params)
+  Ωf  = params[:Ωf]
+
+  if has_hdiv_fluid_disc(params)
+    Γ = boundary(params,Ωf,nothing)
+    Λ = skeleton(params,Ωf,nothing)
+    Γ_D = boundary(params,Ωf,params[:bcs][:u][:tags])
+
+    h_Γ = get_cell_size(Γ)
+    h_Λ = get_cell_size(Λ)
+    n_Γ_D = normal_vector(params,Γ_D)
+    n_Λ = normal_vector(params,Λ)
+
+    dΓ = measure(params,Γ)
+    dΓ_D = measure(params,Γ_D)
+    dΛ = measure(params,Λ)
+
+    μ = 1.0
+    u_D = params[:bcs][:u][:values]
+
+    return (μ,h_Γ,h_Λ,n_Γ_D,n_Λ,u_D,dΓ,dΓ_D,dΛ)
+  else
+    return nothing
+  end
+  return hdiv_params
+end
+
+retrieve_solid_params(params) = retrieve_solid_params(params[:model],params)
+
+function retrieve_solid_params(model,params)
   solid  = params[:solid]
   if solid !== nothing
     Ωs  = params[:Ωs]
-    dΩs = Measure(Ωs,quad3D)
+    dΩs = measure(params,Ωs)
     σs  = solid[:σ]
-    return Ωs, dΩs, σs
+    return dΩs, σs
   else
-    return nothing, nothing, nothing
+    return nothing, nothing
   end
 end
 
-retrieve_bcs_params(params,k) = retrieve_bcs_params(params[:model],params,k)
+retrieve_bcs_params(params) = retrieve_bcs_params(params[:model],params)
 
-function retrieve_bcs_params(model,params,k)
-  quad3D = params[:fespaces][:quadratures][3]
-  quad2D = params[:fespaces][:quadratures][2]
+function retrieve_bcs_params(model,params)
   bcs = params[:bcs]
 
   params_φ = []
   for i in 1:length(bcs[:φ])
     φ_i = bcs[:φ][i][:value]
-    Γ   = _boundary(model,bcs[:φ][i][:domain])
-    dΓ  = Measure(Γ,quad2D)
-    n_Γ = get_normal_vector(Γ)
+    Γ   = boundary(params,bcs[:φ][i][:domain])
+    dΓ  = measure(params,Γ)
+    n_Γ = normal_vector(params,Γ)
     push!(params_φ,(φ_i,n_Γ,dΓ))
   end
 
@@ -220,9 +250,9 @@ function retrieve_bcs_params(model,params,k)
     τ_i  = bcs[:thin_wall][i][:τ]
     cw_i = bcs[:thin_wall][i][:cw]
     jw_i = bcs[:thin_wall][i][:jw]
-    Γ    = _boundary(model,bcs[:thin_wall][i][:domain])
-    dΓ   = Measure(Γ,quad2D)
-    n_Γ  = get_normal_vector(Γ)
+    Γ    = boundary(params,bcs[:thin_wall][i][:domain])
+    dΓ   = measure(params,Γ)
+    n_Γ  = normal_vector(params,Γ)
     push!(params_thin_wall,(τ_i,cw_i,jw_i,n_Γ,dΓ))
   end
 
@@ -233,23 +263,23 @@ function retrieve_bcs_params(model,params,k)
   params_f = []
   for i in 1:length(bcs[:f])
     f_i  = bcs[:f][i][:value]
-    Ω_i  = _interior(model,bcs[:f][i][:domain])
-    dΩ_i = Measure(Ω_i,quad3D)
+    Ω_i  = interior(params,bcs[:f][i][:domain])
+    dΩ_i = measure(params,Ω_i)
     push!(params_f,(f_i,dΩ_i))
   end
 
   params_B = []
   for i in 1:length(bcs[:B])
     B_i  = bcs[:B][i][:value]
-    Ω_i  = _interior(model,bcs[:B][i][:domain])
-    dΩ_i = Measure(Ω_i,quad3D)
+    Ω_i  = interior(params,bcs[:B][i][:domain])
+    dΩ_i = measure(params,Ω_i)
     push!(params_f,(γ,B_i,dΩ_i))
   end
 
   params_Λ = []
   for i in 1:length(params[:bcs][:stabilization])
-    Λ = _skeleton(model,params[:bcs][:stabilization][i][:domain])
-    dΛ = Measure(Λ,quad2D)
+    Λ = skeleton(params,params[:bcs][:stabilization][i][:domain])
+    dΛ = measure(params,Λ)
     h = get_cell_size(Λ)
     μ = params[:bcs][:stabilization][i][:μ]
     push!(params_Λ,(μ,h,dΛ))
@@ -286,12 +316,6 @@ a_mhd_j_j(j,v_j,dΩ)     = ∫( j⋅v_j )*dΩ
 a_mhd_j_φ(φ,v_j,σ,dΩ)   = ∫( -σ*φ*(∇⋅v_j) )*dΩ
 a_mhd_φ_j(j,v_φ,dΩ)     = ∫( -(∇⋅j)*v_φ )*dΩ
 
-function a_Λ(x,dy,μ,h,dΛ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( (1/2) * μ * (h*h) * jump( ∇(u) ) ⊙ jump( ∇(v_u) ))*dΛ
-end
-
 function ℓ_mhd(dy,f,dΩ)
   v_u, v_p, v_j, v_φ = dy
   ℓ_mhd_u(v_u,f,dΩ)
@@ -327,6 +351,14 @@ function p_dc_mhd(x,dx,dy,α,dΩ)
 end
 p_dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( conv∘(u,∇(du)) ) ) * dΩ
 
+# Stabilisation
+
+function a_Λ(x,dy,μ,h,dΛ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫( (1/2) * μ * (h*h) * jump( ∇(u) ) ⊙ jump( ∇(v_u) ))*dΛ
+end
+
 # Augmented lagrangian
 
 function a_al(x,dy,ζ,Πp,dΩf,dΩ)
@@ -351,6 +383,29 @@ function local_projection_operator(params,k)
   reffe_p = params[:fespaces][:reffe_p]
   Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
   return Πp
+end
+
+# Div-Conforming laplacian terms (parts integration + tangent component penalty)
+
+function a_HDiv(x,y,μ,h_Γ,h_Λ,n_Γ_D,n_Λ,u_D,dΓ,dΓ_D,dΛ)
+  u, _, _, _ = x
+  v, _, _, _ = y
+
+  αΛ, αΓ = μ/h_Λ, μ/h_Γ
+  ∇u, ∇v = ∇(u), ∇(v)
+  uᵗ, vᵗ = jump(u⊗n_Λ), jump(v⊗n_Λ)
+
+  c  = ∫( αΛ*vᵗ⊙uᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
+  c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅u)dΓ_D
+  c += ∫(αΓ*v⋅u)dΓ
+  return c
+end
+
+function ℓ_HDiv(dy,μ,h_Γ,h_Λ,n_Γ_D,n_Λ,u_D,dΓ,dΓ_D,dΛ)
+  v, _, _, _ = dy
+  αΓ = μ/h_Γ
+  c  = ∫(αΓ*v⋅u_D)dΓ - ∫((∇(v)⋅n_Γ_D)⋅u_D)dΓ_D
+  return c
 end
 
 # Solid equations

@@ -287,9 +287,9 @@ function hunt_mesh(
   ranks_per_level = nothing, adaptivity_method = 0
 )
   if isnothing(ranks_per_level) # Single grid
-    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted,mesh_postpro) 
+    model = Meshers.hunt_generate_base_mesh(parts,np,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted) 
   else # Multigrid
-    mh = Meshers.hunt_generate_mesh_hierarchy(parts,ranks_per_level,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted,mesh_postpro)
+    mh = Meshers.hunt_generate_mesh_hierarchy(parts,ranks_per_level,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted)
     params[:multigrid] = Dict{Symbol,Any}(
       :mh => mh,
       :num_refs_coarse => 0,

@@ -16,7 +16,7 @@ function Li2019Solver(op::FEOperator,params)
   # Preconditioner
   model = params[:model]
   k  = max(params[:fespaces][:order_u],params[:fespaces][:order_j])
-  Ωf = _interior(model,params[:fluid][:domain])
+  Ωf = params[:Ωf]
   dΩ = Measure(Ωf,2*k)
   a_Dj = li2019_Dj(dΩ,params)
   a_Fk = li2019_Fk(dΩ,params)

@@ -160,7 +160,7 @@ function _channel(;
 
   # Fluid parameters
   params[:fluid] = Dict(
-    :domain=>nothing,
+    :domain => nothing,
     :α=>α,
     :β=>β,
     :γ=>γ,

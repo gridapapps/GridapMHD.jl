@@ -40,6 +40,7 @@ include("Solvers/badia2024.jl")
 # Main driver
 include("gridap_extras.jl")
 include("utils.jl")
+include("geometry.jl")
 include("parameters.jl")
 include("weakforms.jl")
 include("main.jl")

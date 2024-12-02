@@ -372,6 +372,8 @@ const FLUID_DISCRETIZATIONS = (;
   )
 )
 
+has_hdiv_fluid_disc(params) = params[:fespaces][:fluid_disc] ∈ (:RT, :BDM)
+
 function fluid_discretization(disc::Symbol,poly::Polytope,feparams)
   D = num_dims(poly)
   k = feparams[:order_u]
@@ -509,11 +511,10 @@ function rt_scaling(poly,feparams)
 end
 
 function generate_quadratures(poly::Polytope{D},feparams) where D
-  fluid_disc = feparams[:fluid_disc]
   qdegree = feparams[:q]
 
   fpolys = ReferenceFEs.get_reffaces(poly)[2:end] # Skip 0-dfaces
-  if fluid_disc == :SV
+  if haskey(feparams,:rrule)
     # TODO: This should be made more general, to ensure all d-faces are properly 
     # refined if need be. In the case of SV, there is not subdivision of the 
     # facets and edges, so its fine.

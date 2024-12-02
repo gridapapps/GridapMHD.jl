@@ -124,8 +124,7 @@ function main(_params::Dict;output::Dict=Dict{Symbol,Any}())
   params = add_default_params(_params)
   t = params[:ptimer]
 
-  # Compute triangulations only once for performance
-  _setup_trians!(params)
+  setup_geometry!(params)
 
   # FESpaces
   tic!(t;barrier=true)
@@ -256,7 +255,6 @@ function _fe_space(::Val{:p},params)
 end
 
 function _fe_space(::Val{:j},params)
-  k = params[:fespaces][:order_j]
   uses_mg = space_uses_multigrid(params[:solver])[3]
   model = uses_mg ? params[:multigrid][:mh] : params[:model]
 
@@ -353,51 +351,6 @@ function _continuation_fe_operator(mfs,U,V,params)
   end
 
   return op
-end
-
-# Sub-triangulations
-
-_interior(model,domain::DiscreteModelTypes) = Interior(domain)
-_interior(model,domain::TriangulationTypes) = domain
-_interior(model,domain::Nothing) = Triangulation(model)
-_interior(model,domain) = Interior(model,tags=domain)
-
-_boundary(model,domain::TriangulationTypes) = domain
-_boundary(model,domain::Nothing) = Boundary(model)
-_boundary(model,domain) = Boundary(model,tags=domain)
-
-_skeleton(model,domain::TriangulationTypes) = SkeletonTriangulation(domain)
-_skeleton(model,domain::Nothing) = SkeletonTriangulation(model)
-_skeleton(model,domain) = _skeleton(model,_interior(model,domain))
-
-function _setup_trians!(params)
-  Ω = _interior(params[:model],nothing)
-
-  fluid = params[:fluid]
-  Ωf = _interior(params[:model],fluid[:domain])
-
-  solid = params[:solid]
-  Ωs = !isnothing(solid) ? _interior(params[:model],solid[:domain]) : nothing
-
-  #if !uses_multigrid(params[:solver])
-    params[:Ω]  = Ω
-    params[:Ωf] = Ωf
-    params[:Ωs] = Ωs
-  #else
-  #  params[:multigrid][:Ω]  = Ω
-  #  params[:multigrid][:Ωf] = Ωf
-  #  params[:multigrid][:Ωs] = Ωs
-  #  params[:Ω]  = Ω[1]
-  #  params[:Ωf] = Ωf[1]
-  #  params[:Ωs] = Ωs[1]
-  #end
-
-  if uses_multigrid(params[:solver])
-    params[:multigrid][:Ω]  = params[:multigrid][:mh]
-    params[:multigrid][:Ωf] = params[:multigrid][:mh]
-    params[:multigrid][:Ωs] = params[:multigrid][:mh]
-  end
-
 end
 
 # Random vector generation
