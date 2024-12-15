@@ -207,7 +207,7 @@ function retrieve_hdiv_fluid_params(model,params)
     dΓ_D = measure(params,Γ_D)
     dΛ = measure(params,Λ)
 
-    μ = 1.0
+    μ = 100.0
     u_D = params[:bcs][:u][:values]
 
     return (μ,h_Γ,h_Λ,n_Γ_D,n_Λ,u_D,dΓ,dΓ_D,dΛ)
@@ -376,10 +376,15 @@ a_al_sf(x,y,ζ,dΩ) = ∫(ζ*(∇⋅x)*(∇⋅y))*dΩ
 function local_projection_operator(params,k)
   poly = params[:fespaces][:poly]
   fluid_disc = params[:fespaces][:fluid_disc]
-  if (poly == TET) && fluid_disc ∈ (:SV,:Pk_dPkm1)
+
+  # If pressure-robust, no need to project
+  A = (poly == TET) && fluid_disc ∈ (:SV,:Pk_dPkm1)
+  B = fluid_disc ∈ (:RT,:BDM)
+  if A || B
     return nothing
   end
   
+  # Otherwise: 
   reffe_p = params[:fespaces][:reffe_p]
   Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
   return Πp
