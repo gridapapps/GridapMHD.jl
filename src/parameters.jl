@@ -502,7 +502,7 @@ function rt_scaling(poly,feparams)
       phi = GenericField(identity)
     else
       ξ = feparams[:rt_scaling]
-      phi = AffineMap(ξ*one(TensorValue{Dc,Dc,Float64}),zero(VectorValue{Dc,Float64}))
+      phi = AffineField(ξ*one(TensorValue{Dc,Dc,Float64}),zero(VectorValue{Dc,Float64}))
     end
   else
     phi = isnothing(feparams[:rt_scaling]) ? 1.0 : feparams[:rt_scaling]
