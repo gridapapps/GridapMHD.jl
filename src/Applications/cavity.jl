@@ -233,7 +233,6 @@ function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivi
   if isnothing(ranks_per_level) # Single grid
     model = CartesianDiscreteModel(parts,np,domain,nc)
     add_cavity_tags!(model)
-    params[:model] = model
   else # Multigrid
     mh = CartesianModelHierarchy(
       parts,np_per_level,domain,nc;
@@ -245,8 +244,8 @@ function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivi
       :ranks_per_level => ranks_per_level,
     )
     model = get_model(mh,1)
-    params[:model] = model
   end
   model = Meshers.adapt_mesh(model,adaptivity_method)
+  params[:model] = model
   return model
 end
