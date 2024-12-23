@@ -294,7 +294,7 @@ function expansion_mesh(::Val{:gridap_SG},mesh::Dict,ranks,params)
   setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_refined_mesh(ranks,base_model,num_refs)
   if haskey(mesh,:adaptivity_method)
-    model = Meshers.adapt_mesh(model,adaptivity_method)
+    model = Meshers.adapt_mesh(model,mesh[:adaptivity_method])
   end
   params[:model] = model
   return model
@@ -315,7 +315,7 @@ function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
   setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
   if haskey(mesh,:adaptivity_method)
-    model = Meshers.adapt_mesh(model,adaptivity_method)
+    model = Meshers.adapt_mesh(model,mesh[:adaptivity_method])
   end
   params[:model] = model
   return model
