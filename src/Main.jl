@@ -220,7 +220,7 @@ function _fe_spaces(params)
     conformity=p_conformity(model,params[:fespaces]),
     constraint=params[:fespaces][:p_constraint])
   V_j = TestFESpace(model,reffe_j;dirichlet_tags=params[:bcs][:j][:tags])
-  V_φ = TestFESpace(model,reffe_φ;conformity=:L2)
+  V_φ = TestFESpace(model,reffe_φ;conformity=:L2,constraint=params[:fespaces][:φ_constraint])
   V = MultiFieldFESpace([V_u,V_p,V_j,V_φ];style=mfs)
 
   # Trial spaces

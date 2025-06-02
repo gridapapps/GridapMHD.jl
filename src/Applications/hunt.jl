@@ -131,6 +131,10 @@ function _hunt(;
       :f=>f̄,
       :ζ=>ζ,
      )
+    # FE Space parameters
+    # There is no conductive wall so φ is undetermined
+    params[:fespaces] = Dict(
+      :φ_constraint => :zeromean)
   else
     params[:fluid] = Dict(
       :domain=>nothing,

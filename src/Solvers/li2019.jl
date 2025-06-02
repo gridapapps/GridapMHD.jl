@@ -14,14 +14,15 @@ function Li2019Solver(op::FEOperator,params)
   inv_α1 = 1.0/α1
 
   # Preconditioner
-  model = params[:model]
   k  = params[:fespaces][:k]
-  Ωf = _interior(model,params[:fluid][:domain])
-  dΩ = Measure(Ωf,2*k)
-  a_Dj = li2019_Dj(dΩ,params)
-  a_Fk = li2019_Fk(dΩ,params)
-  a_Ip(p,v_p) = ∫(-inv_α1*p*v_p)*dΩ
-  a_Iφ(φ,v_φ) = ∫(-φ*v_φ)*dΩ
+  model = params[:model]
+  # Ωf = _interior(model,params[:fluid][:domain])
+  # dΩ = Measure(Ωf,2*k)
+  # a_j = li2019_Dj(dΩ,params)
+  # a_u = li2019_Fk(dΩ,params)
+  # a_p(p,v_p) = ∫(-inv_α1*p*v_p)*dΩ
+  # a_φ(φ,v_φ) = ∫(-φ*v_φ)*dΩ
+  a_j, a_u, a_p, a_φ = precond(params,k)
 
   perm = [3,1,2,4]
   _trial, _test = get_trial(op), get_test(op)
@@ -30,11 +31,11 @@ function Li2019Solver(op::FEOperator,params)
 
   NB = length(trial)
   diag_solvers = map(s -> get_block_solver(Val(s),params),params[:solver][:block_solvers])
-  diag_blocks  = map((b,f,u,v) -> b(f,u,v), [BiformBlock,TriformBlock,BiformBlock,BiformBlock],[a_Dj,a_Fk,a_Ip,a_Iφ],trial,test)
+  diag_blocks = [BiformBlock(a_j,trial[1],test[1]),TriformBlock(a_u,trial[2],test[2],2),BiformBlock(a_p,trial[3],test[3]),BiformBlock(a_φ,trial[4],test[4])]
   blocks = map(CartesianIndices((NB,NB))) do I
     (I[1] == I[2]) ? diag_blocks[I[1]] : LinearSystemBlock()
   end
-  coeffs = [1.0 2.0 0.0 2.0;  # | Dj  2Aju   0   2Aφu |   | j |   | bj |
+  coeffs = [1.0 2.0 0.0 2.0;  # | Dj  2Aju   0   2Ajφ |   | j |   | bj |
             0.0 1.0 1.0 0.0;  # | 0    Fk   Aup   0   |   | u |   | bu |
             0.0 0.0 1.0 0.0;  # | 0    0    Ip    0   | ⋅ | p | = | bp |
             0.0 0.0 0.0 1.0]  # | 0    0    0    Iφ   |   | φ |   | bφ |
@@ -51,6 +52,45 @@ function Li2019Solver(op::FEOperator,params)
   # Nonlinear Solver
   nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=10,atol=1e-14,rtol=nl_rtol,verbose=verbose)
   return nl_solver
+end
+
+function precond(params,k)
+  fluid = params[:fluid]
+  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
+  solid = params[:solid]
+  Ωs, dΩs, σs = retrieve_solid_params(params,k)
+  bcs_params = retrieve_bcs_params(params,k)
+  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
+
+  function a_u(u,du,dv)
+    r = a_mhd_u_u(du,dv,β,dΩf) + dc_mhd_u_u(u,du,dv,α,dΩf) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩf
+    if abs(ζ) > eps(typeof(ζ))
+      r = r + ∫( ζ*(∇⋅du)*(∇⋅dv) ) * dΩf
+    end
+    return r
+  end
+
+  function a_j(j,v_j) 
+    r = ∫( (j⋅v_j) + (∇⋅j)⋅(∇⋅v_j))*dΩf 
+    if solid !== nothing
+      r = r + ∫( (j⋅v_j) + (∇⋅j)⋅(∇⋅v_j))*dΩs
+    end
+    return r
+  end
+
+  α1 = ζ+β
+  inv_α1 = 1.0/α1
+  a_p(p,v_p) = ∫(-inv_α1*p*v_p)*dΩf
+
+  function a_φ(φ,v_φ)
+    r =  ∫(-φ*v_φ)*dΩf
+    if solid !== nothing
+      r = r +∫(-φ*v_φ)*dΩs
+    end
+    return r
+  end
+
+  return a_j, a_u, a_p, a_φ
 end
 
 function li2019_Dj(dΩ,params)
