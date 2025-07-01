@@ -21,11 +21,8 @@ channel(
   ζ = 50.0,
   B = (0.0,50.0,0.0),
   bl_orders=(1,2,2),
-  rt_scaling = true,
   convection = :none,
-  simplexify = true,
-  fluid_disc = :Pk_dPkm1,
-  current_disc = :BDM,
+  adaptivity_method = 1, # simplexify
   solver = solver,
   vtk=true
 )
@@ -41,17 +38,16 @@ solver = Dict(
 
 channel(
   backend=:mpi,
-  np=(1,1,1),
-  solver=solver,
-  sizes=(6,3,3),
-  nc=(4,4,4),
-  order=3,
-  order_j=3,
-  simplexify=true,
-  bl_orders=(1,2,2),
-  convection=:none,
-  inlet=:shercliff,
-  rt_scaling = true,
+  np = (1,1,1),
+  solver = solver,
+  sizes = (6,3,3),
+  nc = (4,4,4),
+  order = 3,
+  order_j = 3,
+  adaptivity_method = 1, # simplexify
+  bl_orders = (1,2,2),
+  convection = :none,
+  inlet = :shercliff,
   B = (0.0,50.0,0.0),
   ζ = 100.0,
 )

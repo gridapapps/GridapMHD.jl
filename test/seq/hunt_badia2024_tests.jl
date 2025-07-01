@@ -24,7 +24,6 @@ hunt(
   ζ=100.0,
   order = 2,
   order_j = 2,
-  fluid_disc = :RT,
 )
 
 # Badia2024, with GMG solver for u-j sub-block
