@@ -64,7 +64,7 @@ function precond(params,k)
   dΩs, σs = retrieve_solid_params(params)
 
   function a_u(u,du,dv)
-    r = a_mhd_u_u(du,dv,β,dΩf) + dc_mhd_u_u(u,du,dv,α,dΩf) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩf
+    r = a_mhd_u_u(du,dv,β,dΩf) + n_dc_mhd_u_u(u,du,dv,α,dΩf) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩf
     if abs(ζ) > eps(typeof(ζ))
       r = r + ∫( ζ*(∇⋅du)*(∇⋅dv) ) * dΩf
     end
@@ -111,7 +111,7 @@ end
 function li2019_Fk(dΩ,params)
   fluid = params[:fluid]
   α, β, γ, B  = fluid[:α], fluid[:β], fluid[:γ], fluid[:B]
-  a_fk(u,du,dv) = a_mhd_u_u(du,dv,β,dΩ) + dc_mhd_u_u(u,du,dv,α,dΩ) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩ
+  a_fk(u,du,dv) = a_mhd_u_u(du,dv,β,dΩ) + n_dc_mhd_u_u(u,du,dv,α,dΩ) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩ
   return a_fk
 end
 

@@ -33,7 +33,7 @@ function gmg_solver(::Val{(:u,:j)},params)
       v_u, v_j = y
       r = a_mhd_u_u(du,v_u,β,dΩf) + a_mhd_u_j(dj,v_u,γ,B,dΩf) + a_mhd_j_u(du,v_j,σf,B,dΩf) + a_mhd_j_j(dj,v_j,dΩf)
       if is_nonlinear
-        r = r + dc_mhd_u_u(u,du,v_u,α,dΩf)
+        r = r + n_dc_mhd_u_u(u,du,v_u,α,dΩf)
       end
       for p in params_tw
         r = r + a_thin_wall_j_j(dj,v_j,p...)
@@ -73,7 +73,7 @@ function gmg_solver(::Val{(:u,:j)},params)
     function a(u,du,v_u)
       r = a_mhd_u_u(du,v_u,β,dΩf) 
       if is_nonlinear
-        dc_mhd_u_u(u,du,v_u,α,dΩf)
+        n_dc_mhd_u_u(u,du,v_u,α,dΩf)
       end
       if abs(ζ) > eps(typeof(ζ))
         r = r + a_al_sf(du,v_u,ζ,Πp,dΩf)

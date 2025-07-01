@@ -156,7 +156,7 @@ end
 _B = (1/B0)*B
 η_u = η_j = params[:fluid][:ζ]
 biform((u,j),(du,dj),(v_u,v_j),dΩ) = GridapMHD.a_mhd_u_u(du,v_u,β,dΩ) + GridapMHD.a_mhd_u_j(dj,v_u,γ,_B,dΩ) + 
-                                  GridapMHD.a_mhd_j_u(du,v_j,1.0,B,dΩ) + GridapMHD.a_mhd_j_j(dj,v_j,dΩ) + GridapMHD.dc_mhd_u_u(u,du,v_u,α,dΩ) +
+                                  GridapMHD.a_mhd_j_u(du,v_j,1.0,B,dΩ) + GridapMHD.a_mhd_j_j(dj,v_j,dΩ) + GridapMHD.n_dc_mhd_u_u(u,du,v_u,α,dΩ) +
                                   GridapMHD.a_al_u_u(du,v_u,ζ,dΩ) + GridapMHD.a_al_j_j(dj,v_j,ζ,dΩ)
 
 conv(u,∇u) = (∇u')⋅u
