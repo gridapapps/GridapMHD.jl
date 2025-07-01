@@ -27,6 +27,7 @@ function Li2019Solver(op::FEOperator,params)
   U_u, U_p, U_j, U_φ = get_trial(op)
   V_u, V_p, V_j, V_φ = get_test(op)
 
+  NB = 4
   diag_solvers = map(s -> get_block_solver(Val(s),params),params[:solver][:block_solvers])
   diag_blocks = [
     BiformBlock(a_j,U_j,V_j),
