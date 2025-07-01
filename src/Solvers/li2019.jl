@@ -58,12 +58,9 @@ function Li2019Solver(op::FEOperator,params)
 end
 
 function precond(params,k)
-  fluid = params[:fluid]
-  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
+  dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params)
   solid = params[:solid]
-  Ωs, dΩs, σs = retrieve_solid_params(params,k)
-  bcs_params = retrieve_bcs_params(params,k)
-  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
+  dΩs, σs = retrieve_solid_params(params)
 
   function a_u(u,du,dv)
     r = a_mhd_u_u(du,dv,β,dΩf) + dc_mhd_u_u(u,du,dv,α,dΩf) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩf
