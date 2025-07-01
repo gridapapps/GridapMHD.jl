@@ -34,10 +34,11 @@ function get_bilinear_form(mh_lev,biform,qdegree)
   return (u,v) -> biform(u,v,dΩ)
 end
 
-u(x) = VectorValue(x[1],-x[2])
-nc = (4,4)
-
-np = (1,1)
+Dc = 3
+B0 = VectorValue(0.,0.,1.)
+u(x) = VectorValue(x[1],-x[2],0.)
+nc = Tuple(fill(4,Dc))
+np = Tuple(fill(1,Dc))
 np_per_level = fill(np,2)
 parts = with_mpi() do distribute
   distribute(LinearIndices((prod(np),)))
@@ -58,30 +59,31 @@ trials_u = TrialFESpace(tests_u,u);
 U, V = get_fe_space(trials_u,1), get_fe_space(tests_u,1)
 Q = TestFESpace(model,reffe_p;conformity=:L2,constraint=:zeromean) 
 
-α = 1.0
-β = 1.0
+α = 1.e4
+β = 1.e4
 Π_Qh = LocalProjectionMap(divergence,reffe_p,qdegree)
-
-biform(u,v,dΩ) = ∫(∇(v)⊙∇(u) + α*(∇⋅v)⋅Π_Qh(u) + β*(u×B)⋅(v×B))dΩ 
+utb(x) = u(x)×B0
+biform(u,v,dΩ) = ∫(∇(v)⊙∇(u) + α*(∇⋅v)⋅Π_Qh(u) + β*(u×B0)⋅(v×B0))dΩ 
+liform(v,dΩ) = ∫(∇(v)⊙∇(u) + β*(utb⋅(v×B0)))dΩ 
 
 Ω = Triangulation(model)
 dΩ = Measure(Ω,qdegree)
 
 a(u,v) = biform(u,v,dΩ)
 l(v) = liform(v,dΩ)
-op = AffineFEOperator(a,l,X,Y)
+op = AffineFEOperator(a,l,U,V)
 A, b = get_matrix(op), get_vector(op);
 
-biforms = map(mhl -> get_bilinear_form(mhl,biform_u,qdegree),mh)
+biforms = map(mhl -> get_bilinear_form(mhl,biform,qdegree),mh)
 patch_decompositions = PatchDecomposition(mh)
 smoothers = get_patch_smoothers(
-  mh,tests_u,biform_u,patch_decompositions,qdegree
+  mh,tests_u,biform,patch_decompositions,qdegree
 )
 prolongations = setup_patch_prolongation_operators(
-  tests_u,biform_u,graddiv,qdegree
+  tests_u,biform,biform,qdegree
 )
 restrictions = setup_patch_restriction_operators(
-  tests_u,prolongations,graddiv,qdegree;solver=CGSolver(JacobiLinearSolver())
+  tests_u,prolongations,biform,qdegree
 )
 gmg = GMGLinearSolver(
   trials_u,tests_u,biforms,
@@ -91,22 +93,17 @@ gmg = GMGLinearSolver(
   coarsest_solver=LUSolver(),
   maxiter=4,mode=:preconditioner,verbose=i_am_main(parts)
 )
+gmg.log.depth = 4
 
-solver_u = gmg
-solver_p = CGSolver(JacobiLinearSolver();maxiter=20,atol=1e-14,rtol=1.e-6,verbose=i_am_main(parts))
-solver_u.log.depth = 2
-solver_p.log.depth = 2
-
-diag_blocks  = [LinearSystemBlock(),BiformBlock((p,q) -> ∫(-1.0/α*p*q)dΩ,Q,Q)]
-bblocks = map(CartesianIndices((2,2))) do I
-  (I[1] == I[2]) ? diag_blocks[I[1]] : LinearSystemBlock()
-end
-coeffs = [1.0 1.0;
-          0.0 1.0]  
-P = BlockTriangularSolver(bblocks,[solver_u,solver_p],coeffs,:upper)
-solver = FGMRESSolver(20,P;atol=1e-10,rtol=1.e-12,verbose=i_am_main(parts))
+solver = FGMRESSolver(20,gmg;atol=1e-10,rtol=1.e-12,verbose=i_am_main(parts))
 ns = numerical_setup(symbolic_setup(solver,A),A)
 
-x = allocate_in_domain(A); fill!(x,0.0)
+x = allocate_in_domain(A)
+fill!(x,0.0)
 solve!(x,ns,b)
-xh = FEFunction(X,x)
+xh = FEFunction(U,x)
+
+eh = xh - u
+err_l2 = sqrt(sum(∫(eh⋅eh)dΩ))
+
+

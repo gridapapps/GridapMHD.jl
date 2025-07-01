@@ -29,10 +29,10 @@ function Li2019Solver(op::FEOperator,params)
 
   diag_solvers = map(s -> get_block_solver(Val(s),params),params[:solver][:block_solvers])
   diag_blocks = [
-    BiformBlock(a_j,trial[1],test[1]),
-    TriformBlock(a_u,trial[2],test[2],2),
-    BiformBlock(a_p,trial[3],test[3]),
-    BiformBlock(a_φ,trial[4],test[4])
+    BiformBlock(a_j,U_j,V_j),
+    TriformBlock(a_u,U_u,V_u,2),
+    BiformBlock(a_p,U_p,V_p),
+    BiformBlock(a_φ,U_φ,V_φ)
   ]
   blocks = map(CartesianIndices((NB,NB))) do I
     (I[1] == I[2]) ? diag_blocks[I[1]] : LinearSystemBlock()
