@@ -156,7 +156,33 @@ function _hunt(;
   if tw > 0.0
     σ_Ω = solid_conductivity(σ̄1,σ̄2,Ω,get_cell_gids(model),get_face_labeling(model))
     params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
+<<<<<<< HEAD
     params[:fluid][:domain] = "fluid"
+=======
+    params[:fluid] = Dict(
+      :domain=>"fluid",
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :B=>B̄,
+      :f=>f̄,
+      :ζ=>ζ,
+     )
+    # FE Space parameters
+    # There is no conductive wall so φ is undetermined
+    params[:fespaces] = Dict(
+      :φ_constraint => :zeromean)
+  else
+    params[:fluid] = Dict(
+      :domain=>nothing,
+      :α=>α,
+      :β=>β,
+      :γ=>γ,
+      :f=>f̄,
+      :B=>B̄,
+      :ζ=>ζ,
+    )
+>>>>>>> 129679c5615eb85ac3ba0340730604c99de025d6
   end
 
   params[:fespaces] = Dict{Symbol,Any}(
