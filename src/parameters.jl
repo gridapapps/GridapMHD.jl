@@ -452,10 +452,10 @@ const CURRENT_DISCRETIZATIONS = (;
 
 function current_discretization(disc::Symbol,poly::Polytope,feparams)
   k = feparams[:order_j]
-  phi = rt_scaling(poly,feparams)
+  # phi = rt_scaling(poly,feparams)
   if poly == HEX # Hexahedral meshes
     if disc == :RT
-      feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1;basis_type=:jacobi,phi=phi)
+      feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1)#;basis_type=:jacobi,phi=phi)
       feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
       feparams[:order_φ] = k-1
       feparams[:φ_conformity] = :L2
@@ -467,12 +467,12 @@ function current_discretization(disc::Symbol,poly::Polytope,feparams)
     end
   elseif poly == TET # Tetrahedral meshes
     if disc == :RT
-      feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1;basis_type=:jacobi,phi=phi)
+      feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1)#;basis_type=:jacobi,phi=phi)
       feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:order_φ] = k-1
       feparams[:φ_conformity] = :L2
     elseif disc == :BDM
-      feparams[:reffe_j] = BDMRefFE(Float64,poly,k;phi=phi)
+      feparams[:reffe_j] = BDMRefFE(Float64,poly,k)#;phi=phi)
       feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:order_φ] = k-1
       feparams[:φ_conformity] = :L2

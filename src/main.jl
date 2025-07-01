@@ -103,7 +103,7 @@ or a `GridapDistributed.DistributedDiscreteModel`
   If not provided or set to `nothing` the solid domain is not taken into account.
   See [`params_solid`](@ref) for further details.
 - `:order_u => 2`:
-  Maximum interpolation order (i.e., the order used for the fluid velocity).
+  Order used for the fluid velocity.
 - `:order_j => :order_u`:
   Order used for the current density.
 - `:solver => default_solver()`:
