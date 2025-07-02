@@ -6,7 +6,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       P4EST_ROOT_DIR: "/opt/p4est/2.8.5/"
-      JULIA_PETSC_LIBRARY: "/opt/petsc/3.22.4/lib/libpetsc"
+      JULIA_PETSC_LIBRARY: "/opt/petsc/3.23.0/lib/libpetsc"
     strategy:
       fail-fast: false
       matrix:
@@ -47,7 +47,7 @@ jobs:
         run: |
           CURR_DIR=$(pwd)
           PACKAGE=petsc
-          VERSION=3.22.4
+          VERSION=3.23.0
           INSTALL_ROOT=/opt
           PETSC_INSTALL=$INSTALL_ROOT/$PACKAGE/$VERSION
           TAR_FILE=$PACKAGE-$VERSION.tar.gz
