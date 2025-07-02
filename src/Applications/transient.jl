@@ -64,7 +64,7 @@ function _transient(;
   verbose = true,
   man_solution = nothing,
   max_error = 0.0,
-  time_solver = :theta,
+  ode_solver = :theta,
   θ = 0.5,
   μ = 0.0,
   )
@@ -154,11 +154,9 @@ function _transient(;
     :t0 => t0,
     :tf => tf,
     :Δt => Δt,
+    :θ => θ,
   )
-  params[:transient][:solver] = Dict{Symbol,Any}(
-    :solver => time_solver,
-    :θ => θ
-  )
+
   if is_manufactured
     params[:x0] = Dict{Symbol,Any}(
       :u => u(t0),
