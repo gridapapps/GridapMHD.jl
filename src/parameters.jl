@@ -326,7 +326,7 @@ function params_fespaces(params::Dict{Symbol,Any})
   )
   optional = Dict(
     :order_u => 2,
-    :order_j => ifelse(haskey(params[:fespaces],:order_u),params[:fespaces][:order_u],2),
+    :order_j => haskey(params[:fespaces],:order_u) ? params[:fespaces][:order_u] : 2,
     :p_constraint => nothing,
     :φ_constraint => nothing,
     :rt_scaling => nothing,
