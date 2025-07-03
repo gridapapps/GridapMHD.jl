@@ -63,12 +63,10 @@ function _transient(;
   solver = :julia,
   verbose = true,
   man_solution = nothing,
-  initial_value_type = :zero,
   max_error = 0.0,
-  time_solver = :theta,
-  θ = 0.5,
+  ode_solver = Dict(:solver => :theta, :θ => 0.5),
   μ = 0.0,
-  )
+)
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -150,29 +148,21 @@ function _transient(;
   end
 
   # Setup ODE solver
-  ode_solver_params = Dict(:θ=>θ)
+  params[:transient] = Dict{Symbol,Any}(
+    :solver => ode_solver,
+    :t0 => t0,
+    :tf => tf,
+    :Δt => Δt,
+  )
 
   if is_manufactured
-    initial_values = Dict(
+    params[:x0] = Dict{Symbol,Any}(
       :u => u(t0),
       :p => p(t0),
       :j => j(t0),
       :φ => φ(t0),
     )
-    initial_value_type = :value
-  else
-    initial_values = nothing
   end
-
-  params[:ode] = Dict(
-    :solver => time_solver,
-    :t0 => t0,
-    :tf => tf,
-    :Δt => Δt,
-    :solver_params => ode_solver_params,
-    :U0 => initial_value_type,
-    :initial_values => initial_values,
-  )
 
   toc!(t,"pre_process")
 
@@ -260,7 +250,7 @@ function _transient(;
   info[:Δt] = Δt
   info[:t0] = t0
   info[:tf] = tf
-  info[:θ] = θ
+  info[:ode_solver] = ode_solver
 
   merge(info, results), t
 end

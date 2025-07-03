@@ -48,31 +48,41 @@ function _expansion(;
   verbose = true,
   solver  = :julia,
   formulation = :mhd,
-  Z = 4.0,                  #Expansion Ratio, it has to be consistent with the mesh
-  b = 0.2,                  #Outlet channel aspect ratio, it has to be consistent with the mesh
+  Z = 4.0,    # Expansion Ratio, it has to be consistent with the mesh
+  b = 0.2,    # Outlet channel aspect ratio, it has to be consistent with the mesh
   N  = 1.0,
   Ha = 1.0,
   cw = 0.028,
   τ  = 100,
-  ζ  = 0.0,
+  ζ  = 0.0,   # Augmented Lagrangian weight  
+  μ  = 0,     # Stabilization weight
   order = 2,
+  order_j = order,
   inlet = :parabolic,
-  μ=0,
-  initial_value=:zero,
-  niter=nothing,
-  convection=:true,
-  savelines=false,
-  petsc_options="",
-  )
+  initial_value = :zero,
+  solid_coupling = :none,
+  niter = nothing,
+  convection = :newton,
+  fluid_disc = :Qk_dPkm1,
+  current_disc = :RT,
+  rt_scaling = false,
+  savelines = false,
+  petsc_options = "",
+)
+  @assert solid_coupling ∈ [:none,:thin_wall,:solid]
+  @assert inlet ∈ [:parabolic,:shercliff,:constant]
+  @assert initial_value ∈ [:zero,:inlet,:solve]
+  @assert formulation ∈ [:cfd,:mhd]
+  @assert convection ∈ [:newton,:picard,:none]
 
   info   = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
-       :debug=>debug,
-       :solve=>true,
-       :res_assemble=>false,
-       :jac_assemble=>false,
-       :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver
-    )
+    :debug=>debug,
+    :solve=>true,
+    :res_assemble=>false,
+    :jac_assemble=>false,
+    :solver=> isa(solver,Symbol) ? default_solver_params(Val(solver)) : solver
+  )
 
   if isa(distribute,Nothing)
     @assert isa(rank_partition,Nothing)
@@ -91,14 +101,13 @@ function _expansion(;
   end
   model = expansion_mesh(mesh,parts,params)
   if debug && vtk
-    writevtk(model,"data/expansion_model")
+    writevtk(model,path*"/expansion_model")
   end
-  Ω = Interior(model,tags="PbLi")
   toc!(t,"model")
 
   # Parameters and bounday conditions
-
   # Fluid parameters
+
   Re = Ha^2/N
   if formulation == :cfd # Option 1 (CFD)
     α = 1.0
@@ -112,12 +121,16 @@ function _expansion(;
     error("Unknown formulation")
   end
 
-  params[:fespaces] = Dict(
-    :k => order
+  params[:fespaces] = Dict{Symbol,Any}(
+    :order_u => order,
+    :order_j => order_j,
+    :rt_scaling => rt_scaling ? 1.0/get_mesh_size(model) : nothing,
+    :fluid_disc => fluid_disc,
+    :current_disc => current_disc,
   )
 
-  params[:fluid] = Dict(
-    :domain => nothing, # whole domain
+  params[:fluid] = Dict{Symbol,Any}(
+    :domain => "fluid",
     :α => α,
     :β => β,
     :γ => γ,
@@ -128,6 +141,7 @@ function _expansion(;
   )
 
   # Boundary conditions
+
   u_in = u_inlet(inlet,Ha,Z,b)
 
   params[:bcs] = Dict{Symbol,Any}()
@@ -136,33 +150,47 @@ function _expansion(;
     :values => [u_in, VectorValue(0.0, 0.0, 0.0)]
   )
 
-  if abs(cw) < 1.e-5
-    params[:bcs][:j] = Dict(
+  if solid_coupling == :none
+    params[:bcs][:j] = Dict{Symbol,Any}(
       :tags => ["wall", "inlet", "outlet"],
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)],
     )
-
-  else
-    params[:bcs][:j] = Dict(
+  elseif solid_coupling == :thin_wall
+    params[:bcs][:j] = Dict{Symbol,Any}(
       :tags => ["inlet", "outlet"],
       :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
     )
-    params[:bcs][:thin_wall] = Dict(
+    params[:bcs][:thin_wall] = Dict{Symbol,Any}(
       :τ=>τ,
       :cw=>cw,
       :domain => ["wall"],
     )
+  else
+    @assert solid_coupling == :solid
+    params[:bcs][:j] = Dict(
+      :tags => ["wall_exterior", "inlet", "outlet"],
+      :values=>[VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0), VectorValue(0.0,0.0,0.0)]
+    )
+    params[:solid] = Dict(:domain => "wall",:σ => 1.0)
   end
 
   if μ > 0
     params[:bcs][:stabilization] = Dict(:μ=>μ)
   end
 
+  # Initial conditions
+
   j_zero = VectorValue(0.0,0.0,0.0)
   if initial_value == :inlet
-    params[:solver][:initial_values] = Dict(
-      :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0)
+    params[:x0] = Dict(
+      :u=>u_in,:j=>j_zero,:p=>0.0,:φ=>0.0
+    )
+  else
+    params[:x0] = initial_value
   end
+
+  # Solver options
+
   if params[:solver][:solver] == :petsc && petsc_options != ""
     params[:solver][:petsc_options] = petsc_options
   end
@@ -196,11 +224,14 @@ function _expansion(;
   Grad_p = ∇·ph
 
   if vtk
+    Ω = Interior(model,tags="fluid")
+    iorder = min(3,max(order,order_j))
     writevtk(
       Ω,joinpath(path,title),
-      order=order,
+      order=iorder,
       cellfields=[
-        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p],
+        "uh"=>uh,"ph"=>ph,"jh"=>jh,"phi"=>φh,"div_uh"=>div_uh,"div_jh"=>div_jh,"kp"=>Grad_p
+      ],
       append=false
     )
     toc!(t,"vtk")
@@ -208,14 +239,8 @@ function _expansion(;
   if savelines
     line = top_ha_line(model,Z)
     info[:line] = line
-    info[:p_on_top] = ph(line)
-    # xline,yline,zline = evaluation_lines(model,Z)
-    # info[:xline] = xline
-    # info[:yline] = yline
-    # info[:zline] = zline
-    # info[:uh_xline] = vector_field_eval(uh,xline)
-    # info[:uh_yline] = vector_field_eval(uh,yline)
-    # info[:uh_zline] = vector_field_eval(uh,zline)
+    info[:p_line] = evaluate_line(ph,line)
+    toc!(t,"p-lines")
   end
   if verbose
     display(t)
@@ -244,25 +269,54 @@ end
 function expansion_mesh(::Val{:gmsh},mesh::Dict,ranks,params)
   # The domain is of size L_out x 2 x 2/β and L_in x 2/Z x 2/β
   # after and before the expansion respectively.
-  msh_name = mesh[:base_mesh]
-  msh_file = joinpath(meshes_dir,"Expansion_"*msh_name*".msh") |> normpath
-  model = GmshDiscreteModel(ranks,msh_file;has_affine_map=true)
+  msh_file = mesh[:base_mesh]
+  if !ispath(msh_file)
+    msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
+  end
+  model = UnstructuredDiscreteModel(GmshDiscreteModel(ranks,msh_file))
+  setup_expansion_mesh_tags!(model)
   params[:model] = model
   return model
 end
 
-function epansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
+function expansion_mesh(::Val{:gridap_SG},mesh::Dict,ranks,params)
   @assert haskey(mesh,:num_refs)
   num_refs = mesh[:num_refs]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(meshes_dir,"Expansion_"*mesh[:base_mesh]*".msh") |> normpath
-    base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
-    add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
-    add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
+    msh_file = mesh[:base_mesh]
+    if !ispath(msh_file)
+      msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
+    end
+    base_model = UnstructuredDiscreteModel(GmshDiscreteModel(ranks,msh_file))
   else
     base_model = expansion_generate_base_mesh()
   end
+  setup_expansion_mesh_tags!(base_model)
   model = Meshers.generate_refined_mesh(ranks,base_model,num_refs)
+  if haskey(mesh,:adaptivity_method)
+    model = Meshers.adapt_mesh(model,mesh[:adaptivity_method])
+  end
+  params[:model] = model
+  return model
+end
+
+function expansion_mesh(::Val{:p4est_SG},mesh::Dict,ranks,params)
+  @assert haskey(mesh,:num_refs)
+  num_refs = mesh[:num_refs]
+  if haskey(mesh,:base_mesh)
+    msh_file = mesh[:base_mesh]
+    if !ispath(msh_file)
+      msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
+    end
+    base_model = UnstructuredDiscreteModel(GmshDiscreteModel(msh_file))
+  else
+    base_model = expansion_generate_base_mesh()
+  end
+  setup_expansion_mesh_tags!(base_model)
+  model = Meshers.generate_p4est_refined_mesh(ranks,base_model,num_refs)
+  if haskey(mesh,:adaptivity_method)
+    model = Meshers.adapt_mesh(model,mesh[:adaptivity_method])
+  end
   params[:model] = model
   return model
 end
@@ -272,15 +326,17 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   num_refs_coarse = mesh[:num_refs_coarse]
   ranks_per_level = mesh[:ranks_per_level]
   if haskey(mesh,:base_mesh)
-    msh_file = joinpath(meshes_dir,"Expansion_"*mesh[:base_mesh]*".msh") |> normpath
-    base_model = GmshDiscreteModel(msh_file;has_affine_map=true)
-    add_tag_from_tags!(get_face_labeling(base_model),"interior",["PbLi"])
-    add_tag_from_tags!(get_face_labeling(base_model),"boundary",["inlet","outlet","wall"])
+    msh_file = mesh[:base_mesh]
+    if !ispath(msh_file)
+      msh_file = joinpath(meshes_dir,"Expansion_"*msh_file*".msh") |> normpath
+    end
+    base_model = UnstructuredDiscreteModel(GmshDiscreteModel(msh_file))
   else
     base_model = expansion_generate_base_mesh()
   end
+  setup_expansion_mesh_tags!(base_model)
 
-  mh = Meshers.generate_mesh_hierarchy(ranks,base_model,num_refs_coarse,ranks_per_level)
+  mh = Meshers.generate_p4est_mesh_hierarchy(ranks,base_model,num_refs_coarse,ranks_per_level)
   params[:multigrid] = Dict{Symbol,Any}(
     :mh => mh,
     :num_refs_coarse => num_refs_coarse,
@@ -292,8 +348,38 @@ function expansion_mesh(::Val{:p4est_MG},mesh::Dict,ranks,params)
   return model
 end
 
-function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in every case
+function setup_expansion_mesh_tags!(model::GridapDistributed.DistributedDiscreteModel)
+  map(setup_expansion_mesh_tags!,local_views(model))
+end
 
+function setup_expansion_mesh_tags!(model::DiscreteModel)
+  labels = get_face_labeling(model)
+
+  tags = labels.tag_to_name
+  solid = issubset(["wall_interior","wall_exterior","wall_volume"], tags)
+
+  if "wall" ∉ tags
+    @assert solid
+    add_tag_from_tags!(labels,"wall",["wall_interior","wall_exterior","wall_volume"])
+  end
+  if "boundary" ∉ tags
+    if solid
+      add_tag_from_tags!(labels,"boundary",["inlet","outlet","wall_exterior"])
+    else
+      add_tag_from_tags!(labels,"boundary",["inlet","outlet","wall"])
+    end
+  end
+  if "interior" ∉ tags
+    if solid
+      add_tag_from_tags!(labels,"interior",["fluid","wall_volume","wall_interior"])
+    else
+      add_tag_from_tags!(labels,"interior",["fluid"])
+    end
+  end
+end
+
+# It ensures avg(u) = 1 in the outlet channel in every case
+function u_inlet(inlet,Ha,Z,β)
   u_inlet_parabolic((x,y,z)) = VectorValue(36.0*Z*(y-1/Z)*(y+1/Z)*(z-β*Z)*(z+β*Z),0,0)
 
   kp_inlet = GridapMHD.kp_shercliff_cartesian(β*Z,Ha/Z)
@@ -309,14 +395,28 @@ function u_inlet(inlet,Ha,Z,β) # It ensures avg(u) = 1 in the outlet channel in
   u_inlet_cte = VectorValue(Z,0.0,0.0)
 
   if inlet == :parabolic
-	U = u_inlet_parabolic
+	  U = u_inlet_parabolic
   elseif inlet == :shercliff
     Ha > 10 || @warn "Shercliff inlet is not accurate for Ha=$Ha"
     U = u_inlet_shercliff
   else
     U = u_inlet_cte
   end
- U
+
+  return U
+end
+
+function evaluate_line(uh,line)
+  model = get_background_model(get_triangulation(uh))
+  # Simplexified model
+  smodel = Gridap.Adaptivity.refine(model;refinement_method="simplexify")
+  strian = Triangulation(smodel)
+  # Distributed change of domain
+  uhi = GridapDistributed.DistributedCellField(
+    map((uhi,ti) -> change_domain(uhi,ti,ReferenceDomain()),local_views(uh),local_views(strian)),
+    strian
+  )
+  return uhi(line)
 end
 
 function top_line(model,n=100)
@@ -328,12 +428,11 @@ function top_line(model,n=100)
 end
 
 function top_ha_line(model,Z,n=100)
+  δ = 1.e6*eps(Float64)
   pmin,pmax = _get_bounding_box(model)
-  xmin,xmax = pmin[1],pmax[1]
-  ymax = pmax[2]
-  # line = map( x -> x>0 ? Point(x,ymax,0.0) : Point(x,ymax/Z,0.0), range(xmin,xmax,n+1))
-  # line = map( x -> x>0 ? Point(x,1.0,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
-  line = map( x -> x>0 ? Point(x,0.99,0.0) : Point(x,0.25,0.0), range(xmin,xmax,n+1))
+  xmin,xmax = pmin[1]+δ,pmax[1]-δ
+  y1,y2 = pmax[2]-δ, pmax[2]/Z
+  line = map( x -> x>0 ? Point(x,y1,δ) : Point(x,y2,δ), range(xmin,xmax,n+1))
   return line
 end
 
@@ -350,56 +449,35 @@ function evaluation_lines(model,Z,n=100)
   xline,yline,zline
 end
 
-function _get_bounding_box(x::AbstractVector{<:Point})
-  pmin,pmax = x[1],x[1]
+function _get_bounding_box(x::AbstractVector{<:Point{D}}) where D
+  pmin = fill(Inf,D)
+  pmax = fill(-Inf,D)
   for p in x
-    pmin = min.(pmin,p)
-    pmax = max.(pmax,p)
+    for d in 1:D
+      pmin[d] = min(pmin[d],p[d])
+      pmax[d] = max(pmax[d],p[d])
+    end
   end
-  pmin,pmax
+  pmin, pmax
 end
 
 function _get_bounding_box(model::DiscreteModel)
   _get_bounding_box(get_node_coordinates(model))
 end
 
-function _get_bounding_box(model::GridapDistributed.DistributedDiscreteModel)
-  boxes = map(_get_bounding_box,local_views(model))
-  boxes = gather(boxes,destination=:all)
-  boxes = map(boxes) do boxes
-    if ! isempty(boxes)
-      pmin,pmax = boxes[1]
-      for (bmin,bmax) in boxes
-        pmin = min.(pmin,bmin)
-        pmax = max.(pmax,bmax)
-      end
-      pmin,pmax
-    else
-      @unreachable
-    end
+function _get_bounding_box(
+  model::GridapDistributed.DistributedDiscreteModel{Dc}
+) where Dc
+  _pmin, _pmax = map(_get_bounding_box,local_views(model)) |> tuple_of_arrays
+  
+  pmin = fill(Inf,Dc)
+  pmax = fill(-Inf,Dc)
+  for d in 1:Dc
+    d_min = map(x -> x[d], _pmin)
+    d_max = map(x -> x[d], _pmax)
+    pmin[d] = PartitionedArrays.getany(reduction(min,d_min;destination=:all))
+    pmax[d] = PartitionedArrays.getany(reduction(max,d_max;destination=:all))
   end
-  pmin,pmax = PartitionedArrays.getany(boxes)
-  pmin,pmax
-end
-
-# CellField evaluations until comments in
-# https://github.com/gridap/GridapDistributed.jl/pull/146 are fixed
-
-function vector_field_eval(f,x)
-  fx = scalar_field_eval(f,x,1)
-  fy = scalar_field_eval(f,x,2)
-  fz = scalar_field_eval(f,x,3)
-  map(VectorValue,fx,fy,fz)
-end
-
-function scalar_field_eval(f,x,comp)
-  fx = (x->x[comp])∘f
-  fx = emit(fx(x))
-  PartitionedArrays.getany(fx)
-end
-
-function scalar_field_eval(f,x)
-  fx = f(x)
-  fx = emit(fx(x))
-  PartitionedArrays.getany(fx)
+  
+  return pmin, pmax
 end

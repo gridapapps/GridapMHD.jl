@@ -21,6 +21,7 @@ hunt(
   vtk=true,
   title="hunt",
   solver=:julia,
+  fluid_disc = :RT,
 )
 
 hunt(

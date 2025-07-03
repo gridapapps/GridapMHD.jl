@@ -14,7 +14,7 @@ function Li2019Solver(op::FEOperator,params)
   inv_α1 = 1.0/α1
 
   # Preconditioner
-  k  = params[:fespaces][:k]
+  k  = max(params[:fespaces][:order_u],params[:fespaces][:order_j])
   model = params[:model]
   # Ωf = _interior(model,params[:fluid][:domain])
   # dΩ = Measure(Ωf,2*k)
@@ -24,14 +24,17 @@ function Li2019Solver(op::FEOperator,params)
   # a_φ(φ,v_φ) = ∫(-φ*v_φ)*dΩ
   a_j, a_u, a_p, a_φ = precond(params,k)
 
-  perm = [3,1,2,4]
-  _trial, _test = get_trial(op), get_test(op)
-  trial = map(i -> _trial[i], perm)
-  test  = map(i -> _test[i], perm)
+  U_u, U_p, U_j, U_φ = get_trial(op)
+  V_u, V_p, V_j, V_φ = get_test(op)
 
-  NB = length(trial)
+  NB = 4
   diag_solvers = map(s -> get_block_solver(Val(s),params),params[:solver][:block_solvers])
-  diag_blocks = [BiformBlock(a_j,trial[1],test[1]),TriformBlock(a_u,trial[2],test[2],2),BiformBlock(a_p,trial[3],test[3]),BiformBlock(a_φ,trial[4],test[4])]
+  diag_blocks = [
+    BiformBlock(a_j,U_j,V_j),
+    TriformBlock(a_u,U_u,V_u,2),
+    BiformBlock(a_p,U_p,V_p),
+    BiformBlock(a_φ,U_φ,V_φ)
+  ]
   blocks = map(CartesianIndices((NB,NB))) do I
     (I[1] == I[2]) ? diag_blocks[I[1]] : LinearSystemBlock()
   end
@@ -46,24 +49,22 @@ function Li2019Solver(op::FEOperator,params)
   nl_rtol = params[:solver][:rtol]
   l_rtol  = nl_rtol/10.0
   
-  m = params[:solver][:niter]
+  m = params[:solver][:niter_ls]
   l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=1e-14,verbose=verbose)
 
   # Nonlinear Solver
-  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=10,atol=1e-14,rtol=nl_rtol,verbose=verbose)
+  niter = params[:solver][:niter]
+  nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=niter,atol=1e-14,rtol=nl_rtol,verbose=verbose)
   return nl_solver
 end
 
 function precond(params,k)
-  fluid = params[:fluid]
-  Ωf, dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params,k)
+  dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params)
   solid = params[:solid]
-  Ωs, dΩs, σs = retrieve_solid_params(params,k)
-  bcs_params = retrieve_bcs_params(params,k)
-  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
+  dΩs, σs = retrieve_solid_params(params)
 
   function a_u(u,du,dv)
-    r = a_mhd_u_u(du,dv,β,dΩf) + dc_mhd_u_u(u,du,dv,α,dΩf) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩf
+    r = a_mhd_u_u(du,dv,β,dΩf) + n_dc_mhd_u_u(u,du,dv,α,dΩf) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩf
     if abs(ζ) > eps(typeof(ζ))
       r = r + ∫( ζ*(∇⋅du)*(∇⋅dv) ) * dΩf
     end
@@ -110,7 +111,7 @@ end
 function li2019_Fk(dΩ,params)
   fluid = params[:fluid]
   α, β, γ, B  = fluid[:α], fluid[:β], fluid[:γ], fluid[:B]
-  a_fk(u,du,dv) = a_mhd_u_u(du,dv,β,dΩ) + dc_mhd_u_u(u,du,dv,α,dΩ) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩ
+  a_fk(u,du,dv) = a_mhd_u_u(du,dv,β,dΩ) + n_dc_mhd_u_u(u,du,dv,α,dΩ) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩ
   return a_fk
 end
 
@@ -128,8 +129,8 @@ function li2019_laplacian(dΩ,params)
   n_Γ = get_normal_vector(Γ)
   n_Λ = get_normal_vector(Λ)
 
-  h_e_Λ = get_edge_measures(Λ,dΛ)
-  h_e_Γ = get_edge_measures(Γ,dΓ)
+  h_e_Λ = get_cell_size(Λ)
+  h_e_Γ = get_cell_size(Γ)
 
   β = 100.0
   function a_Δp(u,v)
@@ -141,9 +142,4 @@ function li2019_laplacian(dΩ,params)
     return r
   end
   return a_Δp
-end
-
-get_edge_measures(Ω::Triangulation,dΩ) = sqrt∘CellField(get_array(∫(1)dΩ),Ω)
-function get_edge_measures(Ω::GridapDistributed.DistributedTriangulation,dΩ)
-  return sqrt∘CellField(map(get_array,local_views(∫(1)*dΩ)),Ω)
 end

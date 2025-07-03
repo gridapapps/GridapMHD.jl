@@ -169,4 +169,4 @@ Physical Surface ("outlet") = {outlet_surfaces[]};
 
 Physical Surface ("inlet") = {inlet_surfaces[]};
 
-Physical Volume("PbLi") = {volumes[]};
+Physical Volume("fluid") = {volumes[]};

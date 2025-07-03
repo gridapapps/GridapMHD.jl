@@ -84,53 +84,104 @@ It also checks the validity of the main parameter dictionary `params`.
 """
 function add_default_params(_params)
   mandatory = Dict(
-    :ptimer=>false,
-    :debug=>false,
-    :solve=>true,
-    :res_assemble=>false,
-    :jac_assemble=>false,
-    :model=>true,
-    :fluid=>true,
-    :solid=>false,
-    :bcs=>true,
-    :fespaces=>false,
-    :solver=>true,
-    :multigrid=>false,
-    :check_valid=>false,
-    :ode=>false,
-    :transient=>false,
+    :ptimer => false,
+    :debug => false,
+    :solve => true,
+    :res_assemble => false,
+    :jac_assemble => false,
+    :model => true,
+    :fluid => true,
+    :solid => false,
+    :bcs => true,
+    :fespaces => false,
+    :solver => true,
+    :multigrid => false,
+    :check_valid => false,
+    :transient => false,
+    :continuation => false,
+    :x0 => false,
   )
   _check_mandatory(_params,mandatory,"")
   optional = Dict(
-    :ptimer=>default_ptimer(_params[:model]),
-    :debug=>false,
-    :res_assemble=>false,
-    :jac_assemble=>false,
-    :solid=>nothing,
-    :fespaces=>nothing,
-    :multigrid=>nothing,
-    :check_valid=>true,
-    :ode=>nothing,
-    :transient=>default_transient(_params),
+    :ptimer => default_ptimer(_params[:model]),
+    :debug => false,
+    :res_assemble => false,
+    :jac_assemble => false,
+    :solid => nothing,
+    :fespaces => nothing,
+    :multigrid => nothing,
+    :check_valid => true,
+    :transient => nothing,
+    :continuation => nothing,
+    :x0 => :zero,
   )
   params = _add_optional(_params,mandatory,optional,_params,"")
   _check_unused(params,mandatory,params,"")
   # Process sub-params
   params[:fluid] = params_fluid(params)
-  if params[:solid] !== nothing
+  if !isnothing(params[:solid])
     params[:solid] = params_solid(params)
   end
   params[:bcs] = params_bcs(params)
   params[:fespaces] = params_fespaces(params)
   params[:solver] = params_solver(params)
-  #params[:multigrid] = params_multigrid(params)
+  params[:multigrid] = params_multigrid(params)
+  if !isnothing(params[:transient])
+    params[:transient] = params_transient(params)
+  end
+  if !isnothing(params[:continuation])
+    params[:continuation] = params_continuation(params)
+  end
+  display_params(params)
   params
 end
 
 default_ptimer(model) = PTimer(DebugArray(LinearIndices((1,))))
 default_ptimer(model::GridapDistributed.DistributedDiscreteModel) = PTimer(get_parts(model))
 
-default_transient(params) = haskey(params,:ode) && !isnothing(params[:ode])
+"""
+Duplicates all paramaters in `params`, such that 
+  - isbits objects (e.g. numbers and lighweight structs) are deep-copied. 
+  - heavier objects are copied by reference.
+
+This is useful to create a new set of parameters where 
+constants can be modified without affecting the original ones.
+"""
+function duplicate_params(params)
+  new_params = Dict{Symbol,Any}()
+  for (key,value) in params
+    if isa(value,Dict)
+      new_params[key] = duplicate_params(value)
+    else
+      new_params[key] = value
+    end
+  end
+  return new_params
+end
+
+function display_params(params)
+  map_main(params[:ptimer].parts) do _
+    msg = params_to_string(params)
+    @info string("Parameters :: \n",msg...)
+  end
+end
+
+function params_to_string(params)
+  msg = String[]
+  for (key,value) in params
+    if isa(value,Dict)
+      sub_msg = params_to_string(value)
+      push!(msg,"  > $key => { \n")
+      for m in sub_msg
+        push!(msg,"  $m")
+      end
+      push!(msg,"  } \n")
+    elseif isa(value,Union{Number,String,Symbol,Nothing})
+      push!(msg,"  > $key => $value \n")
+    end
+  end
+  return msg
+end
 
 """
 Valid keys for `params[:solver]` are the following:
@@ -162,6 +213,8 @@ function params_solver(params::Dict{Symbol,Any})
   return solver
 end
 
+default_solver_params(s::Symbol) = default_solver_params(Val(s))
+
 function default_solver_params(::Val{:julia})
   return Dict(
     :solver => :julia,
@@ -170,7 +223,6 @@ function default_solver_params(::Val{:julia})
     :solver_postpro => ((cache,info) -> nothing),
     :niter          => 10,
     :rtol           => 1e-5,
-    :initial_values => nothing,
   )
 end
 
@@ -183,7 +235,6 @@ function default_solver_params(::Val{:petsc})
     :petsc_options  => "-snes_monitor -ksp_error_if_not_converged true -ksp_converged_reason -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps -mat_mumps_icntl_7 0",
     :niter          => 100,
     :rtol           => 1e-5,
-    :initial_values => nothing,
   )
 end
 
@@ -195,9 +246,25 @@ function default_solver_params(::Val{:li2019})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
-    :niter          => 80,
+    :niter          => 20,
+    :niter_ls       => 80,
     :rtol           => 1e-5,
-    :initial_values => nothing,
+    :atol           => 1.e-14,
+  )
+end
+
+function default_solver_params(::Val{:badia2024})
+  return Dict(
+    :solver => :badia2024,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+    :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
+    :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
+    :niter          => 20,      # Maximum Nonlinear iterations
+    :niter_ls       => 15,      # Maximum linear iterations
+    :rtol           => 1e-5,    # Relative tolerance
+    :atol           => 1.e-14,  # Absolute tolerance
   )
 end
 
@@ -206,12 +273,14 @@ uses_petsc(solver::Symbol) = uses_petsc(Val(solver))
 uses_petsc(::Val{:julia}) = false
 uses_petsc(::Val{:petsc}) = true
 uses_petsc(::Val{:li2019}) = true
+uses_petsc(::Val{:badia2024}) = true
 
 uses_multigrid(solver::Dict) = any(space_uses_multigrid(solver))
 space_uses_multigrid(solver::Dict) = space_uses_multigrid(Val(solver[:solver]),solver)
 space_uses_multigrid(::Val{:julia},solver) = fill(false,4)
 space_uses_multigrid(::Val{:petsc},solver) = fill(false,4)
 space_uses_multigrid(::Val{:li2019},solver) = map(s -> s==:gmg, solver[:block_solvers])
+space_uses_multigrid(::Val{:badia2024},solver) = map(s -> s==:gmg, solver[:block_solvers])[[1,2,1,3]]
 
 function snes_postpro(cache,info)
   snes = cache.snes[]
@@ -235,57 +304,284 @@ end
 Valid keys for `params[:fespaces]` are the following:
 
 # Optional keys
--  `:k`: Polynomial degree for the fluid velocity.
--  `:p_space`: FESpace conformity for pressure. Possible values are [:P,:Q]
+-  `:order_u`: Polynomial degree for the fluid velocity. Default is 2.
+-  `:order_j`: Polynomial degree for the current density. Default is :order_u.
+-  `:fluid_disc`: Discretization for the fluid. Default is :Qk_dPkm1 for hexahedra and :SV for tetrahedra.
+-  `:constraint_p`: Constraint for the pressure. Default is nothing.
+-  `:constraint_φ`: Constraint for the electric potential. Default is nothing.
 """
 function params_fespaces(params::Dict{Symbol,Any})
   if !haskey(params,:fespaces) || isa(params[:fespaces],Nothing)
     params[:fespaces] = Dict{Symbol,Any}()
   end
+  poly = first(get_polytopes(params[:model]))
   mandatory = Dict(
-   :k => false,
-   :p_space => false,
+    :order_u => false,
+    :order_j => false,
+    :p_constraint => false,
+    :φ_constraint => false,
+    :rt_scaling => false,
+    :fluid_disc => false,
+    :current_disc => false,
   )
   optional = Dict(
-   :k => 2,
-   :p_space => :P,
-   :p_constraint => nothing,
-   :φ_constraint => nothing,
+    :order_u => 2,
+    :order_j => haskey(params[:fespaces],:order_u) ? params[:fespaces][:order_u] : 2,
+    :p_constraint => nothing,
+    :φ_constraint => nothing,
+    :rt_scaling => nothing,
+    :fluid_disc => ifelse(is_n_cube(poly),:Qk_dPkm1,:SV),
+    :current_disc => :RT,
   )
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
-  fespaces[:p_conformity] = p_conformity(params[:model],fespaces)
+
+  # Add discretization parameters
+  params_fluid_discretization(fespaces[:fluid_disc],poly,fespaces)
+  params_current_discretization(fespaces[:current_disc],poly,fespaces)
+  params[:fespaces][:formulation] = select_formulation(fespaces)
+
+  # Integration
+  fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j],fespaces[:order_p],fespaces[:order_φ]) # Maximal polynomial degree
+  fespaces[:q] = max( # Quadrature order
+    2*(fespaces[:order_u] - 1),              # UU-Laplacian
+    3*fespaces[:order_u] - 1,                # UU-Convection
+    2*fespaces[:order_j],                    # JJ-Mass
+    fespaces[:order_u] + fespaces[:order_j], # UJ-Coupling
+    2*(fespaces[:order_φ] - 1)               # φφ-Laplacian
+  )
+  fespaces[:quadratures] = generate_quadratures(poly,fespaces)
+  fespaces[:poly] = poly
+
   return fespaces
 end
 
-function p_conformity(poly::Polytope,feparams)
-  p_space = feparams[:p_space]
-  if is_n_cube(poly) && (p_space == :P)
-    conf = :L2
+"""
+    const FLUID_DISCRETIZATIONS
+
+List of possible fluid discretizations for the (u,p) pair.
+"""
+const FLUID_DISCRETIZATIONS = (;
+  :HEX => ( # Hexahedra
+    :Qk_dPkm1,
+    :Qk_Qkm1, # Taylor-Hood
+    :RT,      # Raviart-Thomas
+  ),
+  :TET => ( # Tetrahedra
+    :Pk_Pkm1,  # Taylor-Hood
+    :Pk_dPkm1, # Scott-Vogelius
+    :SV,       # Scott-Vogelius with macro-elements
+    :RT,       # Raviart-Thomas
+  )
+)
+
+has_hdiv_fluid_disc(params) = params[:fespaces][:fluid_disc] ∈ (:RT, :BDM)
+
+function params_fluid_discretization(disc::Symbol,poly::Polytope,feparams)
+  D = num_dims(poly)
+  k = feparams[:order_u]
+  if poly == HEX # Hexahedral meshes
+    if disc == :Qk_Qkm1 # Taylor-Hood
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
+      feparams[:p_conformity] = :H1
+    elseif disc == :Qk_dPkm1
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
+      feparams[:p_conformity] = :L2
+    elseif disc == :RT # Raviart-Thomas
+      feparams[:reffe_u] = RaviartThomasRefFE(Float64,poly,k-1)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :HDiv
+      feparams[:p_conformity] = :L2
+    else
+      @notimplemented "
+        Fluid discretization $disc not implemented for hexahedra. 
+        Available discretizations are $(FLUID_DISCRETIZATIONS[:HEX])
+      "
+    end
+  elseif poly == TET # Tetrahedral meshes
+    if disc == :Pk_Pkm1 # Taylor-Hood
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
+      feparams[:p_conformity] = :H1
+    elseif disc == :Pk_dPkm1 # Scott-Vogelius
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
+      feparams[:p_conformity] = :L2
+    elseif disc == :SV # Scott-Vogelius with macro-elements
+      rrule = Gridap.Adaptivity.BarycentricRefinementRule(TET)
+      reffe_u = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      reffe_p = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:rrule] = rrule
+      feparams[:reffe_u] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_u;conformity=H1Conformity())
+      feparams[:reffe_p] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_p;conformity=L2Conformity())
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
+      feparams[:p_conformity] = :L2
+    elseif disc == :RT # Raviart-Thomas
+      feparams[:reffe_u] = RaviartThomasRefFE(Float64,poly,k-1)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :HDiv
+      feparams[:p_conformity] = :L2
+    else
+      @notimplemented "
+        Fluid discretization $disc not implemented for tetrahedra. 
+        Available discretizations are $(FLUID_DISCRETIZATIONS[:TET])
+      "
+    end
   else
-    conf = :H1
+    @notimplemented "Only HEX and TET supported for now."
   end
-  return conf
 end
-function p_conformity(Ω::Triangulation,feparams)
-  reffes = get_reffes(Ω)
-  @assert length(reffes) == 1
-  return p_conformity(get_polytope(first(reffes)),feparams)
-end
-function p_conformity(Ω::GridapDistributed.DistributedTriangulation,feparams)
-  p = map(local_views(Ω)) do Ωi
-    p_conformity(Ωi,feparams)
+
+"""
+    const CURRENT_DISCRETIZATIONS
+
+List of possible current discretizations for the (j,φ) pair.
+"""
+const CURRENT_DISCRETIZATIONS = (;
+  :HEX => ( # Hexahedra
+    :RT,  # Raviart-Thomas
+    :H1,  # Lagrangian
+  ),
+  :TET => ( # Tetrahedra
+    :RT,  # Raviart-Thomas
+    :BDM, # Brezzi-Douglas-Marini
+    :H1,  # Lagrangian
+  )
+)
+
+function params_current_discretization(disc::Symbol,poly::Polytope,feparams)
+  k = feparams[:order_j]
+  # phi = rt_scaling(poly,feparams)
+  if poly == HEX # Hexahedral meshes
+    if disc == :RT
+      feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1)#;basis_type=:jacobi,phi=phi)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
+      feparams[:order_φ] = k-1
+      feparams[:j_conformity] = :HDiv
+      feparams[:φ_conformity] = :L2
+    elseif disc == :H1
+      feparams[:reffe_j] = LagrangianRefFE(VectorValue{3,Float64},poly,k)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k;space=:Q)
+      feparams[:order_φ] = k
+      feparams[:j_conformity] = :L2
+      feparams[:φ_conformity] = :H1
+    else
+      @notimplemented "
+        Current discretization $disc not implemented for hexahedra. 
+        Available discretizations are $(CURRENT_DISCRETIZATIONS[:HEX])
+      "
+    end
+  elseif poly == TET # Tetrahedral meshes
+    if disc == :RT
+      feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1)#;basis_type=:jacobi,phi=phi)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_φ] = k-1
+      feparams[:j_conformity] = :HDiv
+      feparams[:φ_conformity] = :L2
+    elseif disc == :BDM
+      feparams[:reffe_j] = BDMRefFE(Float64,poly,k)#;phi=phi)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_φ] = k-1
+      feparams[:j_conformity] = :HDiv
+      feparams[:φ_conformity] = :L2
+    elseif disc == :H1
+      feparams[:reffe_j] = LagrangianRefFE(VectorValue{3,Float64},poly,k;space=:P)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k;space=:P)
+      feparams[:order_φ] = k
+      feparams[:j_conformity] = :L2
+      feparams[:φ_conformity] = :H1
+    else
+      @notimplemented "
+        Current discretization $disc not implemented for tetrahedra. 
+        Available discretizations are $(CURRENT_DISCRETIZATIONS[:TET])
+      "
+    end
+  else
+    @notimplemented "Only HEX and TET supported for now."
   end
-  return getany(p) # We assume same polytope in all parts
 end
-p_conformity(model::DiscreteModel,feparams) = p_conformity(Interior(model),feparams)
-p_conformity(model::GridapDistributed.DistributedDiscreteModel,feparams) = p_conformity(Interior(model),feparams)
+
+function select_formulation(feparams::Dict)
+  u_conf, p_conf = feparams[:u_conformity], feparams[:p_conformity]
+  j_conf, φ_conf = feparams[:j_conformity], feparams[:φ_conformity]
+
+  if u_conf == :H1 && j_conf == :HDiv
+    # Conforming fluid, divergence-free current
+    return :H1HDiv
+  elseif u_conf == :HDiv && j_conf == :HDiv
+    # Non-conforming divergence-free fluid, divergence-free current
+    return :HDivHDiv
+  elseif u_conf == :H1 && j_conf == :L2
+    # Conforming fluid, H1 potential
+    # Current gets eliminated from the system in favor of φ ∈ H1
+    @assert φ_conf == :H1
+    return :H1H1
+  else
+    @error "Unsupported fluid/current discretizations: u_conf = $u_conf, j_conf = $j_conf."
+  end
+end
+
+function uses_macro_elements(params::Dict)
+  haskey(params[:fespaces],:rrule)
+end
+
+# Scaling for Raviart-Thomas basis functions
+function rt_scaling(poly,feparams)
+  Dc = num_dims(poly)
+  current_disc = feparams[:current_disc]
+
+  # TODO: Unify this from the Gridap side
+  if current_disc == :RT
+    if isnothing(feparams[:rt_scaling])
+      phi = GenericField(identity)
+    else
+      ξ = feparams[:rt_scaling]
+      phi = AffineField(ξ*one(TensorValue{Dc,Dc,Float64}),zero(VectorValue{Dc,Float64}))
+    end
+  else
+    phi = isnothing(feparams[:rt_scaling]) ? 1.0 : feparams[:rt_scaling]
+  end
+  return phi
+end
+
+function generate_quadratures(poly::Polytope{D},feparams) where D
+  qdegree = feparams[:q]
+
+  fpolys = ReferenceFEs.get_reffaces(poly)[2:end] # Skip 0-dfaces
+  if haskey(feparams,:rrule)
+    # TODO: This should be made more general, to ensure all d-faces are properly 
+    # refined if need be. In the case of SV, there is not subdivision of the 
+    # facets and edges, so its fine.
+    quads = map(enumerate(fpolys)) do (d,p)
+      if d == D
+        Quadrature(
+          poly,Gridap.Adaptivity.CompositeQuadrature(),feparams[:rrule],qdegree
+        )
+      else
+        Quadrature(p,2*qdegree)
+      end
+    end
+  else
+    quads = map(p -> Quadrature(p,qdegree), fpolys)
+  end
+
+  return quads
+end
 
 """
 Valid keys for `params[:multigrid]` are the following:
-
-# Optional keys
--  `:k`: Polynomial degree for the fluid velocity.
--  `:p_space`: FESpace conformity for pressure. Possible values are [:P,:Q]
 """
 function params_multigrid(params::Dict{Symbol,Any})
   solver = params[:solver]
@@ -299,6 +595,12 @@ function params_multigrid(params::Dict{Symbol,Any})
     @error "Multigrid is used with solver $(solver[:solver]), but params[:multigrid] is missing!"
   end
   multigrid = params[:multigrid]
+
+  # Init some variables
+  multigrid[:trials] = Dict{Symbol,Any}()
+  multigrid[:tests] = Dict{Symbol,Any}()
+  multigrid[:variables] = getindex([:u,:p,:j,:φ],findall(space_uses_multigrid(solver)))
+  
   return multigrid
 end
 
@@ -324,21 +626,30 @@ Valid keys for `params[:fluid]` are the following.
 """
 function params_fluid(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :α=>true,
-   :β=>true,
-   :γ=>true,
-   :B=>true,
-   :f=>false,
-   :σ=>false,
-   :ζ=>false,
-   :g=>false,
-   :convection=>false,
+    :domain => true,
+    :α => true,
+    :β => true,
+    :γ => true,
+    :B => true,
+    :f => false,
+    :σ => false,
+    :ζ => false,
+    :g => false,
+    :convection => false,
   )
-  optional = Dict(:σ=>1.0,:f=>VectorValue(0,0,0),:ζ=>0.0,:g=>VectorValue(0,0,0),:convection=>true)
+  optional = Dict(
+    :σ => 1.0,
+    :f => VectorValue(0,0,0),
+    :ζ => 0.0,
+    :g => VectorValue(0,0,0),
+    :convection => :newton
+  )
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
-  fluid
+  @assert fluid[:convection] in (:none,:newton,:picard)
+  return fluid
 end
+
+has_convection(params) = haskey(params[:fluid],:convection) && params[:fluid][:convection] != :none
 
 """
 Valid keys for `params[:solid]` are the following
@@ -352,13 +663,15 @@ Valid keys for `params[:solid]` are the following
 """
 function params_solid(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :σ=>false,
+    :domain=>true,
+    :σ=>false,
   )
   optional = Dict(:σ=>1)
   solid = _check_mandatory_and_add_optional(params[:solid],mandatory,optional,params,"[:solid]")
   solid
 end
+
+has_solid(params) = haskey(params,:solid) && !isnothing(params[:solid])
 
 """
 Valid keys for `params[:bcs]` are the following
@@ -382,22 +695,22 @@ Valid keys for `params[:bcs]` are the following
 """
 function params_bcs(params)
   mandatory = Dict(
-   :u=>true,
-   :j=>true,
-   :φ=>false,
-   :t=>false,
-   :thin_wall=>false,
-   :f => false,
-   :B => false,
-   :stabilization=>false,
+    :u => true,
+    :j => true,
+    :φ => false,
+    :t => false,
+    :thin_wall => false,
+    :f => false,
+    :B => false,
+    :stabilization => false,
   )
   optional = Dict(
-   :φ=>[],
-   :t=>[],
-   :thin_wall=>[],
-   :f =>[],
-   :B =>[],
-   :stabilization=>[],
+    :φ => [],
+    :t => [],
+    :thin_wall => [],
+    :f => [],
+    :B => [],
+    :stabilization => [],
   )
   bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")
   # Sub params
@@ -430,12 +743,12 @@ Valid keys for `params[:bcs][:u]` are the following
 """
 function params_bcs_u(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :tags=>true,
-   :values=>false,
+    :tags=>true,
+    :values=>false,
   )
   _check_mandatory(params[:bcs][:u],mandatory,"[:bcs][:u]")
   optional = Dict(
-    :values=>zero_values(params[:bcs][:u][:tags]),
+    :values => zero_values(params[:bcs][:u][:tags]),
   )
   u = _add_optional(params[:bcs][:u],mandatory,optional,params,"[:bcs][:u]")
   _check_unused(u,mandatory,params,"[:bcs][:u]")
@@ -457,8 +770,8 @@ Valid keys for `params[:bcs][:j]` are the following
 """
 function params_bcs_j(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :tags=>true,
-   :values=>false,
+    :tags=>true,
+    :values=>false,
   )
   _check_mandatory(params[:bcs][:j],mandatory,"[:bcs][:j]")
   optional = Dict(
@@ -480,8 +793,8 @@ Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 """
 function params_bcs_φ(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :value=>true,
+    :domain=>true,
+    :value=>true,
   )
   optional = Dict()
   _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
@@ -498,8 +811,8 @@ Valid keys for the dictionaries in `params[:bcs][:t]` are the following.
 """
 function params_bcs_t(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :value=>true,
+    :domain=>true,
+    :value=>true,
   )
   optional = Dict()
   _check_mandatory_and_add_optional_weak(params[:bcs][:t],mandatory,optional,params,"[:bcs][:t]")
@@ -527,10 +840,10 @@ The thin wall law is imposed weakly via a penalty parameter `τ`.
 """
 function params_bcs_thin_wall(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>true,
-   :cw=>true,
-   :τ=>true,
-   :jw=>false,
+    :domain => true,
+    :cw => true,
+    :τ  => true,
+    :jw => false,
   )
   optional = Dict(:jw=>0)
   _check_mandatory_and_add_optional_weak(params[:bcs][:thin_wall],mandatory,optional,params,"[:bcs][:thin_wall]")
@@ -557,9 +870,86 @@ or with a `Integer`/`String` tag in the underlying discrete model.
 """
 function params_bcs_stabilization(params::Dict{Symbol,Any})
   mandatory = Dict(
-   :domain=>false,
-   :μ=>true,
+    :domain => false,
+    :μ => true,
   )
-  optional = Dict(:domain=>params[:fluid][:domain])
-  _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:thin_wall]")
+  optional = Dict(
+    :domain => params[:fluid][:domain],
+  )
+  _check_mandatory_and_add_optional_weak(params[:bcs][:stabilization],mandatory,optional,params,"[:bcs][:stabilization]")
 end
+
+"""
+Transient parameters
+
+Valid keys for the dictionaries in `params[:transient]` are the following.
+
+# Mandatory keys
+
+- `:t0`: Initial time
+- `:tf`: Final time
+- `:Δt`: Time step
+
+# Optional keys
+
+- `:solver`: Solver name and parameters for the transient solver. Possible options 
+             are `[:theta, :forward]`. Defaults to `:theta`.
+"""
+function params_transient(params::Dict{Symbol,Any})
+  mandatory = Dict(
+    :t0 => true,
+    :tf => true,
+    :Δt => true,
+    :solver => false,
+  )
+  optional = Dict(
+    :solver => :theta,
+  )
+  transient = _check_mandatory_and_add_optional_weak(params[:transient],mandatory,optional,params,"[:transient]")
+  if isa(transient[:solver],Symbol)
+    transient[:solver] = default_solver_params(transient[:solver])
+  else
+    optional_solver = default_solver_params(transient[:solver][:solver])
+    transient[:solver] = _add_optional_weak(transient[:solver],optional_solver,params,"[:solver]")
+  end
+  return transient
+end
+
+has_transient(params) = haskey(params,:transient) && !isnothing(params[:transient])
+
+function default_solver_params(::Val{:theta})
+  return Dict(
+    :solver => :theta,
+    :θ => 0.5,
+  )
+end
+
+function default_solver_params(::Val{:forward})
+  return Dict(
+    :solver => :forward,
+  )
+end
+
+"""
+Continuation parameters
+
+Valid keys for the dictionaries in `params[:continuation]` are the following.
+
+# Mandatory keys
+
+- `:niter`: Number of nonlinear iterations per continuation step. 
+- `:alphas`: Array of continuation parameters.
+
+"""
+function params_continuation(params::Dict{Symbol,Any})
+  mandatory = Dict{Symbol,Any}(
+    :niter  => true,
+    :alphas => true,
+  )
+  optional = Dict{Symbol,Any}()
+  continuation = _check_mandatory_and_add_optional_weak(params[:continuation],mandatory,optional,params,"[:continuation]")
+  @assert length(continuation[:niter]) == length(continuation[:alphas])
+  return continuation
+end
+
+has_continuation(params) = haskey(params,:continuation) && !isnothing(params[:continuation])

@@ -53,6 +53,10 @@ end
 
 function hunt_add_tags!(model,L::Real,tw::Real)
   labels = get_face_labeling(model)
+  hunt_add_tags!(labels,model,L,tw)
+end
+
+function hunt_add_tags!(labels,model,L::Real,tw::Real)
   if tw > 0.0 ## add solid tags
     # When model is part of a distributed model we are using
     # that the maximum entity (9) is the same in all parts, 
@@ -127,4 +131,19 @@ function hunt_generate_base_mesh(
   model = CartesianDiscreteModel(domain,_nc;isperiodic=(false,false,true),map=coord_map)
   hunt_add_tags!(model,L,tw)
   return model
+end
+
+function hunt_generate_mesh_hierarchy(
+  parts,np_per_level,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted
+)
+  Lt = L+tw
+  _nc = (nc[1],nc[2],3)
+  domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
+  CartesianModelHierarchy(
+    parts,np_per_level,domain,_nc;
+    nrefs = (2,2,1),
+    isperiodic = (false,false,true),
+    map = hunt_stretch_map(Lt,Ha,kmap_x,kmap_y,BL_adapted),
+    add_labels! = labels -> hunt_add_tags!(labels,nothing,L,tw) # TODO: will not work for solid
+  )
 end
