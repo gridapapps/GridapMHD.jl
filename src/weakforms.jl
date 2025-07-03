@@ -13,86 +13,49 @@ function weak_form(params,k)
 end
 
 function _weak_form(params,k)
-  Ω = params[:Ω]
-  dΩ = Measure(Ω,2*k)
+  
+  fluid_params = retrieve_fluid_params(params)
+  solid_params = retrieve_solid_params(params)
+  params_φ, params_thin_wall, params_Λ  = retrieve_bcs_params(params)
 
-  fluid = params[:fluid]
-  dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params)
-  dΩs, σs = retrieve_solid_params(params)
-  bcs_params = retrieve_bcs_params(params)
-  hdiv_params = retrieve_hdiv_fluid_params(params)
-  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
+  function res(_x,_dy)
+    x = setup_variable(_x)
+    dy = setup_variable(_dy)
 
-  Πp = local_projection_operator(params,k)
-
-  function a(x,dy)
-    r = a_mhd(x,dy,β,γ,B,σf,dΩf)
-    for p in params_thin_wall
-      r = r + a_thin_wall(x,dy,p...)
+    r = res_fluid(x,dy,fluid_params...)
+    if has_solid(params)
+      r = r + res_solid(x,dy,solid_params...)
     end
-    for p in params_B
-      r = r + a_B(x,dy,p...)
+    for p in params_thin_wall
+      r = r + res_thin_wall(x,dy,p...)
+    end
+    for p in params_φ
+      r = r + res_φ_bcs(x,dy,p...)
     end
     for p in params_Λ
       r = r + a_Λ(x,dy,p...)
     end
-    if has_solid(params)
-      r = r + a_solid(x,dy,σs,dΩs)
-    end
-    if !isnothing(hdiv_params)
-      r = r + a_HDiv(x,dy,hdiv_params...)
-    end
-    if abs(ζ) > eps(typeof(ζ))
-      r = r + a_al(x,dy,ζ,Πp,dΩf,dΩ)
-    end
-    r
+    return r
   end
 
-  function ℓ(dy)
-    r = ℓ_mhd(dy,f,dΩf)
-    for p in params_φ
-      r = r + ℓ_φ(dy,p...)
+  function jac(_x,_dx,_dy)
+    x = setup_variable(_x)
+    dx = setup_variable(_dx)
+    dy = setup_variable(_dy)
+
+    r = jac_fluid(x,dx,dy,fluid_params...)
+    if has_solid(params)
+      r = r + jac_solid(x,dx,dy,solid_params...)
     end
     for p in params_thin_wall
-      r = r + ℓ_thin_wall(dy,p...)
+      r = r + jac_thin_wall(x,dx,dy,p...)
     end
-    for p in params_f
-      r = r + ℓ_f(dy,p...)
+    for p in params_Λ
+      r = r + a_Λ(x,dx,p...)
     end
-    if !isnothing(hdiv_params)
-      r = r + ℓ_HDiv(dy,hdiv_params...)
-    end
-    r
+    return r
   end
 
-  function c(x,dy)
-    r = c_mhd(x,dy,α,dΩf)
-    r
-  end
-
-  function dc(x,dx,dy)
-    if fluid[:convection] == :picard
-      r = p_dc_mhd(x,dx,dy,α,dΩf)
-    else
-      r = n_dc_mhd(x,dx,dy,α,dΩf)
-    end
-    r
-  end
-
-  function res(x,dy)
-    r = a(x,dy) - ℓ(dy)
-    if has_convection(params)
-      r = r + c(x,dy)
-    end
-    r
-  end
-  function jac(x,dx,dy)
-    r = a(dx,dy)
-    if has_convection(params)
-      r = r + dc(x,dx,dy)
-    end
-    r
-  end
   return res, jac
 end
 
@@ -104,7 +67,7 @@ function _ode_weak_form(params,k)
   dΩs, σs = retrieve_solid_params(params)
   bcs_params = retrieve_bcs_params(params)
   hdiv_params = retrieve_hdiv_fluid_params(params)
-  params_φ, params_thin_wall, params_f, params_B, params_Λ = bcs_params
+  params_φ, params_thin_wall, params_Λ = bcs_params
 
   Πp = local_projection_operator(params,k)
 
@@ -116,9 +79,6 @@ function _ode_weak_form(params,k)
     r = a_mhd(x,dy,β,γ,time_eval(B,t),σf,dΩf)
     for p in params_thin_wall
       r = r + a_thin_wall(x,dy,time_eval(p,t)...)
-    end
-    for p in params_B
-      r = r + a_B(x,dy,time_eval(p,t)...)
     end
     for p in params_Λ
       r = r + a_Λ(x,dy,p...)
@@ -142,9 +102,6 @@ function _ode_weak_form(params,k)
     end
     for p in params_thin_wall
       r = r + ℓ_thin_wall(dy,time_eval(p,t)...)
-    end
-    for p in params_f
-      r = r + ℓ_f(dy,time_eval(p,t)...)
     end
     if !isnothing(hdiv_params)
       r = r + ℓ_HDiv(x,dy,hdiv_params...)
@@ -174,18 +131,30 @@ function _ode_weak_form(params,k)
 end
 
 ############################################################################################
+# Variable management
+
+setup_variable(x) = setup_variable(x...)
+
+function setup_variable(u,p,j,φ)
+  ∇u, ∇j= ∇(u), ∇(j)
+  divu, divj = Operation(tr)(∇u), Operation(tr)(∇j)
+  return (; u, p, j, φ, ∇u, divu, ∇j, divj)
+end
+
+############################################################################################
 # Parameter retrieval
 
 retrieve_fluid_params(params) = retrieve_fluid_params(params[:model],params)
 
 function retrieve_fluid_params(model,params)
-  fluid  = params[:fluid]
+  fluid = params[:fluid]
   Ωf  = params[:Ωf]
   dΩf = measure(params,Ωf)
 
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
   f, B, ζ, g = fluid[:f], fluid[:B], fluid[:ζ], fluid[:g]
-  return dΩf, α, β, γ, σf, f, B, ζ, g
+  Πp = local_projection_operator(params)
+  return α, β, γ, B, σf, f, g, ζ, Πp, fluid[:convection], dΩf
 end
 
 retrieve_hdiv_fluid_params(params) = retrieve_hdiv_fluid_params(params[:model],params)
@@ -221,14 +190,13 @@ retrieve_solid_params(params) = retrieve_solid_params(params[:model],params)
 
 function retrieve_solid_params(model,params)
   solid  = params[:solid]
-  if solid !== nothing
+  if has_solid(params)
     Ωs  = params[:Ωs]
     dΩs = measure(params,Ωs)
     σs  = solid[:σ]
-    return dΩs, σs
-  else
-    return nothing, nothing
+    return σs, dΩs
   end
+  return nothing
 end
 
 retrieve_bcs_params(params) = retrieve_bcs_params(params[:model],params)
@@ -260,22 +228,6 @@ function retrieve_bcs_params(model,params)
     error("Boundary tranction not yet implemented")
   end
 
-  params_f = []
-  for i in 1:length(bcs[:f])
-    f_i  = bcs[:f][i][:value]
-    Ω_i  = interior(params,bcs[:f][i][:domain])
-    dΩ_i = measure(params,Ω_i)
-    push!(params_f,(f_i,dΩ_i))
-  end
-
-  params_B = []
-  for i in 1:length(bcs[:B])
-    B_i  = bcs[:B][i][:value]
-    Ω_i  = interior(params,bcs[:B][i][:domain])
-    dΩ_i = measure(params,Ω_i)
-    push!(params_f,(γ,B_i,dΩ_i))
-  end
-
   params_Λ = []
   for i in 1:length(params[:bcs][:stabilization])
     Λ = skeleton(params,params[:bcs][:stabilization][i][:domain])
@@ -285,111 +237,93 @@ function retrieve_bcs_params(model,params)
     push!(params_Λ,(μ,h,dΛ))
   end
 
-  return params_φ, params_thin_wall, params_f, params_B, params_Λ
+  return params_φ, params_thin_wall, params_Λ
 end
 
 ############################################################################################
 # Weakform blocks
 
-# MHD equations
-
 conv(u,∇u) = (∇u')⋅u
-dconv(du,∇du,u,∇u) = conv(u,∇du) + conv(du,∇u)
 
-function a_mhd(x,dy,β,γ,B,σ,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫(
-    β*(∇(u)⊙∇(v_u)) - p*(∇⋅v_u) -(γ*(j×B)⋅v_u)
-    - (∇⋅u)*v_p 
-    + j⋅v_j - σ*φ*(∇⋅v_j) - σ*(u×B)⋅v_j +
-    - (∇⋅j)*v_φ ) * dΩ
-    # γ*(j⋅v_j) - γ*σ*φ*(∇⋅v_j) - γ*σ*(u×B)⋅v_j +
-    # - γ*(∇⋅j)*v_φ ) * dΩ
-end
-
-a_mhd_u_u(u,v_u,β,dΩ)   = ∫( β*(∇(u)⊙∇(v_u)) )*dΩ
-a_mhd_u_p(p,v_u,dΩ)     = ∫( -p*(∇⋅v_u) )*dΩ
-a_mhd_u_j(j,v_u,γ,B,dΩ) = ∫( -γ*(j×B)⋅v_u )*dΩ
-a_mhd_p_u(u,v_p,dΩ)     = ∫( -(∇⋅u)*v_p )*dΩ
-
-a_mhd_j_u(u,v_j,σ,B,dΩ) = ∫( -σ*(u×B)⋅v_j )*dΩ
-a_mhd_j_j(j,v_j,dΩ)     = ∫( j⋅v_j )*dΩ
-a_mhd_j_φ(φ,v_j,σ,dΩ)   = ∫( -σ*φ*(∇⋅v_j) )*dΩ
-a_mhd_φ_j(j,v_φ,dΩ)     = ∫( -(∇⋅j)*v_φ )*dΩ
-
-function ℓ_mhd(dy,f,dΩ)
-  v_u, v_p, v_j, v_φ = dy
-  ℓ_mhd_u(v_u,f,dΩ)
-end
-ℓ_mhd_u(v_u,f,dΩ) = ∫( v_u⋅f )*dΩ
-
-# Convection
-
-function c_mhd(x,dy,α,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  c_mhd_u_u(u,v_u,α,dΩ)
-end
-c_mhd_u_u(u,v_u,α,dΩ) = ∫( α*v_u⋅(conv∘(u,∇(u))) ) * dΩ
-
-dc_mhd(x,dx,dy,α,dΩ) = n_dc_mhd(x,dx,dy,α,dΩ) # Default to full Newton iteration
-
-# Convection derivative: Newton iteration
-function n_dc_mhd(x,dx,dy,α,dΩ)
-  u, p, j, φ = x
-  du , dp , dj , dφ  = dx
-  v_u, v_p, v_j, v_φ = dy
-  n_dc_mhd_u_u(u,du,v_u,α,dΩ)
-end
-n_dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( dconv∘(du,∇(du),u,∇(u)) ) ) * dΩ
-
-# Convection derivative: Picard iteration
-function p_dc_mhd(x,dx,dy,α,dΩ)
-  u, p, j, φ = x
-  du , dp , dj , dφ  = dx
-  v_u, v_p, v_j, v_φ = dy
-  p_dc_mhd_u_u(u,du,v_u,α,dΩ)
-end
-p_dc_mhd_u_u(u,du,v_u,α,dΩ) = ∫( α*v_u⋅( conv∘(u,∇(du)) ) ) * dΩ
-
-# Stabilisation
-
-function a_Λ(x,dy,μ,h,dΛ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( (1/2) * μ * (h*h) * jump( ∇(u) ) ⊙ jump( ∇(v_u) ))*dΛ
-end
-
-# Augmented lagrangian
-
-function a_al(x,dy,ζ,Πp,dΩf,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  if isnothing(Πp)
-    a_al_sf(u,v_u,ζ,dΩf) + a_al_sf(j,v_j,ζ,dΩ)
-  else
-    a_al_sf(u,v_u,ζ,Πp,dΩf) + a_al_sf(j,v_j,ζ,dΩ)
-  end
-end
-a_al_sf(x,y,ζ,Π,dΩ) = ∫(ζ*Π(x)*(∇⋅y))*dΩ
-a_al_sf(x,y,ζ,dΩ) = ∫(ζ*(∇⋅x)*(∇⋅y))*dΩ
-
-function local_projection_operator(params,k)
+function local_projection_operator(params)
   poly = params[:fespaces][:poly]
   fluid_disc = params[:fespaces][:fluid_disc]
 
   # If pressure-robust, no need to project
   A = (poly == TET) && fluid_disc ∈ (:SV,:Pk_dPkm1)
   B = fluid_disc ∈ (:RT,:BDM)
-  if A || B
-    return nothing
-  end
+  (A || B) && return identity
   
   # Otherwise: 
   reffe_p = params[:fespaces][:reffe_p]
-  Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,2*k)
+  qdegree = params[:fespaces][:q]
+  Πp = MultilevelTools.LocalProjectionMap(identity,reffe_p,qdegree)
   return Πp
+end
+
+# Fluid equations
+
+function res_fluid(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
+  u, v = x[:u], dy[:u]
+  p, q = x[:p], dy[:p]
+  j, s = x[:j], dy[:j]
+  φ, ϕ = x[:φ], dy[:φ]
+  ∇u, ∇v = x[:∇u], dy[:∇u]
+  div_u, div_v = x[:divu], dy[:divu]
+  div_j, div_s = x[:divj], dy[:divj]
+
+  u_block = β*(∇u⊙∇v)
+  j_block = j⋅s
+
+  # Augmented Lagrangian term
+  if !iszero(ζ)
+    u_block += ζ*(Πp(div_u)*div_v)
+    j_block += ζ*(div_j*div_s)
+  end
+
+  # Convection term
+  if convection != :none
+    u_block += α*v⋅(conv∘(u,∇u))
+  end
+
+  return ∫(u_block - p*div_v - γ*(j×B)⋅v - div_u*q + j_block - σ*φ*div_s - σ*(u×B)⋅s - div_j*ϕ - f⋅v - g⋅s) * dΩ
+end
+
+function jac_fluid(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
+  u, ∇u = x[:u], x[:∇u]
+  du, v = dx[:u], dy[:u]
+  dp, q = dx[:p], dy[:p]
+  dj, s = dx[:j], dy[:j]
+  dφ, ϕ = dx[:φ], dy[:φ]
+  ∇du, ∇v = dx[:∇u], dy[:∇u]
+  div_du, div_v = dx[:divu], dy[:divu]
+  div_dj, div_s = dx[:divj], dy[:divj]
+
+  u_block = β*(∇du⊙∇v)
+  j_block = dj⋅s 
+
+  # Augmented Lagrangian term
+  if !iszero(ζ)
+    u_block += ζ*(Πp(div_du)*div_v)
+    j_block += ζ*(div_dj*div_s)
+  end
+
+  # Convection term
+  if convection == :picard
+    u_block += α*v⋅(conv∘(u,∇du))
+  elseif convection == :newton
+    u_block += α*v⋅(conv∘(u,∇du) + conv∘(du,∇u))
+  end
+
+  return ∫(u_block - dp*div_v - γ*(dj×B)⋅v - div_du*q + j_block - σ*dφ*div_s - σ*(du×B)⋅s - div_dj*ϕ)dΩ
+end
+
+# Skeleton stabilisation
+
+function a_Λ(x,dy,μ,h,dΛ)
+  u, p, j, φ = x
+  v_u, v_p, v_j, v_φ = dy
+  ∫( (1/2) * μ * (h*h) * jump( ∇(u) ) ⊙ jump( ∇(v_u) ))*dΛ
 end
 
 # Div-Conforming laplacian terms (parts integration + tangent component penalty)
@@ -417,51 +351,51 @@ end
 
 # Solid equations
 
-function a_solid(x,dy,σ,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( j⋅v_j - σ*φ*(∇⋅v_j) + (∇⋅j)*v_φ)dΩ
+function res_solid(x,dy,σ,g,ζ,dΩ)
+  j, s = x[:j], dy[:j]
+  φ, ϕ = x[:φ], dy[:φ]
+  div_j, div_s = x[:divj], dy[:divj]
+
+  j_block = j⋅s
+  if !iszero(ζ)
+    j_block += ζ*(div_j*div_s)
+  end
+
+  return ∫(j_block - σ*φ*div_s + ϕ*div_j - s⋅g)*dΩ
 end
-a_solid_j_j(j,v_j,dΩ)   = ∫( j⋅v_j )*dΩ
-a_solid_j_φ(φ,v_j,σ,dΩ) = ∫( -σ*φ*(∇⋅v_j) )*dΩ
-a_solid_φ_j(j,v_φ,dΩ)   = ∫( (∇⋅j)*v_φ )*dΩ
+
+function jac_solid(x,dx,dy,σ,g,ζ,dΩ)
+  j, s = dx[:j], dy[:j]
+  φ, ϕ = dx[:φ], dy[:φ]
+  div_j, div_s = dx[:divj], dy[:divj]
+
+  j_block = j⋅s
+  if !iszero(ζ)
+    j_block += ζ*(div_j*div_s)
+  end
+
+  return ∫(j_block - σ*φ*div_s + ϕ*div_j)*dΩ
+end
 
 # Boundary conditions
 
-function ℓ_φ(dy,φ,n_Γ,dΓ)
-  v_u, v_p, v_j, v_φ = dy
-  ∫( -(v_j⋅n_Γ)*φ )*dΓ
-end
-ℓ_φ_j(φ,v_j,n_Γ,dΓ) = ∫( -(v_j⋅n_Γ)*φ )*dΓ
-
-function ℓ_f(dy,f,dΩ)
-  v_u, v_p, v_j, v_φ = dy
-  ∫( v_u⋅f )*dΩ
-end
-ℓ_f_u(f,v_u,dΩ) = ∫( v_u⋅f )*dΩ
-
-function ℓ_fj(dy,f,dΩ)
-  v_u, v_p, v_j, v_φ = dy
-  ∫( v_j⋅f )*dΩ
+function res_φ_bcs(x,dy,φ0,n_Γ,dΓ)
+  s = dy[:j]
+  return ∫( (s⋅n_Γ)*φ0 )*dΓ
 end
 
-function ℓ_thin_wall(dy,τ,cw,jw,n_Γ,dΓ)
-  v_u, v_p, v_j, v_φ = dy
-  ℓ_thin_wall_j(v_j,τ,cw,jw,n_Γ,dΓ)
+function res_thin_wall(x,dy,τ,cw,jw,n_Γ,dΓ)
+  jn = dx[:j]⋅n_Γ # Normal component of j
+  sn = dy[:j]⋅n_Γ # Normal component of s
+  ∇jnn = n_Γ⋅(dx[:∇j]⋅n_Γ) # Normal-Normal component of ∇j
+  return ∫(τ*sn*(jn - jw + cw*∇jnn))*dΓ
 end
-ℓ_thin_wall_j(v_j,τ,cw,jw,n_Γ,dΓ) = ∫( τ*(v_j⋅n_Γ)*jw ) * dΓ
 
-function a_thin_wall(x,dy,τ,cw,jw,n_Γ,dΓ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  a_thin_wall_j_j(j,v_j,τ,cw,jw,n_Γ,dΓ)
-end
-a_thin_wall_j_j(j,v_j,τ,cw,jw,n_Γ,dΓ) = ∫( τ*((v_j⋅n_Γ)*(j⋅n_Γ) + cw*(v_j⋅n_Γ)*(n_Γ⋅(∇(j)⋅n_Γ))) )*dΓ
-
-function a_B(x,dy,γ,B,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( -(γ*(j×B)⋅v_u) - (u×B)⋅v_j )*dΩ
+function jac_thin_wall(x,dx,dy,τ,cw,jw,n_Γ,dΓ)
+  jn = dx[:j]⋅n_Γ # Normal component of j
+  sn = dy[:j]⋅n_Γ # Normal component of s
+  ∇jnn = n_Γ⋅(dx[:∇j]⋅n_Γ) # Normal-Normal component of ∇j
+  return ∫(τ*sn*(jn + cw*∇jnn))*dΓ
 end
 
 # Mass matrix

@@ -700,16 +700,12 @@ function params_bcs(params)
     :φ => false,
     :t => false,
     :thin_wall => false,
-    :f => false,
-    :B => false,
     :stabilization => false,
   )
   optional = Dict(
     :φ => [],
     :t => [],
     :thin_wall => [],
-    :f => [],
-    :B => [],
     :stabilization => [],
   )
   bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")

@@ -6,11 +6,6 @@ function Geometry.get_polytopes(model::GridapDistributed.DistributedDiscreteMode
   return getany(polys)
 end
 
-function Geometry.get_polytopes(trian::Triangulation)
-  reffes = get_reffes(trian)
-  unique(map(get_polytope,reffes))
-end
-
 function Geometry.get_polytopes(trian::GridapDistributed.DistributedTriangulation)
   polys = map(get_polytopes,local_views(trian))
   return getany(polys)
