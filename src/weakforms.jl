@@ -1,133 +1,77 @@
 
 function weak_form(params)
-  k = params[:fespaces][:k]
-  weak_form(params,k)
-end
-
-function weak_form(params,k)
-  if !has_transient(params)
-    _weak_form(params,k)
+  if has_transient(params)
+    weak_form_h1_hdiv_transient(params)
   else
-    _ode_weak_form(params,k)
+    weak_form_h1_hdiv(params)
   end
 end
 
-function _weak_form(params,k)
-  
-  fluid_params = retrieve_fluid_params(params)
-  solid_params = retrieve_solid_params(params)
-  params_φ, params_thin_wall, params_Λ  = retrieve_bcs_params(params)
+############################################################################################
+# H1-HDiv formulation
 
-  function res(_x,_dy)
-    x = setup_variable(_x)
-    dy = setup_variable(_dy)
-
-    r = res_fluid(x,dy,fluid_params...)
-    if has_solid(params)
-      r = r + res_solid(x,dy,solid_params...)
-    end
-    for p in params_thin_wall
-      r = r + res_thin_wall(x,dy,p...)
-    end
-    for p in params_φ
-      r = r + res_φ_bcs(x,dy,p...)
-    end
-    for p in params_Λ
-      r = r + a_Λ(x,dy,p...)
-    end
-    return r
-  end
-
-  function jac(_x,_dx,_dy)
-    x = setup_variable(_x)
-    dx = setup_variable(_dx)
-    dy = setup_variable(_dy)
-
-    r = jac_fluid(x,dx,dy,fluid_params...)
-    if has_solid(params)
-      r = r + jac_solid(x,dx,dy,solid_params...)
-    end
-    for p in params_thin_wall
-      r = r + jac_thin_wall(x,dx,dy,p...)
-    end
-    for p in params_Λ
-      r = r + a_Λ(x,dx,p...)
-    end
-    return r
-  end
-
+function weak_form_h1_hdiv(params)
+  weakform_params = (
+    retrieve_fluid_params(params), retrieve_solid_params(params), retrieve_bcs_params(params)...
+  )
+  res(x,dy) = res_h1_hdiv(x,dy,weakform_params)
+  jac(x,dx,dy) = jac_h1_hdiv(x,dx,dy,weakform_params)
   return res, jac
 end
 
+function weak_form_h1_hdiv_transient(params)
+  weakform_params = (
+    retrieve_fluid_params(params), retrieve_solid_params(params), retrieve_bcs_params(params)...
+  )
+  dΩf = last(first(weakform_params))
+  res(t,x,dy) = res_h1_hdiv(x,dy,time_eval(weakform_params,t)) + res_transient(x,dy,dΩf)
+  jac(t,x,dx,dy) = jac_h1_hdiv(x,dx,dy,time_eval(weakform_params,t))
+  jac_t(t,x,dx,dy) = jac_transient(dx,dy,dΩf)
+  return res, jac, jac_t
+end
 
-function _ode_weak_form(params,k)
+function res_h1_hdiv(_x, _dy, params)
+  fluid_params, solid_params, params_φ, params_thin_wall, params_Λ = params
 
-  fluid = params[:fluid]
-  dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params)
-  dΩs, σs = retrieve_solid_params(params)
-  bcs_params = retrieve_bcs_params(params)
-  hdiv_params = retrieve_hdiv_fluid_params(params)
-  params_φ, params_thin_wall, params_Λ = bcs_params
+  x = setup_variable(_x)
+  dy = setup_variable(_dy)
 
-  Πp = local_projection_operator(params,k)
-
-  m(t,x,dy) = m_u(x,dy,dΩf)
-
-  a_dt(t,x,dy) = a_dut(x,dy,dΩf)
-
-  function a(t,x,dy)
-    r = a_mhd(x,dy,β,γ,time_eval(B,t),σf,dΩf)
-    for p in params_thin_wall
-      r = r + a_thin_wall(x,dy,time_eval(p,t)...)
-    end
-    for p in params_Λ
-      r = r + a_Λ(x,dy,p...)
-    end
-    if has_solid(params)
-      r = r + a_solid(x,dy,σs,dΩs)
-    end
-    if !isnothing(hdiv_params)
-      r = r + a_HDiv(x,dy,hdiv_params...)
-    end
-    if abs(ζ) > eps(typeof(ζ))
-      r = r + a_al(x,dy,ζ,Πp,dΩf,dΩ)
-    end
-    r
+  r = res_fluid(x,dy,fluid_params...)
+  if !isnothing(solid_params)
+    r = r + res_solid(x,dy,solid_params...)
+  end
+  for p in params_thin_wall
+    r = r + res_thin_wall(x,dy,p...)
+  end
+  for p in params_φ
+    r = r + res_φ_bcs(x,dy,p...)
+  end
+  for p in params_Λ
+    r = r + a_Λ(x,dy,p...)
   end
 
-  function ℓ(t,dy)
-    r = ℓ_mhd(dy,time_eval(f,t),dΩf) + ℓ_fj(dy,time_eval(g,t),dΩf)
-    for p in params_φ
-      r = r + ℓ_φ(dy,time_eval(p,t)...)
-    end
-    for p in params_thin_wall
-      r = r + ℓ_thin_wall(dy,time_eval(p,t)...)
-    end
-    if !isnothing(hdiv_params)
-      r = r + ℓ_HDiv(x,dy,hdiv_params...)
-    end
-    r
+  return r
+end
+
+function jac_h1_hdiv(_x,_dx,_dy, params)
+  fluid_params, solid_params, params_φ, params_thin_wall, params_Λ = params
+
+  x = setup_variable(_x)
+  dx = setup_variable(_dx)
+  dy = setup_variable(_dy)
+
+  r = jac_fluid(x,dx,dy,fluid_params...)
+  if !isnothing(solid_params)
+    r = r + jac_solid(x,dx,dy,solid_params...)
+  end
+  for p in params_thin_wall
+    r = r + jac_thin_wall(x,dx,dy,p...)
+  end
+  for p in params_Λ
+    r = r + a_Λ(x,dx,p...)
   end
 
-  function c(x,dy)
-    r = c_mhd(x,dy,α,dΩf)
-    r
-  end
-
-  function dc(x,dx,dy)
-    if fluid[:convection] == :picard
-      r = p_dc_mhd(x,dx,dy,α,dΩf)
-    else
-      r = n_dc_mhd(x,dx,dy,α,dΩf)
-    end
-    r
-  end
-
-  res(t,x,dy) = c(x,dy) + a_dt(t,x,dy) + a(t,x,dy) - ℓ(t,dy)
-  jac(t,x,dx,dy) = dc(x,dx,dy) + a(t,dx,dy)
-  jac_t(t,x,dx,dy) = m(t,dx,dy)
-
-  return res,jac,jac_t
+  return r
 end
 
 ############################################################################################
@@ -136,7 +80,7 @@ end
 setup_variable(x) = setup_variable(x...)
 
 function setup_variable(u,p,j,φ)
-  ∇u, ∇j= ∇(u), ∇(j)
+  ∇u, ∇j = ∇(u), ∇(j)
   divu, divj = Operation(tr)(∇u), Operation(tr)(∇j)
   return (; u, p, j, φ, ∇u, divu, ∇j, divj)
 end
@@ -400,16 +344,14 @@ end
 
 # Mass matrix
 
-function a_dut(x,dy,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫(∂t(u)⋅v_u )*dΩ
+function res_transient(x,dy,dΩ)
+  u, v = first(x), first(dy)
+  return ∫(∂t(u)⋅v )*dΩ
 end
 
-function m_u(x,dy,dΩ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( u⋅v_u )*dΩ
+function jac_transient(x,dy,dΩ)
+  u, v = first(x), first(dy)
+  return ∫(u⋅v)*dΩ
 end
 
 ############################################################################################

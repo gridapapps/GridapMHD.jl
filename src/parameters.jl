@@ -901,7 +901,7 @@ function params_transient(params::Dict{Symbol,Any})
   optional = Dict(
     :solver => :theta,
   )
-  transient = _check_mandatory_and_add_optional_weak(params[:transient],mandatory,optional,params,"[:transient]")
+  transient = _check_mandatory_and_add_optional(params[:transient],mandatory,optional,params,"[:transient]")
   if isa(transient[:solver],Symbol)
     transient[:solver] = default_solver_params(transient[:solver])
   else

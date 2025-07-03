@@ -326,8 +326,7 @@ function _fe_operator(::BlockMultiFieldStyle,U,V,params)
 end
 
 function _ode_fe_operator(mfs,U,V,params)
-  k = params[:fespaces][:k]
-  res, jac, jac_t = weak_form(params,k)
+  res, jac, jac_t = weak_form(params)
   Tm = params[:solver][:matrix_type]
   Tv = params[:solver][:vector_type]
   assem = SparseMatrixAssembler(Tm,Tv,U(0),V(0))
