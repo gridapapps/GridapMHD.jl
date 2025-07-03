@@ -336,16 +336,18 @@ function params_fespaces(params::Dict{Symbol,Any})
   fespaces = _add_optional(params[:fespaces],mandatory,optional,params,"[:fespaces]")
 
   # Add discretization parameters
-  fluid_discretization(fespaces[:fluid_disc],poly,fespaces)
-  current_discretization(fespaces[:current_disc],poly,fespaces)
+  params_fluid_discretization(fespaces[:fluid_disc],poly,fespaces)
+  params_current_discretization(fespaces[:current_disc],poly,fespaces)
+  params[:fespaces][:formulation] = select_formulation(fespaces)
 
   # Integration
-  fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j]) # Maximal polynomial degree
+  fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j],fespaces[:order_p],fespaces[:order_φ]) # Maximal polynomial degree
   fespaces[:q] = max( # Quadrature order
     2*(fespaces[:order_u] - 1),              # UU-Laplacian
     3*fespaces[:order_u] - 1,                # UU-Convection
     2*fespaces[:order_j],                    # JJ-Mass
     fespaces[:order_u] + fespaces[:order_j], # UJ-Coupling
+    2*(fespaces[:order_φ] - 1)               # φφ-Laplacian
   )
   fespaces[:quadratures] = generate_quadratures(poly,fespaces)
   fespaces[:poly] = poly
@@ -374,24 +376,27 @@ const FLUID_DISCRETIZATIONS = (;
 
 has_hdiv_fluid_disc(params) = params[:fespaces][:fluid_disc] ∈ (:RT, :BDM)
 
-function fluid_discretization(disc::Symbol,poly::Polytope,feparams)
+function params_fluid_discretization(disc::Symbol,poly::Polytope,feparams)
   D = num_dims(poly)
   k = feparams[:order_u]
   if poly == HEX # Hexahedral meshes
-    if disc == :Qk_dPkm1
-      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
-      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
-      feparams[:order_p] = k-1
-      feparams[:p_conformity] = :L2
-    elseif disc == :Qk_Qkm1 # Taylor-Hood
+    if disc == :Qk_Qkm1 # Taylor-Hood
       feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
       feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
       feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
       feparams[:p_conformity] = :H1
+    elseif disc == :Qk_dPkm1
+      feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
+      feparams[:p_conformity] = :L2
     elseif disc == :RT # Raviart-Thomas
       feparams[:reffe_u] = RaviartThomasRefFE(Float64,poly,k-1)
       feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
       feparams[:order_p] = k-1
+      feparams[:u_conformity] = :HDiv
       feparams[:p_conformity] = :L2
     else
       @notimplemented "
@@ -404,11 +409,13 @@ function fluid_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
       feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
       feparams[:p_conformity] = :H1
     elseif disc == :Pk_dPkm1 # Scott-Vogelius
       feparams[:reffe_u] = LagrangianRefFE(VectorValue{D,Float64},poly,k)
       feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
       feparams[:p_conformity] = :L2
     elseif disc == :SV # Scott-Vogelius with macro-elements
       rrule = Gridap.Adaptivity.BarycentricRefinementRule(TET)
@@ -418,11 +425,13 @@ function fluid_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:reffe_u] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_u;conformity=H1Conformity())
       feparams[:reffe_p] = Gridap.Adaptivity.MacroReferenceFE(rrule,reffe_p;conformity=L2Conformity())
       feparams[:order_p] = k-1
+      feparams[:u_conformity] = :H1
       feparams[:p_conformity] = :L2
     elseif disc == :RT # Raviart-Thomas
       feparams[:reffe_u] = RaviartThomasRefFE(Float64,poly,k-1)
       feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:order_p] = k-1
+      feparams[:u_conformity] = :HDiv
       feparams[:p_conformity] = :L2
     else
       @notimplemented "
@@ -443,14 +452,16 @@ List of possible current discretizations for the (j,φ) pair.
 const CURRENT_DISCRETIZATIONS = (;
   :HEX => ( # Hexahedra
     :RT,  # Raviart-Thomas
+    :H1,  # Lagrangian
   ),
   :TET => ( # Tetrahedra
     :RT,  # Raviart-Thomas
     :BDM, # Brezzi-Douglas-Marini
+    :H1,  # Lagrangian
   )
 )
 
-function current_discretization(disc::Symbol,poly::Polytope,feparams)
+function params_current_discretization(disc::Symbol,poly::Polytope,feparams)
   k = feparams[:order_j]
   # phi = rt_scaling(poly,feparams)
   if poly == HEX # Hexahedral meshes
@@ -458,7 +469,14 @@ function current_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1)#;basis_type=:jacobi,phi=phi)
       feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:Q)
       feparams[:order_φ] = k-1
+      feparams[:j_conformity] = :HDiv
       feparams[:φ_conformity] = :L2
+    elseif disc == :H1
+      feparams[:reffe_j] = LagrangianRefFE(VectorValue{3,Float64},poly,k)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k;space=:Q)
+      feparams[:order_φ] = k
+      feparams[:j_conformity] = :L2
+      feparams[:φ_conformity] = :H1
     else
       @notimplemented "
         Current discretization $disc not implemented for hexahedra. 
@@ -470,12 +488,20 @@ function current_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:reffe_j] = RaviartThomasRefFE(Float64,poly,k-1)#;basis_type=:jacobi,phi=phi)
       feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:order_φ] = k-1
+      feparams[:j_conformity] = :HDiv
       feparams[:φ_conformity] = :L2
     elseif disc == :BDM
       feparams[:reffe_j] = BDMRefFE(Float64,poly,k)#;phi=phi)
       feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:order_φ] = k-1
+      feparams[:j_conformity] = :HDiv
       feparams[:φ_conformity] = :L2
+    elseif disc == :H1
+      feparams[:reffe_j] = LagrangianRefFE(VectorValue{3,Float64},poly,k;space=:P)
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k;space=:P)
+      feparams[:order_φ] = k
+      feparams[:j_conformity] = :L2
+      feparams[:φ_conformity] = :H1
     else
       @notimplemented "
         Current discretization $disc not implemented for tetrahedra. 
@@ -484,6 +510,26 @@ function current_discretization(disc::Symbol,poly::Polytope,feparams)
     end
   else
     @notimplemented "Only HEX and TET supported for now."
+  end
+end
+
+function select_formulation(feparams::Dict)
+  u_conf, p_conf = feparams[:u_conformity], feparams[:p_conformity]
+  j_conf, φ_conf = feparams[:j_conformity], feparams[:φ_conformity]
+
+  if u_conf == :H1 && j_conf == :HDiv
+    # Conforming fluid, divergence-free current
+    return :H1HDiv
+  elseif u_conf == :HDiv && j_conf == :HDiv
+    # Non-conforming divergence-free fluid, divergence-free current
+    return :HDivHDiv
+  elseif u_conf == :H1 && j_conf == :L2
+    # Conforming fluid, H1 potential
+    # Current gets eliminated from the system in favor of φ ∈ H1
+    @assert φ_conf == :H1
+    return :H1H1
+  else
+    @error "Unsupported fluid/current discretizations: u_conf = $u_conf, j_conf = $j_conf."
   end
 end
 

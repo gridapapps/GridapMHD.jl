@@ -64,10 +64,9 @@ function _transient(;
   verbose = true,
   man_solution = nothing,
   max_error = 0.0,
-  ode_solver = :theta,
-  θ = 0.5,
+  ode_solver = Dict(:solver => :theta, :θ => 0.5),
   μ = 0.0,
-  )
+)
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -154,7 +153,6 @@ function _transient(;
     :t0 => t0,
     :tf => tf,
     :Δt => Δt,
-    :θ => θ,
   )
 
   if is_manufactured
@@ -252,7 +250,7 @@ function _transient(;
   info[:Δt] = Δt
   info[:t0] = t0
   info[:tf] = tf
-  info[:θ] = θ
+  info[:ode_solver] = ode_solver
 
   merge(info, results), t
 end
