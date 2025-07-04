@@ -36,6 +36,7 @@ include("Solvers/petsc.jl")
 include("Solvers/gmg.jl")
 include("Solvers/li2019.jl")
 include("Solvers/badia2024.jl")
+include("Solvers/h1h1blocks.jl")
 
 # Main driver
 include("gridap_extras.jl")

@@ -122,8 +122,8 @@ function add_default_params(_params)
   if !isnothing(params[:solid])
     params[:solid] = params_solid(params)
   end
-  params[:bcs] = params_bcs(params)
   params[:fespaces] = params_fespaces(params)
+  params[:bcs] = params_bcs(params)
   params[:solver] = params_solver(params)
   params[:multigrid] = params_multigrid(params)
   if !isnothing(params[:transient])
@@ -268,12 +268,28 @@ function default_solver_params(::Val{:badia2024})
   )
 end
 
+function default_solver_params(::Val{:h1h1blocks})
+  return Dict(
+    :solver => :h1h1blocks,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+    :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
+    :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
+    :niter          => 20,      # Maximum Nonlinear iterations
+    :niter_ls       => 15,      # Maximum linear iterations
+    :rtol           => 1e-8,    # Relative tolerance
+    :atol           => 1.e-12,  # Absolute tolerance
+  )
+end
+
 uses_petsc(solver::Dict) = uses_petsc(solver[:solver])
 uses_petsc(solver::Symbol) = uses_petsc(Val(solver))
 uses_petsc(::Val{:julia}) = false
 uses_petsc(::Val{:petsc}) = true
 uses_petsc(::Val{:li2019}) = true
 uses_petsc(::Val{:badia2024}) = true
+uses_petsc(::Val{:h1h1blocks}) = true
 
 uses_multigrid(solver::Dict) = any(space_uses_multigrid(solver))
 space_uses_multigrid(solver::Dict) = space_uses_multigrid(Val(solver[:solver]),solver)
@@ -281,6 +297,7 @@ space_uses_multigrid(::Val{:julia},solver) = fill(false,4)
 space_uses_multigrid(::Val{:petsc},solver) = fill(false,4)
 space_uses_multigrid(::Val{:li2019},solver) = map(s -> s==:gmg, solver[:block_solvers])
 space_uses_multigrid(::Val{:badia2024},solver) = map(s -> s==:gmg, solver[:block_solvers])[[1,2,1,3]]
+space_uses_multigrid(::Val{:h1h1blocks},solver) = map(s -> s==:gmg, solver[:block_solvers])
 
 function snes_postpro(cache,info)
   snes = cache.snes[]
@@ -694,15 +711,17 @@ Valid keys for `params[:bcs]` are the following
    See  [`params_bcs_thin_wall`](@ref) for further details.
 """
 function params_bcs(params)
+  h1h1 = isequal(params[:fespaces][:formulation],:H1H1)
   mandatory = Dict(
     :u => true,
-    :j => true,
-    :φ => false,
+    :j => !h1h1,
+    :φ => h1h1,
     :t => false,
     :thin_wall => false,
     :stabilization => false,
   )
   optional = Dict(
+    :j => [],
     :φ => [],
     :t => [],
     :thin_wall => [],
@@ -711,7 +730,9 @@ function params_bcs(params)
   bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")
   # Sub params
   bcs[:u] = params_bcs_u(params)
-  bcs[:j] = params_bcs_j(params)
+  if bcs[:j] !== optional[:φ]
+    bcs[:j] = params_bcs_j(params)
+  end
   if bcs[:φ] !== optional[:φ]
     bcs[:φ] = params_bcs_φ(params)
   end
@@ -751,8 +772,9 @@ function params_bcs_u(params::Dict{Symbol,Any})
   u
 end
 
-zero_values(tags) = VectorValue(0,0,0)
-zero_values(tags::Vector) = map(zero_values,tags)
+zero_values(T,tags) = zero(T)
+zero_values(T,tags::Vector) = zero_values.(T,tags)
+zero_values(tags) = zero_values(VectorValue{3,Float64},tags)
 
 """
 Valid keys for `params[:bcs][:j]` are the following
@@ -766,16 +788,16 @@ Valid keys for `params[:bcs][:j]` are the following
 """
 function params_bcs_j(params::Dict{Symbol,Any})
   mandatory = Dict(
-    :tags=>true,
-    :values=>false,
+    :tags => true,
+    :values => false,
   )
   _check_mandatory(params[:bcs][:j],mandatory,"[:bcs][:j]")
   optional = Dict(
-    :values=>zero_values(params[:bcs][:j][:tags]),
+    :values => zero_values(params[:bcs][:j][:tags]),
   )
   j = _add_optional(params[:bcs][:j],mandatory,optional,params,"[:bcs][:j]")
   _check_unused(j,mandatory,params,"[:bcs][:j]")
-  j
+  return j
 end
 
 """
@@ -788,12 +810,27 @@ Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 - `:value`: Value of the electric potential to be imposed weakly.
 """
 function params_bcs_φ(params::Dict{Symbol,Any})
-  mandatory = Dict(
-    :domain=>true,
-    :value=>true,
-  )
-  optional = Dict()
-  _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
+  h1h1 = isequal(params[:fespaces][:formulation],:H1H1)
+  if !h1h1 # Weak boundary conditions
+    mandatory = Dict(
+      :domain => true,
+      :value => true,
+    )
+    optional = Dict()
+    return _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
+  else # Strong boundary conditions
+    mandatory = Dict(
+      :tags => true,
+      :values => false,
+    )
+    _check_mandatory(params[:bcs][:φ],mandatory,"[:bcs][:φ]")
+    optional = Dict(
+      :values => zero_values(Float64,params[:bcs][:φ][:tags]),
+    )
+    φ = _add_optional(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
+    _check_unused(φ,mandatory,params,"[:bcs][:φ]")
+    return φ
+  end
 end
 
 """

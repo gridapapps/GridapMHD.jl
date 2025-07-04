@@ -1,9 +1,26 @@
 
 function weak_form(params)
-  if has_transient(params)
-    weak_form_h1_hdiv_transient(params)
+  formulation = params[:fespaces][:formulation]
+  if formulation == :H1HDiv
+    if has_transient(params)
+      weak_form_h1_hdiv_transient(params) 
+    else
+      weak_form_h1_hdiv(params)
+    end
+  elseif formulation == :H1H1
+    if has_transient(params)
+      weak_form_h1_h1_transient(params)
+    else
+      weak_form_h1_h1(params)
+    end
+  elseif formulation == :HDivHDiv
+    if has_transient(params)
+      weak_form_hdiv_hdiv_transient(params)
+    else
+      weak_form_hdiv_hdiv(params)
+    end
   else
-    weak_form_h1_hdiv(params)
+    @error("Unsupported formulation: $formulation")
   end
 end
 
@@ -495,7 +512,7 @@ function jac_fluid_hdiv_stab(x,dy,μ,h_Γ,h_Λ,n_Γ_D,n_Λ,u_D,dΓ,dΓ_D,dΛ)
 end
 
 ############################################################################################
-# Weakform blocks
+# Utils 
 
 conv(u,∇u) = (∇u')⋅u
 
@@ -544,7 +561,7 @@ function jac_thin_wall(x,dx,dy,τ,cw,jw,n_Γ,dΓ)
   return ∫(τ*sn*(jn + cw*∇jnn))*dΓ
 end
 
-# Mass matrix
+# Transient
 
 function res_transient(x,dy,dΩ)
   u, v = first(x), first(dy)
@@ -555,9 +572,6 @@ function jac_transient(x,dy,dΩ)
   u, v = first(x), first(dy)
   return ∫(u⋅v)*dΩ
 end
-
-############################################################################################
-# Helper functions
 
 time_eval(a::AbstractVector,t::Real) = map(f->time_eval(f,t),a)
 time_eval(a::Tuple,t::Real) = map(f->time_eval(f,t),a)
