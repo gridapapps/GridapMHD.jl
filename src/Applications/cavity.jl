@@ -157,6 +157,9 @@ function _cavity(;
   if μ > 0
     params[:bcs][:stabilization] = Dict(:μ=>μ)
   end
+  if current_disc == :H1
+    params[:bcs][:φ] = Dict(:tags => "insulating", :values => 0.0)
+  end
 
   if !uses_petsc(params[:solver])
     xh,fullparams,info = main(params;output=info)
@@ -173,13 +176,23 @@ function _cavity(;
   if vtk
     tic!(t, barrier=true)
     Ω = Interior(model)
-    ūh, p̄h, j̄h, φ̄h = xh
-    uh = u0 * ūh
-    ph = (ρ * u0^2) * p̄h
-    jh = (σ * u0 * B0) * j̄h
-    φh = (u0 * B0 * L) * φ̄h
-    div_jh = ∇·jh
-    div_uh = ∇·uh
+    if current_disc != :H1
+      ūh, p̄h, j̄h, φ̄h = xh
+      uh = u0 * ūh
+      ph = (ρ * u0^2) * p̄h
+      jh = (σ * u0 * B0) * j̄h
+      φh = (u0 * B0 * L) * φ̄h
+      div_jh = ∇·jh
+      div_uh = ∇·uh
+    else
+      ūh, p̄h, φ̄h = xh
+      uh = u0 * ūh
+      ph = (ρ * u0^2) * p̄h
+      φh = (u0 * B0 * L) * φ̄h
+      jh = σ * (uh × B - ∇(φh))
+      div_jh = σ*((∇×uh)⋅B - Δ(φh)) 
+      div_uh = ∇·uh
+    end
     writevtk(
       Ω, joinpath(path,title), order=max(order,order_j), 
       cellfields=["uh" => uh, "ph" => ph, "jh" => jh, "phi" => φh, "div_jh" => div_jh, "div_uh" => div_uh],
@@ -191,7 +204,7 @@ function _cavity(;
   info[:ncells]  = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
-  info[:ndofs_j] = length(get_free_dof_values(j̄h))
+  info[:ndofs_j] = (current_disc != :H1) ? length(get_free_dof_values(j̄h)) : 0
   info[:ndofs_φ] = length(get_free_dof_values(φ̄h))
   info[:ndofs]   = sum([info[:ndofs_u], info[:ndofs_p], info[:ndofs_j], info[:ndofs_φ]])
   info[:Re]      = Re

@@ -104,8 +104,6 @@ function fe_space_φ(params)
   conformity = params[:fespaces][:φ_conformity]
   constraint = params[:fespaces][:φ_constraint]
   if conformity != :H1
-    dirichlet_tags = params[:bcs][:φ][:tags]
-    φ_bc = params[:bcs][:φ][:values]
     V_φ = TestFESpace(model,reffe_φ;conformity,constraint)
     U_φ = _trial_fe_space(V_φ,nothing,params)
   else

@@ -63,24 +63,35 @@ retrieve_hdiv_fluid_params(params) = retrieve_hdiv_fluid_params(params[:model],p
 
 function retrieve_hdiv_fluid_params(model,params)
   Ωf  = params[:Ωf]
+  μ = 100.0
 
   Γ = boundary(params,Ωf,nothing)
   Λ = skeleton(params,Ωf,nothing)
-  Γ_D = boundary(params,Ωf,params[:bcs][:u][:tags])
 
   h_Γ = get_cell_size(Γ)
   h_Λ = get_cell_size(Λ)
-  n_Γ_D = normal_vector(params,Γ_D)
   n_Λ = normal_vector(params,Λ)
 
   dΓ = measure(params,Γ)
-  dΓ_D = measure(params,Γ_D)
   dΛ = measure(params,Λ)
 
-  μ = 100.0
-  u_D = params[:bcs][:u][:values]
+  if isa(params[:bcs][:u][:tags],Array)
+    tags = params[:bcs][:u][:tags]
+    values = params[:bcs][:u][:values]
+  else
+    tags = [params[:bcs][:u][:tags]]
+    values = [params[:bcs][:u][:values]]
+  end
 
-  return μ,h_Γ,h_Λ,n_Γ_D,n_Λ,u_D,dΓ,dΓ_D,dΛ
+  ΓD_params = []
+  for (tag,u_D) in zip(tags,values)
+    Γ_D = boundary(params,Ωf,tag)
+    dΓ_D = measure(params,Γ_D)
+    n_Γ_D = normal_vector(params,Γ_D)
+    push!(ΓD_params,(u_D,n_Γ_D,dΓ_D))
+  end
+  
+  return μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params
 end
 
 retrieve_solid_params(params) = retrieve_solid_params(params[:model],params)
@@ -102,12 +113,14 @@ function retrieve_bcs_params(model,params)
   bcs = params[:bcs]
 
   params_φ = []
-  for i in 1:length(bcs[:φ])
-    φ_i = bcs[:φ][i][:value]
-    Γ   = boundary(params,bcs[:φ][i][:domain])
-    dΓ  = measure(params,Γ)
-    n_Γ = normal_vector(params,Γ)
-    push!(params_φ,(φ_i,n_Γ,dΓ))
+  if isa(bcs[:φ],Array)
+    for i in 1:length(bcs[:φ])
+      φ_i = bcs[:φ][i][:value]
+      Γ   = boundary(params,bcs[:φ][i][:domain])
+      dΓ  = measure(params,Γ)
+      n_Γ = normal_vector(params,Γ)
+      push!(params_φ,(φ_i,n_Γ,dΓ))
+    end
   end
 
   params_thin_wall = []
@@ -446,7 +459,7 @@ function res_hdiv_hdiv(_x, _dy, params)
   dy = setup_variable(_dy)
 
   r = res_fluid_h1_hdiv(x,dy,fluid_params...)
-  r += res_fluid_hdiv_stab(x,dy,hdiv_params...)
+  r = r + res_fluid_hdiv_stab(x,dy,hdiv_params...)
   if !isnothing(solid_params)
     r = r + res_solid_h1_hdiv(x,dy,solid_params...)
   end
@@ -471,7 +484,7 @@ function jac_hdiv_hdiv(_x,_dx,_dy, params)
   dy = setup_variable(_dy)
 
   r = jac_fluid_h1_hdiv(x,dx,dy,fluid_params...)
-  r += jac_fluid_hdiv_stab(x,dy,hdiv_params...)
+  r = r + jac_fluid_hdiv_stab(x,dx,dy,hdiv_params...)
   if !isnothing(solid_params)
     r = r + jac_solid_h1_hdiv(x,dx,dy,solid_params...)
   end
@@ -485,28 +498,34 @@ function jac_hdiv_hdiv(_x,_dx,_dy, params)
   return r
 end
 
-function res_fluid_hdiv_stab(x,dy,μ,h_Γ,h_Λ,n_Γ_D,n_Λ,u_D,dΓ,dΓ_D,dΛ)
+function res_fluid_hdiv_stab(x,dy,μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
   u, v = x[:u], dy[:u]
   ∇u, ∇v = x[:∇u], dy[:∇u]
   uᵗ, vᵗ = jump(u⊗n_Λ), jump(v⊗n_Λ)
   αΛ, αΓ = μ/h_Λ, μ/h_Γ
 
-  c  = ∫( αΛ*vᵗ⊙uᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
-  c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅(u-u_D))dΓ_D
-  c += ∫(αΓ*v⋅(u-u_D))dΓ
+  c  = ∫(αΛ*vᵗ⊙uᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
+  c += ∫(αΓ*v⋅u)dΓ
+
+  for (u_D, n_Γ_D, dΓ_D) in ΓD_params
+    c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅(u-u_D))*dΓ_D
+  end
 
   return c
 end
 
-function jac_fluid_hdiv_stab(x,dy,μ,h_Γ,h_Λ,n_Γ_D,n_Λ,u_D,dΓ,dΓ_D,dΛ)
-  u, v = x[:u], dy[:u]
-  ∇u, ∇v = x[:∇u], dy[:∇u]
+function jac_fluid_hdiv_stab(x,dx,dy,μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
+  u, v = dx[:u], dy[:u]
+  ∇u, ∇v = dx[:∇u], dy[:∇u]
   uᵗ, vᵗ = jump(u⊗n_Λ), jump(v⊗n_Λ)
   αΛ, αΓ = μ/h_Λ, μ/h_Γ
 
   c  = ∫( αΛ*vᵗ⊙uᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
-  c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅u)dΓ_D
   c += ∫(αΓ*v⋅u)dΓ
+
+  for (u_D, n_Γ_D, dΓ_D) in ΓD_params
+    c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅u)*dΓ_D
+  end
 
   return c
 end

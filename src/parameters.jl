@@ -355,7 +355,7 @@ function params_fespaces(params::Dict{Symbol,Any})
   # Add discretization parameters
   params_fluid_discretization(fespaces[:fluid_disc],poly,fespaces)
   params_current_discretization(fespaces[:current_disc],poly,fespaces)
-  params[:fespaces][:formulation] = select_formulation(fespaces)
+  fespaces[:formulation] = select_formulation(fespaces)
 
   # Integration
   fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j],fespaces[:order_p],fespaces[:order_φ]) # Maximal polynomial degree
