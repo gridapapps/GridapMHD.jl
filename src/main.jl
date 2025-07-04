@@ -187,7 +187,7 @@ end
 _solver(::Val{:petsc},op,params) = PETScNonlinearSolver()
 _solver(::Val{:li2019},op,params) = Li2019Solver(op,params)
 _solver(::Val{:badia2024},op,params) = Badia2024Solver(op,params)
-_solver(::Val{:h1h1block},op,params) = H1H1BlockSolver(op,params)
+_solver(::Val{:h1h1blocks},op,params) = H1H1BlockSolver(op,params)
 
 _ode_solver(solver,params) = _ode_solver(Val(params[:transient][:solver][:solver]),solver,params)
 

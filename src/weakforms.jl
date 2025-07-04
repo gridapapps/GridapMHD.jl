@@ -231,7 +231,7 @@ function res_fluid_h1_hdiv(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
 
   # Augmented Lagrangian term
   if !iszero(ζ)
-    u_block += ζ*(Πp(div_u)*div_v)
+    u_block += ζ*(Πp(u)*div_v)
     j_block += ζ*(div_j*div_s)
   end
 
@@ -258,7 +258,7 @@ function jac_fluid_h1_hdiv(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
 
   # Augmented Lagrangian term
   if !iszero(ζ)
-    u_block += ζ*(Πp(div_du)*div_v)
+    u_block += ζ*(Πp(du)*div_v)
     j_block += ζ*(div_dj*div_s)
   end
 
@@ -378,7 +378,7 @@ function res_fluid_h1_h1(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
 
   # Augmented Lagrangian term
   if !iszero(ζ)
-    u_block += ζ*(Πp(div_u)*div_v)
+    u_block += ζ*(Πp(u)*div_v)
   end
 
   # Convection term
@@ -404,7 +404,7 @@ function jac_fluid_h1_h1(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
 
   # Augmented Lagrangian term
   if !iszero(ζ)
-    u_block += ζ*(Πp(div_du)*div_v)
+    u_block += ζ*(Πp(du)*div_v)
   end
 
   # Convection term
@@ -542,12 +542,12 @@ function local_projection_operator(params)
   # If pressure-robust, no need to project
   A = (poly == TET) && fluid_disc ∈ (:SV,:Pk_dPkm1)
   B = fluid_disc ∈ (:RT,:BDM)
-  (A || B) && return identity
+  (A || B) && return divergence
   
   # Otherwise: 
   reffe_p = params[:fespaces][:reffe_p]
   qdegree = params[:fespaces][:q]
-  Πp = MultilevelTools.LocalProjectionMap(identity,reffe_p,qdegree)
+  Πp = MultilevelTools.LocalProjectionMap(divergence,reffe_p,qdegree)
   return Πp
 end
 

@@ -6,7 +6,7 @@ _multi_field_style(::Val{:julia}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:petsc}) = ConsecutiveMultiFieldStyle()
 _multi_field_style(::Val{:li2019}) = BlockMultiFieldStyle(4,(1,1,1,1),(3,1,2,4)) # (j,u,p,φ)
 _multi_field_style(::Val{:badia2024}) = BlockMultiFieldStyle(3,(2,1,1),(1,3,2,4)) # ([u,j],p,φ)
-_multi_field_style(::Val{:h1h1block}) = BlockMultiFieldStyle(3,(1,1,1),(1,2,3)) # (u,p,φ)
+_multi_field_style(::Val{:h1h1blocks}) = BlockMultiFieldStyle(3,(1,1,1),(1,2,3)) # (u,p,φ)
 
 # FE Spaces
 
@@ -65,8 +65,6 @@ function fe_space_u(params)
 end
 
 function fe_space_p(params)
-  @notimplementedif space_uses_multigrid(params[:solver])[2]
-
   Ωf = params[:Ωf]
   conformity = params[:fespaces][:p_conformity]
   constraint = params[:fespaces][:p_constraint]
@@ -97,7 +95,6 @@ function fe_space_j(params)
 end
 
 function fe_space_φ(params)
-  @notimplementedif space_uses_multigrid(params[:solver])[4]
   model = params[:model]
 
   reffe_φ = params[:fespaces][:reffe_φ]
