@@ -29,6 +29,7 @@ gmsh_jll = "630162c2-fc9b-58b3-9910-8442a8a132e6"
 
 [compat]
 BSON = "0.3"
+DrWatson = "2"
 FileIO = "1"
 FillArrays = "1.13.0"
 Gridap = "0.19"
