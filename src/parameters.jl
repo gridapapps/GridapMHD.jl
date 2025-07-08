@@ -639,7 +639,10 @@ Valid keys for `params[:fluid]` are the following.
 # Optional keys
 -  `:f=>VectorValue(0,0,0)`: Value of the parameter `f`.
 -  `:σ=>1`: Value of the parameter `σ`.
--  `:ζ=>0`: Value of the augmented lagrangian weight.
+-  `:ζᵤ=>0`: Value of the augmented lagrangian weight for u.
+-  `:ζⱼ=>0`: Value of the augmented lagrangian weight for j.
+-  `:g=>VectorValue(0,0,0)`: RHS in Ohm law (Hdiv) to get manufactured solutions
+-  `:divg=>0.0`: RHS in div(Ohm law) (H1) to get manufactured solutions
 """
 function params_fluid(params::Dict{Symbol,Any})
   mandatory = Dict(
@@ -650,15 +653,19 @@ function params_fluid(params::Dict{Symbol,Any})
     :B => true,
     :f => false,
     :σ => false,
-    :ζ => false,
+    :ζᵤ => false,
+    :ζⱼ => false,
     :g => false,
+    :divg => false,
     :convection => false,
   )
   optional = Dict(
     :σ => 1.0,
-    :f => VectorValue(0,0,0),
-    :ζ => 0.0,
-    :g => VectorValue(0,0,0),
+    :f => VectorValue(0.0,0.0,0.0),
+    :ζᵤ => 0.0,
+    :ζⱼ => 0.0,
+    :g => VectorValue(0.0,0.0,0.0),
+    :divg => 0.0,
     :convection => :newton
   )
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
@@ -682,8 +689,16 @@ function params_solid(params::Dict{Symbol,Any})
   mandatory = Dict(
     :domain=>true,
     :σ=>false,
+    :ζ => false,
+    :g => false,
+    :divg => false
   )
-  optional = Dict(:σ=>1)
+  optional = Dict(
+    :σ=>1,
+    :ζ => 0.0,
+    :g => VectorValue(0.0,0.0,0.0),
+    :divg => 0.0
+  )
   solid = _check_mandatory_and_add_optional(params[:solid],mandatory,optional,params,"[:solid]")
   solid
 end

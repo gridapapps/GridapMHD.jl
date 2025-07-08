@@ -54,9 +54,10 @@ function retrieve_fluid_params(model,params)
   dΩf = measure(params,Ωf)
 
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
-  f, B, ζ, g = fluid[:f], fluid[:B], fluid[:ζ], fluid[:g]
+  f, B, ζᵤ, ζⱼ = fluid[:f], fluid[:B], fluid[:ζᵤ], fluid[:ζⱼ]
+  g, divg = fluid[:g], fluid[:divg]
   Πp = local_projection_operator(params)
-  return α, β, γ, B, σf, f, g, ζ, Πp, fluid[:convection], dΩf
+  return α, β, γ, B, σf, f, g, divg, ζᵤ, ζⱼ, Πp, fluid[:convection], dΩf
 end
 
 retrieve_hdiv_fluid_params(params) = retrieve_hdiv_fluid_params(params[:model],params)
@@ -102,7 +103,10 @@ function retrieve_solid_params(model,params)
     Ωs  = params[:Ωs]
     dΩs = measure(params,Ωs)
     σs  = solid[:σ]
-    return σs, dΩs
+    ζ = solid[:ζ]
+    g = solid[:g]
+    divg = solid[:divg]
+    return σs, g, divg, ζ, dΩs
   end
   return nothing
 end
@@ -217,7 +221,7 @@ function jac_h1_hdiv(_x,_dx,_dy, params)
   return r
 end
 
-function res_fluid_h1_hdiv(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
+function res_fluid_h1_hdiv(x,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,dΩ)
   u, v = x[:u], dy[:u]
   p, q = x[:p], dy[:p]
   j, s = x[:j], dy[:j]
@@ -229,10 +233,12 @@ function res_fluid_h1_hdiv(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
   u_block = β*(∇u⊙∇v)
   j_block = j⋅s
 
-  # Augmented Lagrangian term
-  if !iszero(ζ)
-    u_block += ζ*(Πp(u)*div_v)
-    j_block += ζ*(div_j*div_s)
+  # Augmented Lagrangian terms
+  if !iszero(ζᵤ)
+    u_block += ζᵤ*(Πp(u)*div_v)
+  end
+  if !iszero(ζⱼ)
+    j_block += ζⱼ*(div_j*div_s)
   end
 
   # Convection term
@@ -243,7 +249,7 @@ function res_fluid_h1_hdiv(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
   return ∫(u_block - p*div_v - γ*(j×B)⋅v - div_u*q + j_block - σ*φ*div_s - σ*(u×B)⋅s - div_j*ϕ - f⋅v - g⋅s) * dΩ
 end
 
-function jac_fluid_h1_hdiv(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
+function jac_fluid_h1_hdiv(x,dx,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,dΩ)
   u, ∇u = x[:u], x[:∇u]
   du, v = dx[:u], dy[:u]
   dp, q = dx[:p], dy[:p]
@@ -256,10 +262,12 @@ function jac_fluid_h1_hdiv(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
   u_block = β*(∇du⊙∇v)
   j_block = dj⋅s 
 
-  # Augmented Lagrangian term
-  if !iszero(ζ)
-    u_block += ζ*(Πp(du)*div_v)
-    j_block += ζ*(div_dj*div_s)
+  # Augmented Lagrangian terms
+  if !iszero(ζᵤ)
+    u_block += ζᵤ*(Πp(u)*div_v)
+  end
+  if !iszero(ζⱼ)
+    j_block += ζⱼ*(div_j*div_s)
   end
 
   # Convection term
@@ -272,7 +280,7 @@ function jac_fluid_h1_hdiv(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
   return ∫(u_block - dp*div_v - γ*(dj×B)⋅v - div_du*q + j_block - σ*dφ*div_s - σ*(du×B)⋅s - div_dj*ϕ)dΩ
 end
 
-function res_solid_h1_hdiv(x,dy,σ,g,ζ,dΩ)
+function res_solid_h1_hdiv(x,dy,σ,g,divg,ζ,dΩ)
   j, s = x[:j], dy[:j]
   φ, ϕ = x[:φ], dy[:φ]
   div_j, div_s = x[:divj], dy[:divj]
@@ -283,9 +291,10 @@ function res_solid_h1_hdiv(x,dy,σ,g,ζ,dΩ)
   end
 
   return ∫(j_block - σ*φ*div_s + ϕ*div_j - s⋅g)*dΩ
+  # return ∫(j_block - σ*φ*div_s + ϕ*div_j)*dΩ
 end
 
-function jac_solid_h1_hdiv(x,dx,dy,σ,g,ζ,dΩ)
+function jac_solid_h1_hdiv(x,dx,dy,σ,g,divg,ζ,dΩ)
   j, s = dx[:j], dy[:j]
   φ, ϕ = dx[:φ], dy[:φ]
   div_j, div_s = dx[:divj], dy[:divj]
@@ -365,11 +374,12 @@ function jac_h1_h1(_x,_dx,_dy, params)
   return r
 end
 
-function res_fluid_h1_h1(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
+function res_fluid_h1_h1(x,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,dΩ)
   u, v = x[:u], dy[:u]
   p, q = x[:p], dy[:p]
   ∇u, ∇v = x[:∇u], dy[:∇u]
   div_u, div_v = x[:divu], dy[:divu]
+   φ,  ϕ = x[:φ], dy[:φ]
   ∇φ, ∇ϕ = x[:∇φ], dy[:∇φ]
 
   uB, vB = u×B, v×B
@@ -377,8 +387,8 @@ function res_fluid_h1_h1(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
   u_block = β*(∇u⊙∇v) + γ*uB⋅vB
 
   # Augmented Lagrangian term
-  if !iszero(ζ)
-    u_block += ζ*(Πp(u)*div_v)
+  if !iszero(ζᵤ)
+    u_block += ζᵤ*(Πp(u)*div_v)
   end
 
   # Convection term
@@ -386,10 +396,10 @@ function res_fluid_h1_h1(x,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
     u_block += α*v⋅(conv∘(u,∇u))
   end
 
-  return ∫(u_block - p*div_v - div_u*q + ∇φ⋅∇ϕ - γ*(∇φ⋅vB) - uB⋅∇ϕ - f⋅v) * dΩ
+  return ∫(u_block - p*div_v - div_u*q + ∇φ⋅∇ϕ - γ*(∇φ⋅vB) - uB⋅∇ϕ - f⋅v - divg*ϕ) * dΩ
 end
 
-function jac_fluid_h1_h1(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
+function jac_fluid_h1_h1(x,dx,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,dΩ)
   u, ∇u = x[:u], x[:∇u]
   du, v = dx[:u], dy[:u]
   dp, q = dx[:p], dy[:p]
@@ -403,8 +413,8 @@ function jac_fluid_h1_h1(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
   u_block = β*(∇du⊙∇v) + γ*duB⋅vB
 
   # Augmented Lagrangian term
-  if !iszero(ζ)
-    u_block += ζ*(Πp(du)*div_v)
+  if !iszero(ζᵤ)
+    u_block += ζᵤ*(Πp(du)*div_v)
   end
 
   # Convection term
@@ -417,13 +427,13 @@ function jac_fluid_h1_h1(x,dx,dy,α,β,γ,B,σ,f,g,ζ,Πp,convection,dΩ)
   return ∫(u_block - dp*div_v - div_du*q + ∇dφ⋅∇ϕ - γ*(∇dφ⋅vB) - duB⋅∇ϕ) * dΩ
 end
 
-function res_solid_h1_h1(x,dy,σ,g,ζ,dΩ)
+function res_solid_h1_h1(x,dy,σ,g,divg,ζ,dΩ)
   φ, ϕ = x[:φ], dy[:φ]
   ∇φ, ∇ϕ = x[:∇φ], dy[:∇φ]
-  return ∫(∇φ⋅∇ϕ)*dΩ
+  return ∫(∇φ⋅∇ϕ - divg*ϕ)*dΩ
 end
 
-function jac_solid_h1_h1(x,dx,dy,σ,g,ζ,dΩ)
+function jac_solid_h1_h1(x,dx,dy,σ,g,divg,ζ,dΩ)
   dφ, ϕ = dx[:φ], dy[:φ]
   ∇dφ, ∇ϕ = dx[:∇φ], dy[:∇φ]
   return ∫(∇dφ⋅∇ϕ)*dΩ

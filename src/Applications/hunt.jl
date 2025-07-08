@@ -47,8 +47,9 @@ function _hunt(;
   σ=1.0,
   B=(0.0,10.0,0.0),
   f=(0.0,0.0,1.0),
-  ζ  = 0.0, # Augmented Lagrangian weight  
-  μ  = 0,   # Stabilization weight
+  ζᵤ=0.0, # Augmented Lagrangian weights  
+  ζⱼ=0.0, # 
+  μ =0,   # Stabilization weight
   L=1.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
@@ -150,7 +151,8 @@ function _hunt(;
     :γ=>γ,
     :f=>f̄,
     :B=>B̄,
-    :ζ=>ζ,
+    :ζᵤ => ζᵤ,
+    :ζⱼ => ζⱼ
   )
 
   params[:fespaces] = Dict{Symbol,Any}(
@@ -163,7 +165,11 @@ function _hunt(;
 
   if tw > 0.0
     σ_Ω = solid_conductivity(σ̄1,σ̄2,Ω,get_cell_gids(model),get_face_labeling(model))
-    params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
+    params[:solid] = Dict(
+      :domain=>"solid",
+      :σ=>σ_Ω,
+      :ζ => ζⱼ
+      )
     params[:fluid][:domain] = "fluid"
     params[:fespaces][:φ_constraint] = :zeromean
   end

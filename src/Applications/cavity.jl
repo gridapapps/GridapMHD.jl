@@ -41,7 +41,8 @@ function _cavity(;
   ν = 1.0,
   ρ = 1.0,
   σ = 1.0,
-  ζ = 0.0,   # Augmented Lagrangian weight  
+  ζᵤ = 0.0,   # Augmented Lagrangian weights 
+  ζⱼ = 0.0, 
   μ = 0,     # Stabilization weight
   B = VectorValue(0.0, 0.0, 10.0),
   f = VectorValue(0.0, 0.0, 0.0),
@@ -123,7 +124,8 @@ function _cavity(;
     :γ => γ,
     :f => f̄,
     :B => B̄,
-    :ζ => ζ,
+    :ζᵤ => ζᵤ,
+    :ζⱼ => ζⱼ,
     :convection => convection,
   )
 

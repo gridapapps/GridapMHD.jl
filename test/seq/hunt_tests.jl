@@ -9,8 +9,8 @@ hunt(
   B=(0.,50.,0.),
   debug=true,
   vtk=true,
-  title="hunt",
-  solver=:julia,
+  title="hunt-debug",
+  solver=:julia
 )
 
 hunt(
@@ -19,9 +19,31 @@ hunt(
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt",
+  title="hunt-H1HDiv", # default
+  solver=:julia
+)
+
+hunt(
+  nc=(10,10),
+  L=1.0,
+  B=(0.,50.,0.),
+  debug=false,
+  vtk=true,
+  title="hunt-HDivHDiv",
   solver=:julia,
-  fluid_disc = :RT,
+  fluid_disc = :RT
+)
+
+hunt(
+  nc=(10,10),
+  L=1.0,
+  B=(0.,50.,0.),
+  debug=false,
+  vtk=true,
+  title="hunt-H1H1",
+  solver=:julia,
+  fluid_disc = :H1,
+  current_disc = :H1
 )
 
 hunt(
@@ -32,7 +54,7 @@ hunt(
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt",
+  title="hunt-mpi-backend",
   solver=:julia,
 )
 
@@ -44,7 +66,7 @@ hunt(
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt",
+  title="hunt-partitioned",
   solver=:julia,
 )
 
