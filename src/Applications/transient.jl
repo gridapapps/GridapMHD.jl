@@ -48,7 +48,8 @@ function _transient(;
   σ=1.0,
   B=(0.0,0.0,1.0),
   f=(0.0,0.0,1.0),
-  ζ=0.0,
+  ζᵤ = 0.0,   # Augmented Lagrangian weights 
+  ζⱼ = 0.0,   
   L=1.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
@@ -132,7 +133,8 @@ function _transient(;
     :γ=>γ,
     :f=>f̄,
     :B=>B̄,
-    :ζ=>ζ,
+    :ζᵤ => ζᵤ,
+    :ζⱼ => ζⱼ,
     :g=>g,
   )
 

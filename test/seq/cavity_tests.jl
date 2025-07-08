@@ -30,7 +30,8 @@ cavity(
     :block_solvers  => [:julia,:julia,:julia],
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
   ),
-  ζ = 10.0,
+  ζᵤ = 10.0,
+  ζⱼ = 10.0,   
 )
 
 end # module
