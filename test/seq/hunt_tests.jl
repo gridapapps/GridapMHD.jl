@@ -29,9 +29,10 @@ hunt(
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt-HDivHDiv",
+  title="hunt-H1H1",
   solver=:julia,
-  fluid_disc = :RT
+  fluid_disc = :Qk_dPkm1,
+  current_disc = :H1
 )
 
 hunt(
@@ -40,10 +41,9 @@ hunt(
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt-H1H1",
+  title="hunt-HDivHDiv",
   solver=:julia,
-  fluid_disc = :H1,
-  current_disc = :H1
+  fluid_disc = :RT
 )
 
 hunt(

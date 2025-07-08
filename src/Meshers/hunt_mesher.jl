@@ -85,15 +85,19 @@ function hunt_add_tags!(labels,model,L::Real,tw::Real)
     add_tag!(labels,"solid_2",[solid_2])
     add_tag!(labels,"solid",[solid_1,solid_2])
     add_tag!(labels,"fluid",[fluid])
-    tags_j = vcat(collect(1:(8+12)),collect((1:4).+(8+12+2)))
-    add_tag_from_tags!(labels,"insulating",tags_j)
+    tags_insulating = vcat(collect(2:20),collect((23:26)))
+    tags_conducting = [1]
+    add_tag_from_tags!(labels,"conducting",tags_conducting)
+    add_tag_from_tags!(labels,"insulating",tags_insulating)
     add_non_slip_at_solid_entity!(model,[solid_1,solid_2],fluid,noslip)
     add_tag!(labels,"noslip",[noslip])
   else    
-    tags_u = append!(collect(1:20),[23,24,25,26])
-    tags_j = append!(collect(1:20),[25,26])
-    add_tag_from_tags!(labels,"noslip",tags_u)
-    add_tag_from_tags!(labels,"insulating",tags_j)
+    tags_noslip = append!(collect(1:20),[23,24,25,26])
+    tags_conducting = append!(collect(1:12),collect(17:20),[23,24])
+    tags_insulating = append!([25,26])
+    add_tag_from_tags!(labels,"noslip",tags_noslip)
+    add_tag_from_tags!(labels,"conducting",tags_conducting)
+    add_tag_from_tags!(labels,"insulating",tags_insulating)
   end
 end
 
