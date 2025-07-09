@@ -6,7 +6,7 @@ function H1H1BlockSolver(op::FEOperator,params)
   Ωf = params[:Ωf]
   quad3D = params[:fespaces][:quadratures][3]
   dΩf = Measure(Ωf,quad3D)
-  α_p = -1.0/(params[:fluid][:β] + params[:fluid][:ζ])
+  α_p = -1.0/(params[:fluid][:β] + params[:fluid][:ζᵤ])
   a_Ip(p,v_p) = ∫(α_p*p*v_p)*dΩf
 
   U_u, U_p, U_φ = get_trial(op)
