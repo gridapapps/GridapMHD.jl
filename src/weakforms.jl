@@ -50,6 +50,15 @@ function setup_variable_u(u)
   return (; u, ∇u, divu)
 end
 
+# UJ-block GMG solver
+setup_variable_uj(x) = setup_variable_uj(x...)
+
+function setup_variable_uj(u,j)
+  ∇u, ∇j = ∇(u), ∇(j)
+  divu, divj = Operation(tr)(∇u), Operation(tr)(∇j)
+  return (; u, j, ∇u, divu, ∇j, divj)
+end
+
 ############################################################################################
 # Parameter retrieval
 
@@ -71,7 +80,7 @@ retrieve_hdiv_fluid_params(params) = retrieve_hdiv_fluid_params(params[:model],p
 
 function retrieve_hdiv_fluid_params(model,params)
   Ωf  = interior(params,model,params[:fluid][:domain])
-  μ = 100.0
+  μ = params[:fluid][:μ]
 
   Γ = boundary(params,Ωf,nothing)
   Λ = skeleton(params,Ωf,nothing)

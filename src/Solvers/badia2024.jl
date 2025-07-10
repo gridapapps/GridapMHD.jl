@@ -9,8 +9,8 @@ function Badia2024Solver(op::FEOperator,params)
   Ωf = params[:Ωf]
   quad3D = params[:fespaces][:quadratures][3]
   dΩf = Measure(Ωf,quad3D)
-  α_p = -1.0/(params[:fluid][:β] + params[:fluid][:ζ])
-  α_φ = -1.0/(1.0 + params[:fluid][:ζ])
+  α_p = -1.0/(params[:fluid][:β] + params[:fluid][:ζᵤ])
+  α_φ = -1.0/(1.0 + params[:fluid][:ζⱼ])
   a_Ip(p,v_p) = ∫(α_p*p*v_p)*dΩf
   a_Iφ(φ,v_φ) = ∫(α_φ*φ*v_φ)*dΩ
 

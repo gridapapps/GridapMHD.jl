@@ -183,16 +183,16 @@ function weak_form_hdiv_hdiv_uj(model,params)
     nothing, nothing, [], # No boundary conditions for now
     retrieve_hdiv_fluid_params(model,params)
   )
-  jac(x,dx,dy) = jac_h1_h1_u(x,dx,dy,weakform_params)
+  jac(x,dx,dy) = jac_hdiv_hdiv_uj(x,dx,dy,weakform_params)
   return jac
 end
 
 function jac_hdiv_hdiv_uj(_x,_dx,_dy, params)
   fluid_params, solid_params, params_φ, params_thin_wall, params_Λ, hdiv_params = params
 
-  x = setup_variable_u(_x)
-  dx = setup_variable_u(_dx)
-  dy = setup_variable_u(_dy)
+  x = setup_variable_uj(_x)
+  dx = setup_variable_uj(_dx)
+  dy = setup_variable_uj(_dy)
 
   r = jac_fluid_h1_hdiv_uj(x,dx,dy,fluid_params...)
   r = r + jac_fluid_hdiv_stab(x,dx,dy,hdiv_params...)

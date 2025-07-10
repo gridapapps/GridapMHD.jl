@@ -263,8 +263,8 @@ function default_solver_params(::Val{:badia2024})
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 20,      # Maximum Nonlinear iterations
     :niter_ls       => 15,      # Maximum linear iterations
-    :rtol           => 1e-5,    # Relative tolerance
-    :atol           => 1.e-14,  # Absolute tolerance
+    :rtol           => 1e-10,    # Relative tolerance
+    :atol           => 1.e-8,  # Absolute tolerance
   )
 end
 
@@ -278,8 +278,8 @@ function default_solver_params(::Val{:h1h1blocks})
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
     :niter          => 20,      # Maximum Nonlinear iterations
     :niter_ls       => 15,      # Maximum linear iterations
-    :rtol           => 1e-8,    # Relative tolerance
-    :atol           => 1.e-12,  # Absolute tolerance
+    :rtol           => 1e-10,    # Relative tolerance
+    :atol           => 1.e-8,  # Absolute tolerance
   )
 end
 
@@ -658,6 +658,7 @@ function params_fluid(params::Dict{Symbol,Any})
     :g => false,
     :divg => false,
     :convection => false,
+    :μ => false,
   )
   optional = Dict(
     :σ => 1.0,
@@ -666,7 +667,8 @@ function params_fluid(params::Dict{Symbol,Any})
     :ζⱼ => 0.0,
     :g => VectorValue(0.0,0.0,0.0),
     :divg => 0.0,
-    :convection => :newton
+    :convection => :newton,
+    :μ => 10.0,
   )
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
   @assert fluid[:convection] in (:none,:newton,:picard)
