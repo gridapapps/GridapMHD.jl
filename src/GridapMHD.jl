@@ -27,6 +27,8 @@ using GridapSolvers
 using GridapSolvers.SolverInterfaces, GridapSolvers.MultilevelTools, GridapSolvers.PatchBasedSmoothers
 using GridapSolvers.LinearSolvers, GridapSolvers.NonlinearSolvers, GridapSolvers.BlockSolvers
 
+using GridapSolvers.PatchBasedSmoothers: CoarsePatchTopology
+
 # Mesh generation
 include("Meshers/meshers.jl")
 

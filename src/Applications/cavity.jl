@@ -250,7 +250,7 @@ function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivi
     add_cavity_tags!(model)
   else # Multigrid
     mh = CartesianModelHierarchy(
-      parts,np_per_level,domain,nc;
+      parts,ranks_per_level,domain,nc;
       add_labels! = add_cavity_tags!,
     )
     params[:multigrid] = Dict{Symbol,Any}(

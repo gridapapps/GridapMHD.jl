@@ -43,6 +43,13 @@ function setup_variable(u,p,φ)
   return (; u, p, φ, ∇u, divu, ∇φ)
 end
 
+# U-block GMG solver
+function setup_variable_u(u)
+  ∇u = ∇(u)
+  divu = Operation(tr)(∇u)
+  return (; u, ∇u, divu)
+end
+
 ############################################################################################
 # Parameter retrieval
 
@@ -50,7 +57,7 @@ retrieve_fluid_params(params) = retrieve_fluid_params(params[:model],params)
 
 function retrieve_fluid_params(model,params)
   fluid = params[:fluid]
-  Ωf  = params[:Ωf]
+  Ωf  = interior(params,model,fluid[:domain])
   dΩf = measure(params,Ωf)
 
   α, β, γ, σf = fluid[:α], fluid[:β], fluid[:γ], fluid[:σ]
@@ -63,7 +70,7 @@ end
 retrieve_hdiv_fluid_params(params) = retrieve_hdiv_fluid_params(params[:model],params)
 
 function retrieve_hdiv_fluid_params(model,params)
-  Ωf  = params[:Ωf]
+  Ωf  = interior(params,model,params[:fluid][:domain])
   μ = 100.0
 
   Γ = boundary(params,Ωf,nothing)
@@ -100,7 +107,7 @@ retrieve_solid_params(params) = retrieve_solid_params(params[:model],params)
 function retrieve_solid_params(model,params)
   solid  = params[:solid]
   if has_solid(params)
-    Ωs  = params[:Ωs]
+    Ωs  = interior(params,model,solid[:domain])
     dΩs = measure(params,Ωs)
     σs  = solid[:σ]
     ζ = solid[:ζ]
@@ -157,18 +164,26 @@ end
 ############################################################################################
 # H1-HDiv formulation
 
-function weak_form_h1_hdiv(params)
+weak_form_h1_hdiv(params) = weak_form_h1_hdiv(params[:model],params)
+
+function weak_form_h1_hdiv(model,params)
   weakform_params = (
-    retrieve_fluid_params(params), retrieve_solid_params(params), retrieve_bcs_params(params)...
+    retrieve_fluid_params(model,params), 
+    retrieve_solid_params(model,params), 
+    retrieve_bcs_params(model,params)...
   )
   res(x,dy) = res_h1_hdiv(x,dy,weakform_params)
   jac(x,dx,dy) = jac_h1_hdiv(x,dx,dy,weakform_params)
   return res, jac
 end
 
-function weak_form_h1_hdiv_transient(params)
+weak_form_h1_hdiv_transient(params) = weak_form_h1_hdiv_transient(params[:model],params)
+
+function weak_form_h1_hdiv_transient(model,params)
   weakform_params = (
-    retrieve_fluid_params(params), retrieve_solid_params(params), retrieve_bcs_params(params)...
+    retrieve_fluid_params(model,params), 
+    retrieve_solid_params(model,params), 
+    retrieve_bcs_params(model,params)...
   )
   dΩf = last(first(weakform_params))
   res(t,x,dy) = res_h1_hdiv(x,dy,time_eval(weakform_params,t)) + res_transient(x,dy,dΩf)
@@ -310,18 +325,26 @@ end
 ############################################################################################
 # H1-H1 formulation
 
-function weak_form_h1_h1(params)
+weak_form_h1_h1(params) = weak_form_h1_h1(params[:model],params)
+
+function weak_form_h1_h1(model,params)
   weakform_params = (
-    retrieve_fluid_params(params), retrieve_solid_params(params), retrieve_bcs_params(params)...
+    retrieve_fluid_params(model,params), 
+    retrieve_solid_params(model,params), 
+    retrieve_bcs_params(model,params)...
   )
   res(x,dy) = res_h1_h1(x,dy,weakform_params)
   jac(x,dx,dy) = jac_h1_h1(x,dx,dy,weakform_params)
   return res, jac
 end
 
-function weak_form_h1_h1_transient(params)
+weak_form_h1_h1_transient(params) = weak_form_h1_h1_transient(params[:model],params)
+
+function weak_form_h1_h1_transient(model,params)
   weakform_params = (
-    retrieve_fluid_params(params), retrieve_solid_params(params), retrieve_bcs_params(params)...
+    retrieve_fluid_params(model,params), 
+    retrieve_solid_params(model,params), 
+    retrieve_bcs_params(model,params)...
   )
   dΩf = last(first(weakform_params))
   res(t,x,dy) = res_h1_h1(x,dy,time_eval(weakform_params,t)) + res_transient(x,dy,dΩf)
@@ -563,10 +586,9 @@ end
 
 # Skeleton stabilisation
 
-function a_Λ(x,dy,μ,h,dΛ)
-  u, p, j, φ = x
-  v_u, v_p, v_j, v_φ = dy
-  ∫( (1/2) * μ * (h*h) * jump( ∇(u) ) ⊙ jump( ∇(v_u) ))*dΛ
+function a_Λ(x,y,μ,h,dΛ)
+  ∇u, ∇v = x[:∇u], y[:∇u]
+  ∫( (1/2) * μ * (h*h) * jump( ∇u ) ⊙ jump( ∇v ))*dΛ
 end
 
 # Boundary conditions

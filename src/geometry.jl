@@ -12,29 +12,35 @@ function setup_geometry!(params)
     :other      => Dict{UInt64,Any}(),
   )
 
-  Ω = interior(params,nothing)
+  model = params[:model]
+
+  Ω = interior(params,model,nothing)
   params[:Ω] = Ω
 
-  fluid = params[:fluid]
-  Ωf = interior(params,fluid[:domain])
+  Ωf = interior(params,model,params[:fluid][:domain])
   params[:Ωf] = Ωf
 
-  solid = params[:solid]
-  Ωs = !isnothing(solid) ? interior(params,solid[:domain]) : nothing
-  params[:Ωs] = Ωs
+  if has_solid(params)
+    Ωs = interior(params,model,params[:solid][:domain])
+    params[:Ωs] = Ωs
+  else
+    params[:Ωs] = nothing
+  end
 
   if uses_multigrid(params[:solver])
-    params[:multigrid][:Ω]  = params[:multigrid][:mh]
-    params[:multigrid][:Ωf] = params[:multigrid][:mh]
-    params[:multigrid][:Ωs] = params[:multigrid][:mh]
+    # TODO: This has to be replaced by Triangulations
+    mh = params[:multigrid][:mh]
+    params[:multigrid][:Ωf] = mh
+    params[:multigrid][:Ωs] = nothing
   end
+
 end
 
 domain_hash(domain::Union{Nothing,DiscreteModelTypes,TriangulationTypes}) = objectid(domain)
 domain_hash(domain::Union{String,Vector{String}}) = hash(join(domain))
 
 domain_hash(model,domain::Union{String,Vector{String}}) = hash(join(domain),objectid(model))
-domain_hash(model,domain) = domain_hash(domain)
+domain_hash(model,domain) = hash(domain_hash(domain),objectid(model))
 
 interior(params::Dict,domain) = interior(params,params[:model],domain)
 

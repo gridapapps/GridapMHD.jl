@@ -54,3 +54,18 @@ function Gridap.Adaptivity.MacroReferenceFE(
   reffes = Fill(reffe,Gridap.Adaptivity.num_subcells(rrule))
   return Gridap.Adaptivity.MacroReferenceFE(rrule,reffes;macro_kwargs...)
 end
+
+########################################################
+
+struct PatchModel{A,B}
+  model::A
+  ptopo::B
+end
+
+function Geometry.Triangulation(model::PatchModel,args...;kwargs...)
+  Geometry.PatchTriangulation(model.model,model.ptopo,args...;kwargs...)
+end
+
+function Geometry.Boundary(model::PatchModel,args...;kwargs...)
+  Geometry.PatchBoundaryTriangulation(model.model,model.ptopo,args...;kwargs...)
+end
