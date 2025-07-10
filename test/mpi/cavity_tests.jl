@@ -29,7 +29,7 @@ using GridapMHD: cavity
 #   ζᵤ = 10.0,  
 # )
 
-np = (1,1,1)
+np = (2,2,1)
 cavity(
   nc = (4,4,4),
   np = np,
