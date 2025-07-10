@@ -32,6 +32,14 @@ using GridapSolvers.PatchBasedSmoothers: CoarsePatchTopology
 # Mesh generation
 include("Meshers/meshers.jl")
 
+# MHD problem
+include("gridap_extras.jl")
+include("utils.jl")
+include("geometry.jl")
+include("fespaces.jl")
+include("parameters.jl")
+include("weakforms.jl")
+
 # Solvers
 include("Solvers/gridap.jl")
 include("Solvers/petsc.jl")
@@ -41,12 +49,6 @@ include("Solvers/badia2024.jl")
 include("Solvers/h1h1blocks.jl")
 
 # Main driver
-include("gridap_extras.jl")
-include("utils.jl")
-include("geometry.jl")
-include("fespaces.jl")
-include("parameters.jl")
-include("weakforms.jl")
 include("main.jl")
 
 # Applications

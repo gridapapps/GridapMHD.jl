@@ -56,7 +56,6 @@ function Gridap.Adaptivity.MacroReferenceFE(
 end
 
 ########################################################
-
 struct PatchModel{A,B}
   model::A
   ptopo::B
@@ -68,4 +67,8 @@ end
 
 function Geometry.Boundary(model::PatchModel,args...;kwargs...)
   Geometry.PatchBoundaryTriangulation(model.model,model.ptopo,args...;kwargs...)
+end
+
+function Geometry.Skeleton(model::PatchModel,args...;kwargs...)
+  Geometry.PatchSkeletonTriangulation(model.model,model.ptopo,args...;kwargs...)
 end

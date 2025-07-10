@@ -1,6 +1,7 @@
 
 const DiscreteModelTypes = Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel}
 const TriangulationTypes = Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation}
+const AdaptedDiscreteModelTypes = Union{Gridap.Adaptivity.AdaptedDiscreteModel,GridapDistributed.DistributedAdaptedDiscreteModel}
 
 function setup_geometry!(params)
   params[:geometry] = Dict{Symbol,Any}(

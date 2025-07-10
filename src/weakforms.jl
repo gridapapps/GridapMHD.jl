@@ -279,10 +279,10 @@ function jac_fluid_h1_hdiv(x,dx,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convec
 
   # Augmented Lagrangian terms
   if !iszero(ζᵤ)
-    u_block += ζᵤ*(Πp(u)*div_v)
+    u_block += ζᵤ*(Πp(du)*div_v)
   end
   if !iszero(ζⱼ)
-    j_block += ζⱼ*(div_j*div_s)
+    j_block += ζⱼ*(div_dj*div_s)
   end
 
   # Convection term
@@ -306,7 +306,6 @@ function res_solid_h1_hdiv(x,dy,σ,g,divg,ζ,dΩ)
   end
 
   return ∫(j_block - σ*φ*div_s + ϕ*div_j - s⋅g)*dΩ
-  # return ∫(j_block - σ*φ*div_s + ϕ*div_j)*dΩ
 end
 
 function jac_solid_h1_hdiv(x,dx,dy,σ,g,divg,ζ,dΩ)
@@ -402,7 +401,7 @@ function res_fluid_h1_h1(x,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,
   p, q = x[:p], dy[:p]
   ∇u, ∇v = x[:∇u], dy[:∇u]
   div_u, div_v = x[:divu], dy[:divu]
-   φ,  ϕ = x[:φ], dy[:φ]
+  φ,  ϕ = x[:φ], dy[:φ]
   ∇φ, ∇ϕ = x[:∇φ], dy[:∇φ]
 
   uB, vB = u×B, v×B
@@ -465,18 +464,28 @@ end
 ############################################################################################
 # HDiv - HDiv formulation
 
-function weak_form_hdiv_hdiv(params)
+weak_form_hdiv_hdiv(params) = weak_form_hdiv_hdiv(params[:model],params)
+
+function weak_form_hdiv_hdiv(model,params)
   weakform_params = (
-    retrieve_fluid_params(params), retrieve_solid_params(params), retrieve_bcs_params(params)..., retrieve_hdiv_fluid_params(params)
+    retrieve_fluid_params(model,params), 
+    retrieve_solid_params(model,params), 
+    retrieve_bcs_params(model,params)..., 
+    retrieve_hdiv_fluid_params(model,params)
   )
   res(x,dy) = res_hdiv_hdiv(x,dy,weakform_params)
   jac(x,dx,dy) = jac_hdiv_hdiv(x,dx,dy,weakform_params)
   return res, jac
 end
 
-function weak_form_hdiv_hdiv_transient(params)
+weak_form_hdiv_hdiv_transient(params) = weak_form_hdiv_hdiv_transient(params[:model],params)
+
+function weak_form_hdiv_hdiv_transient(model,params)
   weakform_params = (
-    retrieve_fluid_params(params), retrieve_solid_params(params), retrieve_bcs_params(params)..., retrieve_hdiv_fluid_params(params)
+    retrieve_fluid_params(model,params), 
+    retrieve_solid_params(model,params), 
+    retrieve_bcs_params(model,params)..., 
+    retrieve_hdiv_fluid_params(model,params)
   )
   dΩf = last(first(weakform_params))
   res(t,x,dy) = res_hdiv_hdiv(x,dy,time_eval(weakform_params,t)) + res_transient(x,dy,dΩf)
