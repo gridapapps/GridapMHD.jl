@@ -14,25 +14,23 @@ function setup_geometry!(params)
   )
 
   model = params[:model]
-
-  Ω = interior(params,model,nothing)
-  params[:Ω] = Ω
-
-  Ωf = interior(params,model,params[:fluid][:domain])
-  params[:Ωf] = Ωf
-
+  params[:Ω] = interior(params,model,nothing)
+  params[:Ωf] = interior(params,model,params[:fluid][:domain])
   if has_solid(params)
-    Ωs = interior(params,model,params[:solid][:domain])
-    params[:Ωs] = Ωs
+    params[:Ωs] = interior(params,model,params[:solid][:domain])
   else
     params[:Ωs] = nothing
   end
 
   if uses_multigrid(params[:solver])
-    # TODO: This has to be replaced by Triangulations
     mh = params[:multigrid][:mh]
-    params[:multigrid][:Ωf] = mh
-    params[:multigrid][:Ωs] = nothing
+    params[:multigrid][:Ω] = interior(params,mh,nothing)
+    params[:multigrid][:Ωf] = interior(params,mh,params[:fluid][:domain])
+    if has_solid(params)
+      params[:multigrid][:Ωs] = interior(params,mh,params[:solid][:domain])
+    else
+      params[:multigrid][:Ωs] = nothing
+    end
   end
 
 end
@@ -56,6 +54,21 @@ function interior(params::Dict,model,domain)
     interiors[key] = trian
   end
   return trian
+end
+
+function interior(params::Dict,model::ModelHierarchy,domain)
+  th = map(model) do mh
+    if has_redistribution(mh)
+      cparts, _ = GridapDistributed.get_old_and_new_parts(mh.red_glue,Val(false))
+      trian     = i_am_in(cparts) ? interior(params,get_model_before_redist(mh),domain) : nothing
+      trian_red = interior(params,get_model(mh),domain)
+    else
+      trian = interior(params,get_model(mh),domain)
+      trian_red = nothing
+    end
+    MultilevelTools.TriangulationHierarchyLevel(mh.level,trian,trian_red,mh)
+  end
+  return th
 end
 
 boundary(params::Dict,domain) = boundary(params,params[:model],domain)
