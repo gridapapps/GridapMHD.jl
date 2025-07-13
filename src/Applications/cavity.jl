@@ -61,6 +61,7 @@ function _cavity(;
   verbose=true,
   vtk=true,
   convection=:newton,
+  solid = false,
   closed_cavity=true,
   adaptivity_method = 0,
   fluid_disc = ifelse(iszero(adaptivity_method),:Qk_dPkm1,:SV),
@@ -95,7 +96,7 @@ function _cavity(;
   params[:solver] = solver
 
   # Model
-  model = cavity_mesh(parts,params,nc,np,L,ranks_per_level,adaptivity_method)
+  model = cavity_mesh(parts,params,nc,np,L,ranks_per_level,adaptivity_method,solid)
 
   # Reduced quantities
   Re = u0 * L / ν
@@ -128,6 +129,14 @@ function _cavity(;
     :ζⱼ => ζⱼ,
     :convection => convection,
   )
+  if solid
+    params[:fluid][:domain] = "fluid"
+    params[:solid] = Dict(
+      :domain => "solid",
+      :σ => σ,
+      :ζⱼ => ζⱼ,
+    )
+  end
 
   # FESpaces and Boundary conditions
   uw = VectorValue(0.0, 0.0, 0.0)
@@ -215,44 +224,66 @@ function _cavity(;
   return info, t
 end
 
-function add_cavity_tags!(model::CartesianDiscreteModel)
+function add_cavity_tags!(model::GridapDistributed.DistributedDiscreteModel, tw, L)
+  map(local_views(model)) do model
+    add_cavity_tags!(model, tw, L)
+  end
+end
+
+function add_cavity_tags!(mh::MultilevelTools.ModelHierarchy, tw, L)
+  map(mh) do mhl
+    m = get_model(mhl)
+    add_cavity_tags!(m, tw, L)
+    mred = get_model_before_redist(mhl)
+    if mred !== m 
+      add_cavity_tags!(mred, tw, L)
+    end
+  end
+end
+
+function add_cavity_tags!(model::DiscreteModel, tw, L)
+  topo = get_grid_topology(model)
   labels = get_face_labeling(model)
-  add_cavity_tags!(labels)
+  add_tag_from_tags!(labels, "top", [22])
+  add_tag_from_tags!(labels, "bottom", [21])
+  add_tag_from_tags!(labels, "sides", vcat(collect(1:20),collect(23:26)))
+
+  if iszero(tw) # Only fluid
+    add_tag_from_tags!(labels, "lid", ["top"])
+    add_tag_from_tags!(labels, "cavity", ["sides","bottom"])
+    add_tag_from_tags!(labels, "insulating", "boundary")
+  else # Solid and fluid
+    # The solid is the first layer of cells touching either the bottom or the sides
+    solid_mask(x) = (x[1] < tw) || (x[1] > L - tw) || (x[2] < tw) || (x[2] > L - tw) || (x[3] < tw)
+    cell_to_issolid = lazy_map(solid_mask,lazy_map(mean, get_cell_coordinates(model)))
+    cell_to_color = Gridap.Arrays.collect1d(map(x -> ifelse(x,1,2), cell_to_issolid))
+    merge!(labels,Geometry.face_labeling_from_cell_tags(topo,cell_to_color,["solid","fluid"]))
+
+    Geometry.add_tag_from_tags_intersection!(labels,"cavity",["solid","fluid"])
+    Geometry.add_tag_from_tags_setdiff!(labels,"lid",["top"],["solid"])
+    add_tag_from_tags!(labels, "insulating", "boundary")
+  end
 end
 
-function add_cavity_tags!(model::GridapDistributed.DistributedDiscreteModel)
-  map(add_cavity_tags!, local_views(model))
+function cavity_mesh(parts,params,nc::Int,np,L,ranks_per_level,adaptivity_method,solid)
+  return cavity_mesh(parts,params,(nc,nc,nc),np,L,ranks_per_level,adaptivity_method,solid)
 end
 
-function add_cavity_tags!(labels)
-  Γl = [22]
-  Γb = [21]
-  Γw = vcat(collect(1:20),collect(23:26))
-  add_tag_from_tags!(labels, "lid", Γl)
-  add_tag_from_tags!(labels, "bottom", Γb)
-  add_tag_from_tags!(labels, "wall", Γw)
-  add_tag_from_tags!(labels, "cavity", ["wall","bottom"])
-  add_tag_from_tags!(labels, "insulating", "boundary")
+function cavity_mesh(parts,params,nc::Tuple,np::Int,L,ranks_per_level,adaptivity_method,solid)
+  return cavity_mesh(parts,params,nc,(np,1,1),L,ranks_per_level,adaptivity_method,solid)
 end
 
-function cavity_mesh(parts,params,nc::Int,np,L,ranks_per_level,simplexify)
-  return cavity_mesh(parts,params,(nc,nc,nc),np,L,ranks_per_level,simplexify)
-end
-
-function cavity_mesh(parts,params,nc::Tuple,np::Int,L,ranks_per_level,simplexify)
-  return cavity_mesh(parts,params,nc,(np,1,1),L,ranks_per_level,simplexify)
-end
-
-function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivity_method)
+function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivity_method,solid)
   domain = (0.0,L,0.0,L,0.0,L)
+  tw = solid ? L/only(unique(nc)) : 0
   if isnothing(ranks_per_level) # Single grid
     model = CartesianDiscreteModel(parts,np,domain,nc)
-    add_cavity_tags!(model)
+    add_cavity_tags!(model,tw,L)
   else # Multigrid
     mh = CartesianModelHierarchy(
-      parts,ranks_per_level,domain,nc;
-      add_labels! = add_cavity_tags!,
+      parts,ranks_per_level,domain,nc
     )
+    add_cavity_tags!(mh,tw,L)
     params[:multigrid] = Dict{Symbol,Any}(
       :mh => mh,
       :num_refs_coarse => 0,
