@@ -89,3 +89,9 @@ function Geometry.Skeleton(ptrian::Geometry.PatchTriangulation,args...;kwargs...
   trian = Triangulation(model,tcell_to_mcell)
   return Geometry.PatchSkeletonTriangulation(trian,ptrian.ptopo,args...;kwargs...)
 end
+
+#########################################################
+
+function PartitionedArrays.default_find_rcv_ids(::MPIArray)
+  PartitionedArrays.find_rcv_ids_ibarrier
+end

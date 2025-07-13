@@ -71,7 +71,7 @@ function gmg_patch_prolongations(tests, weakform)
     PatchProlongationOperator(
       lev, tests, ptopo, jac, jac;
       is_nonlinear = true,
-      collect_factorizations = false
+      collect_factorizations = true
     )
   end
 end
@@ -93,7 +93,8 @@ function gmg_solver(::Val{:H1H1},::Val{:h1h1blocks},params)
   smoothers = gmg_patch_smoothers(tests, weakform)
   prolongations = gmg_patch_prolongations(tests, weakform)
   restrictions = setup_restriction_operators(
-    tests,params[:fespaces][:q];mode=:residual
+    tests, params[:fespaces][:q];mode = :residual,
+    solver = CG_jacobi_solver(params)
   )
 
   return gmg_solver(
@@ -167,12 +168,13 @@ function gmg_solver(::Val{:HDivHDiv},::Val{:badia2024},params)
     tests,params[:fespaces][:q];mode=:residual
   )
   restrictions = setup_restriction_operators(
-    tests,params[:fespaces][:q];mode=:residual
+    tests,params[:fespaces][:q];mode=:residual,
+    solver = PETScLinearSolver(petsc_gmres_amg_setup)
   )
 
   return gmg_solver(
     trials, tests, jacs, restrictions, prolongations, smoothers;
-    name = "GMG H1-H1 u-block Solver", gmg_maxiter = 1
+    name = "GMG HDiv-HDiv uj-block Solver", gmg_maxiter = 1
   )
 end
 

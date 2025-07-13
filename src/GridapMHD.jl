@@ -1,5 +1,7 @@
 module GridapMHD
 
+__precompile__(false)
+
 using Random
 using LinearAlgebra
 using SparseArrays, SparseMatricesCSR, BlockArrays, FillArrays
