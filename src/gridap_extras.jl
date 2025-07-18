@@ -90,6 +90,22 @@ function Geometry.Skeleton(ptrian::Geometry.PatchTriangulation,args...;kwargs...
   return Geometry.PatchSkeletonTriangulation(trian,ptrian.ptopo,args...;kwargs...)
 end
 
+const DistributedPatchTriangulation{Dc,Dp} = GridapDistributed.DistributedTriangulation{Dc,Dp,<:AbstractArray{<:PatchTriangulation}}
+
+function Geometry.Boundary(ptrian::DistributedPatchTriangulation;kwargs...)
+  trians = map(local_views(ptrian)) do ptrian
+    Geometry.Boundary(ptrian;kwargs...)
+  end
+  return GridapDistributed.DistributedTriangulation(trians,ptrian.model)
+end
+
+function Geometry.Skeleton(ptrian::DistributedPatchTriangulation;kwargs...)
+  trians = map(local_views(ptrian)) do ptrian
+    Geometry.Boundary(ptrian;kwargs...)
+  end
+  return GridapDistributed.DistributedTriangulation(trians,ptrian.model)
+end
+
 #########################################################
 
 function PartitionedArrays.default_find_rcv_ids(::MPIArray)
