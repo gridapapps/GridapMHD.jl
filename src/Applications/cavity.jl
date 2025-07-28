@@ -254,7 +254,7 @@ function add_cavity_tags!(model::DiscreteModel, tw, L)
     add_tag_from_tags!(labels, "insulating", "boundary")
   else # Solid and fluid
     # The solid is the first layer of cells touching either the bottom or the sides
-    solid_mask(x) = (x[1] < tw) || (x[1] > L - tw) || (x[2] < tw) || (x[2] > L - tw) || (x[3] < tw)
+    solid_mask(x) = (x[1] < tw[1]) || (x[1] > L - tw[1]) || (x[2] < tw[2]) || (x[2] > L - tw[2]) || (x[3] < tw[3])
     cell_to_issolid = lazy_map(solid_mask,lazy_map(mean, get_cell_coordinates(model)))
     cell_to_color = Gridap.Arrays.collect1d(map(x -> ifelse(x,1,2), cell_to_issolid))
     merge!(labels,Geometry.face_labeling_from_cell_tags(topo,cell_to_color,["solid","fluid"]))
@@ -275,7 +275,7 @@ end
 
 function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivity_method,solid)
   domain = (0.0,L,0.0,L,0.0,L)
-  tw = solid ? L/only(unique(nc)) : 0
+  tw = solid ? L ./ nc : 0
   if isnothing(ranks_per_level) # Single grid
     model = CartesianDiscreteModel(parts,np,domain,nc)
     add_cavity_tags!(model,tw,L)
