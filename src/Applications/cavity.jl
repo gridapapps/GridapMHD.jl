@@ -248,7 +248,7 @@ function add_cavity_tags!(model::DiscreteModel, tw, L)
   add_tag_from_tags!(labels, "bottom", [21])
   add_tag_from_tags!(labels, "sides", vcat(collect(1:20),collect(23:26)))
 
-  if iszero(tw) # Only fluid
+  if isnothing(tw) # Only fluid
     add_tag_from_tags!(labels, "lid", ["top"])
     add_tag_from_tags!(labels, "cavity", ["sides","bottom"])
     add_tag_from_tags!(labels, "insulating", "boundary")
@@ -275,7 +275,7 @@ end
 
 function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivity_method,solid)
   domain = (0.0,L,0.0,L,0.0,L)
-  tw = solid ? L ./ nc : 0
+  tw = solid ? L ./ nc : nothing
   if isnothing(ranks_per_level) # Single grid
     model = CartesianDiscreteModel(parts,np,domain,nc)
     add_cavity_tags!(model,tw,L)
