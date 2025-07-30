@@ -11,7 +11,7 @@ using GridapMHD: cavity
 
 # Cavity - H1H1 - Block solver + MUMPS
 
-# np = (1,1,1)
+# np = (2,2,1)
 # cavity(
 #   nc = (4,4,4),
 #   np = np,
@@ -25,13 +25,13 @@ using GridapMHD: cavity
 #     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
 #     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
 #   ),
-#   ranks_per_level = [np,np],
-#   ζᵤ = 10.0,  
+#   ζᵤ = 10.0,
+#   solid = true
 # )
 
 # np = (2,2,1)
 # cavity(
-#   nc = (4,4,4),
+#   nc = (8,8,8),
 #   np = np,
 #   backend = :mpi,
 #   fluid_disc = :Qk_dPkm1,
@@ -44,12 +44,13 @@ using GridapMHD: cavity
 #     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
 #   ),
 #   ranks_per_level = [np,np],
-#   ζᵤ = 10.0,  
+#   ζᵤ = 10.0,
+#   solid = true
 # )
 
-np = (1,1,1)
+np = (2,2,1)
 cavity(
-  nc = (4,4,4),
+  nc = (8,8,8),
   np = np,
   backend = :mpi,
   fluid_disc = :RT,
@@ -64,6 +65,7 @@ cavity(
   ranks_per_level = [np,np],
   ζᵤ = 10.0,
   ζⱼ = 10.0,
+  solid = true
 )
 
 end # module

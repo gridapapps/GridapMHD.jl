@@ -61,12 +61,12 @@ function petsc_gmres_schwarz_setup(ksp)
   @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
 end
 
-# CG + Jacobi preconditioner, 10 iterations
+# CG + Jacobi preconditioner
 function petsc_cg_setup(ksp)
   rtol = GridapPETSc.PETSC.PETSC_DEFAULT
   atol = GridapPETSc.PETSC.PETSC_DEFAULT
   dtol = GridapPETSc.PETSC.PETSC_DEFAULT
-  maxits = PetscInt(10)
+  maxits = GridapPETSc.PETSC.PETSC_DEFAULT
 
   pc = Ref{GridapPETSc.PETSC.PC}()
   @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPCG)

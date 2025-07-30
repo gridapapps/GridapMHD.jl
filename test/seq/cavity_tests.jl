@@ -31,7 +31,8 @@ cavity(
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
   ),
   ζᵤ = 10.0,
-  ζⱼ = 10.0,   
+  ζⱼ = 10.0,
+  solid = true,
 )
 
 cavity(
@@ -45,7 +46,7 @@ cavity(
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
   ),
   ζᵤ = 10.0,
-  ζⱼ = 10.0,   
+  ζⱼ = 10.0,
 )
 
 end # module

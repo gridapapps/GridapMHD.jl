@@ -56,6 +56,7 @@ function Gridap.Adaptivity.MacroReferenceFE(
 end
 
 ########################################################
+
 struct PatchModel{A,B}
   model::A
   ptopo::B
@@ -71,4 +72,42 @@ end
 
 function Geometry.Skeleton(model::PatchModel,args...;kwargs...)
   Geometry.PatchSkeletonTriangulation(model.model,model.ptopo,args...;kwargs...)
+end
+
+function Geometry.Boundary(ptrian::Geometry.PatchTriangulation,args...;kwargs...)
+  Dc = num_cell_dims(ptrian)
+  model = get_background_model(ptrian)
+  tcell_to_mcell = unique(Geometry.get_glue(ptrian,Val(Dc)).tface_to_mface)
+  trian = Triangulation(model,tcell_to_mcell)
+  return Geometry.PatchBoundaryTriangulation(trian,ptrian.ptopo,args...;kwargs...)
+end
+
+function Geometry.Skeleton(ptrian::Geometry.PatchTriangulation,args...;kwargs...)
+  Dc = num_cell_dims(ptrian)
+  model = get_background_model(ptrian)
+  tcell_to_mcell = unique(Geometry.get_glue(ptrian,Val(Dc)).tface_to_mface)
+  trian = Triangulation(model,tcell_to_mcell)
+  return Geometry.PatchSkeletonTriangulation(trian,ptrian.ptopo,args...;kwargs...)
+end
+
+const DistributedPatchTriangulation{Dc,Dp} = GridapDistributed.DistributedTriangulation{Dc,Dp,<:AbstractArray{<:PatchTriangulation}}
+
+function Geometry.Boundary(ptrian::DistributedPatchTriangulation;kwargs...)
+  trians = map(local_views(ptrian)) do ptrian
+    Geometry.Boundary(ptrian;kwargs...)
+  end
+  return GridapDistributed.DistributedTriangulation(trians,ptrian.model)
+end
+
+function Geometry.Skeleton(ptrian::DistributedPatchTriangulation;kwargs...)
+  trians = map(local_views(ptrian)) do ptrian
+    Geometry.Boundary(ptrian;kwargs...)
+  end
+  return GridapDistributed.DistributedTriangulation(trians,ptrian.model)
+end
+
+#########################################################
+
+function PartitionedArrays.default_find_rcv_ids(::MPIArray)
+  PartitionedArrays.find_rcv_ids_ibarrier
 end
