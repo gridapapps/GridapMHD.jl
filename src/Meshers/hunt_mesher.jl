@@ -141,11 +141,12 @@ function hunt_generate_mesh_hierarchy(
   parts,np_per_level,nc,L,tw,Ha,kmap_x,kmap_y,BL_adapted
 )
   Lt = L+tw
-  _nc = (nc[1],nc[2],3)
+  # _nc = (nc[1],nc[2],3)
   domain = (-1.0,1.0,-1.0,1.0,0.0,0.1)
   CartesianModelHierarchy(
-    parts,np_per_level,domain,_nc;
-    nrefs = (2,2,1),
+    # parts,np_per_level,domain,_nc;
+    parts,np_per_level,domain,nc;
+    # nrefs = (2,2,1),
     isperiodic = (false,false,true),
     map = hunt_stretch_map(Lt,Ha,kmap_x,kmap_y,BL_adapted),
     add_labels! = labels -> hunt_add_tags!(labels,nothing,L,tw) # TODO: will not work for solid
