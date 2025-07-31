@@ -26,7 +26,7 @@ function setup_fe_spaces(params)
     else
       U = TransientMultiFieldFESpace([U_u,U_p,U_j,U_φ];style=mfs)
     end
-  elseif formulation ∈ (:H1H1,)
+  elseif formulation ∈ (:H1H1,:HDivH1)
     U_u, V_u = fe_space_u(params)
     U_p, V_p = fe_space_p(params)
     U_φ, V_φ = fe_space_φ(params)

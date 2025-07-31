@@ -167,6 +167,7 @@ function display_params(params)
 end
 
 function params_to_string(params)
+  PT = Union{Number,String,Symbol,Nothing} # Printable Types
   msg = String[]
   for (key,value) in params
     if isa(value,Dict)
@@ -176,7 +177,9 @@ function params_to_string(params)
         push!(msg,"  $m")
       end
       push!(msg,"  } \n")
-    elseif isa(value,Union{Number,String,Symbol,Nothing})
+    elseif isa(value,Vector{<:PT})
+      push!(msg,"  > $key => [$(join(value,", "))] \n")
+    elseif isa(value,PT)
       push!(msg,"  > $key => $value \n")
     end
   end
@@ -388,10 +391,20 @@ const FLUID_DISCRETIZATIONS = (;
     :Pk_dPkm1, # Scott-Vogelius
     :SV,       # Scott-Vogelius with macro-elements
     :RT,       # Raviart-Thomas
+    :BDM,      # Brezzi-Douglas-Marini
   )
 )
 
-has_hdiv_fluid_disc(params) = params[:fespaces][:fluid_disc] ∈ (:RT, :BDM)
+function fluid_is_pressure_robust(params)
+  u_conf = params[:fespaces][:u_conformity]
+  isequal(u_conf,:HDiv) && return true
+  
+  @assert isequal(u_conf,:H1)
+  u_disc = params[:fespaces][:fluid_disc]
+  in(u_disc,(:SV,:Pk_dPkm1)) && return true
+
+  return false
+end
 
 function params_fluid_discretization(disc::Symbol,poly::Polytope,feparams)
   D = num_dims(poly)
@@ -446,6 +459,12 @@ function params_fluid_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:p_conformity] = :L2
     elseif disc == :RT # Raviart-Thomas
       feparams[:reffe_u] = RaviartThomasRefFE(Float64,poly,k-1)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :HDiv
+      feparams[:p_conformity] = :L2
+    elseif disc == :BDM # Brezzi-Douglas-Marini
+      feparams[:reffe_u] = BDMRefFE(Float64,poly,k)
       feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
       feparams[:order_p] = k-1
       feparams[:u_conformity] = :HDiv
@@ -545,6 +564,11 @@ function select_formulation(feparams::Dict)
     # Current gets eliminated from the system in favor of φ ∈ H1
     @assert φ_conf == :H1
     return :H1H1
+  elseif u_conf == :HDiv && j_conf == :L2
+    # Non-conforming divergence-free fluid, H1 potential
+    # Current gets eliminated from the system in favor of φ ∈ H1
+    @assert φ_conf == :H1
+    return :HDivH1
   else
     @error "Unsupported fluid/current discretizations: u_conf = $u_conf, j_conf = $j_conf."
   end
@@ -728,11 +752,11 @@ Valid keys for `params[:bcs]` are the following
    See  [`params_bcs_thin_wall`](@ref) for further details.
 """
 function params_bcs(params)
-  h1h1 = isequal(params[:fespaces][:formulation],:H1H1)
+  has_j = params[:fespaces][:formulation] ∈ (:H1HDiv,:HDivHDiv)
   mandatory = Dict(
     :u => true,
-    :j => !h1h1,
-    :φ => h1h1,
+    :j => has_j,
+    :φ => !has_j,
     :t => false,
     :thin_wall => false,
     :stabilization => false,
@@ -827,8 +851,8 @@ Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 - `:value`: Value of the electric potential to be imposed weakly.
 """
 function params_bcs_φ(params::Dict{Symbol,Any})
-  h1h1 = isequal(params[:fespaces][:formulation],:H1H1)
-  if !h1h1 # Weak boundary conditions
+  has_j = params[:fespaces][:formulation] ∈ (:H1HDiv,:HDivHDiv)
+  if has_j # Weak boundary conditions
     mandatory = Dict(
       :domain => true,
       :value => true,
