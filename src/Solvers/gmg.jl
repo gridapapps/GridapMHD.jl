@@ -7,14 +7,16 @@ end
 
 function gmg_solver(
   trials,tests,weakforms,restrictions,prolongations,smoothers; 
-  name = "GMG Solver", gmg_maxiter = 3, maxiter = 10, atol = 1.e-6, rtol = 1.e-10
+  name = "GMG Solver", gmg_maxiter = 3, gmg_cycle_type = :v_cycle,
+  maxiter = 10, atol = 1.e-6, rtol = 1.e-10
 )
   ranks = get_level_parts(trials,1)
   coarsest_solver = PETScLinearSolver(petsc_mumps_setup)
   gmg = GMGLinearSolver(
     trials, tests, weakforms, prolongations, restrictions,
     pre_smoothers=smoothers, post_smoothers=smoothers, coarsest_solver=coarsest_solver,
-    maxiter=gmg_maxiter, verbose=i_am_main(ranks), mode=:preconditioner, is_nonlinear=true
+    maxiter=gmg_maxiter, verbose=i_am_main(ranks), mode=:preconditioner, is_nonlinear=true,
+    cycle_type=gmg_cycle_type
   )
   gmg.log.depth = 6
   solver = FGMRESSolver(2,gmg;m_add=1,maxiter=maxiter,rtol=rtol,atol=atol,verbose=i_am_main(ranks),name=name)
@@ -90,16 +92,16 @@ function gmg_solver(::Val{:H1H1},::Val{:h1h1blocks},params)
   weakform(model) = weak_form_h1_h1_u(model,params)
   jacs = map(mhl -> weakform(get_model(mhl)), mh)
 
-  smoothers = gmg_patch_smoothers(tests, weakform)
-  prolongations = gmg_patch_prolongations(tests, weakform)
+  smoothers = gmg_patch_smoothers(trials, weakform)
+  prolongations = gmg_patch_prolongations(trials, weakform)
   restrictions = setup_restriction_operators(
-    tests, params[:fespaces][:q];mode = :residual,
+    tests, params[:fespaces][:q]; mode = :residual,
     solver = CG_jacobi_solver(params)
   )
 
   return gmg_solver(
     trials, tests, jacs, restrictions, prolongations, smoothers;
-    name = "GMG H1-H1 u-block Solver"
+    name = "GMG H1-H1 u-block Solver", gmg_maxiter = 1, gmg_cycle_type = :f_cycle,
   )
 end
 
@@ -149,6 +151,63 @@ function jac_fluid_h1_h1_u(x,dx,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convec
 end
 
 ########################################################################################
+# HDiv-H1 discretization, u-block solver
+
+function gmg_solver(::Val{:HDivH1},::Val{:h1h1blocks},params)
+  # GMG with patch solvers,
+  # for a Navier-Stokes Augmented Lagrangian formulation
+  # with non-conforming fluid
+
+  mh = params[:multigrid][:mh]
+  trials = params[:multigrid][:trials][:u]
+  tests  = params[:multigrid][:tests][:u]
+  
+  weakform(model) = weak_form_hdiv_h1_u(model,params)
+  jacs = map(mhl -> weakform(get_model(mhl)), mh)
+
+  smoothers = gmg_patch_smoothers(trials, weakform)
+  prolongations = setup_prolongation_operators(
+    tests,params[:fespaces][:q]; mode = :residual
+  )
+  restrictions = setup_restriction_operators(
+    tests, params[:fespaces][:q]; mode = :residual,
+    solver = CG_jacobi_solver(params)
+  )
+
+  return gmg_solver(
+    trials, tests, jacs, restrictions, prolongations, smoothers;
+    name = "GMG HDiv-H1 u-block Solver", gmg_maxiter = 1, gmg_cycle_type = :f_cycle,
+  )
+end
+
+function weak_form_hdiv_h1_u(model,params)
+  weakform_params = (
+    retrieve_fluid_params(model,params), 
+    nothing, # No solid params needed for u 
+    nothing, nothing, [], # No boundary conditions for now
+    retrieve_hdiv_fluid_params(model,params)
+  )
+  jac(x,dx,dy) = jac_hdiv_h1_u(x,dx,dy,weakform_params)
+  return jac
+end
+
+function jac_hdiv_h1_u(_x,_dx,_dy, params)
+  fluid_params, solid_params, params_φ, params_thin_wall, params_Λ, hdiv_params = params
+
+  x = setup_variable_u(_x)
+  dx = setup_variable_u(_dx)
+  dy = setup_variable_u(_dy)
+
+  r = jac_fluid_h1_h1_u(x,dx,dy,fluid_params...)
+  r = r + jac_fluid_hdiv_stab(x,dx,dy,hdiv_params...)
+  for p in params_Λ
+    r = r + a_Λ(x,dx,p...)
+  end
+
+  return r
+end
+
+########################################################################################
 # HDiv-HDiv discretization, uj-block solver
 
 function gmg_solver(::Val{:HDivHDiv},::Val{:badia2024},params)
@@ -163,7 +222,7 @@ function gmg_solver(::Val{:HDivHDiv},::Val{:badia2024},params)
   weakform(model) = weak_form_hdiv_hdiv_uj(model,params)
   jacs = map(mhl -> weakform(get_model(mhl)), mh)
 
-  smoothers = gmg_patch_smoothers(tests, weakform)
+  smoothers = gmg_patch_smoothers(trials, weakform)
   prolongations = setup_prolongation_operators(
     tests,params[:fespaces][:q];mode=:residual
   )
@@ -232,4 +291,64 @@ function jac_fluid_h1_hdiv_uj(x,dx,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,con
   end
 
   return ∫(u_block - γ*(dj×B)⋅v + j_block - σ*(du×B)⋅s)dΩ
+end
+
+########################################################################################
+# H1-HDiv discretization, uj-block solver
+
+function gmg_solver(::Val{:H1HDiv},::Val{:badia2024},params)
+  mh = params[:multigrid][:mh]
+  trials_u = params[:multigrid][:trials][:u]
+  trials_j = params[:multigrid][:trials][:j]
+  tests_u  = params[:multigrid][:tests][:u]
+  tests_j  = params[:multigrid][:tests][:j]
+  trials = MultiFieldFESpace([trials_u, trials_j])
+  tests = MultiFieldFESpace([tests_u, tests_j])
+  
+  weakform(model) = weak_form_hdiv_hdiv_uj(model,params)
+  jacs = map(mhl -> weakform(get_model(mhl)), mh)
+
+  smoothers = gmg_patch_smoothers(trials, weakform)
+  # prolongations_u = gmg_patch_prolongations(trials_u, weakform_u)
+  # prolongations_j = setup_prolongation_operators(
+  #   tests_j,params[:fespaces][:q];mode=:residual
+  # )
+  # prolongations = MultiFieldTransferOperator(
+  #   tests,[prolongations_u,prolongations_j];op_type=:prolongation
+  # )
+  prolongations = gmg_patch_prolongations(trials, weakform)
+  restrictions = setup_restriction_operators(
+    tests,params[:fespaces][:q];mode=:residual,
+    solver = PETScLinearSolver(petsc_gmres_amg_setup)
+  )
+
+  return gmg_solver(
+    trials, tests, jacs, restrictions, prolongations, smoothers;
+    name = "GMG H1-HDiv uj-block Solver", gmg_maxiter = 1, gmg_cycle_type = :f_cycle
+  )
+end
+
+function weak_form_h1_hdiv_uj(model,params)
+  weakform_params = (
+    retrieve_fluid_params(model,params), 
+    nothing, # No solid params needed for u 
+    nothing, nothing, [], # No boundary conditions for now
+  )
+  jac(x,dx,dy) = jac_h1_hdiv_uj(x,dx,dy,weakform_params)
+  return jac
+end
+
+function jac_h1_hdiv_uj(_x,_dx,_dy, params)
+  fluid_params, solid_params, params_φ, params_thin_wall, params_Λ = params
+
+  x = setup_variable_uj(_x)
+  dx = setup_variable_uj(_dx)
+  dy = setup_variable_uj(_dy)
+
+  r = jac_fluid_h1_hdiv_uj(x,dx,dy,fluid_params...)
+  for p in params_Λ
+    r = r + a_Λ(x,dx,p...)
+  end
+
+  return r
 end

@@ -19,6 +19,12 @@ function weak_form(params)
     else
       weak_form_hdiv_hdiv(params)
     end
+  elseif formulation == :HDivH1
+    if has_transient(params)
+      weak_form_hdiv_h1_transient(params)
+    else
+      weak_form_hdiv_h1(params)
+    end
   else
     @error("Unsupported formulation: $formulation")
   end
@@ -36,7 +42,7 @@ function setup_variable(u,p,j,φ)
   return (; u, p, j, φ, ∇u, divu, ∇j, divj)
 end
 
-# H1-H1 formulation
+# H1-H1 and HDiv-H1 formulation
 function setup_variable(u,p,φ)
   ∇u, ∇φ = ∇(u), ∇(φ)
   divu = Operation(tr)(∇u)
@@ -582,18 +588,92 @@ function jac_fluid_hdiv_stab(x,dx,dy,μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
 end
 
 ############################################################################################
+# HDiv-H1 formulation
+
+weak_form_hdiv_h1(params) = weak_form_hdiv_h1(params[:model],params)
+
+function weak_form_hdiv_h1(model,params)
+  weakform_params = (
+    retrieve_fluid_params(model,params), 
+    retrieve_solid_params(model,params), 
+    retrieve_bcs_params(model,params)...,
+    retrieve_hdiv_fluid_params(model,params)
+  )
+  res(x,dy) = res_hdiv_h1(x,dy,weakform_params)
+  jac(x,dx,dy) = jac_hdiv_h1(x,dx,dy,weakform_params)
+  return res, jac
+end
+
+weak_form_hdiv_h1_transient(params) = weak_form_hdiv_h1_transient(params[:model],params)
+
+function weak_form_hdiv_h1_transient(model,params)
+  weakform_params = (
+    retrieve_fluid_params(model,params), 
+    retrieve_solid_params(model,params), 
+    retrieve_bcs_params(model,params)...,
+    retrieve_hdiv_fluid_params(model,params)
+  )
+  dΩf = last(first(weakform_params))
+  res(t,x,dy) = res_hdiv_h1(x,dy,time_eval(weakform_params,t)) + res_transient(x,dy,dΩf)
+  jac(t,x,dx,dy) = jac_hdiv_h1(x,dx,dy,time_eval(weakform_params,t))
+  jac_t(t,x,dx,dy) = jac_transient(dx,dy,dΩf)
+  return res, jac, jac_t
+end
+
+function res_hdiv_h1(_x, _dy, params)
+  fluid_params, solid_params, params_φ, params_thin_wall, params_Λ, hdiv_params = params
+
+  x = setup_variable(_x)
+  dy = setup_variable(_dy)
+
+  r = res_fluid_h1_h1(x,dy,fluid_params...)
+  r = r + res_fluid_hdiv_stab(x,dy,hdiv_params...)
+  if !isnothing(solid_params)
+    r = r + res_solid_h1_h1(x,dy,solid_params...)
+  end
+  for p in params_thin_wall
+    r = r + res_thin_wall(x,dy,p...)
+  end
+  for p in params_φ
+    r = r + res_φ_bcs(x,dy,p...)
+  end
+  for p in params_Λ
+    r = r + a_Λ(x,dy,p...)
+  end
+
+  return r
+end
+
+function jac_hdiv_h1(_x,_dx,_dy, params)
+  fluid_params, solid_params, params_φ, params_thin_wall, params_Λ, hdiv_params = params
+
+  x = setup_variable(_x)
+  dx = setup_variable(_dx)
+  dy = setup_variable(_dy)
+
+  r = jac_fluid_h1_h1(x,dx,dy,fluid_params...)
+  r = r + jac_fluid_hdiv_stab(x,dx,dy,hdiv_params...)
+  if !isnothing(solid_params)
+    r = r + jac_solid_h1_h1(x,dx,dy,solid_params...)
+  end
+  for p in params_thin_wall
+    r = r + jac_thin_wall(x,dx,dy,p...)
+  end
+  for p in params_Λ
+    r = r + a_Λ(x,dx,p...)
+  end
+
+  return r
+end
+
+############################################################################################
 # Utils 
 
 conv(u,∇u) = (∇u')⋅u
 
 function local_projection_operator(params)
-  poly = params[:fespaces][:poly]
-  fluid_disc = params[:fespaces][:fluid_disc]
-
   # If pressure-robust, no need to project
-  A = (poly == TET) && fluid_disc ∈ (:SV,:Pk_dPkm1)
-  B = fluid_disc ∈ (:RT,:BDM)
-  (A || B) && return divergence
+  fluid_is_pressure_robust(params) && return divergence
   
   # Otherwise: 
   reffe_p = params[:fespaces][:reffe_p]
@@ -607,6 +687,30 @@ end
 function a_Λ(x,y,μ,h,dΛ)
   ∇u, ∇v = x[:∇u], y[:∇u]
   ∫( (1/2) * μ * (h*h) * jump( ∇u ) ⊙ jump( ∇v ))*dΛ
+end
+
+# Augmented Lagrangian
+
+function res_al_u(x,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,dΩ)
+  u, div_v = x[:u], dy[:divu]
+  return ∫(ζᵤ*(Πp(u)*div_v)) * dΩ
+end
+
+function jac_al_u(x,dx,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,dΩ)
+  du, div_dv = dx[:u], dy[:divu]
+  return ∫(ζᵤ*(Πp(du)*div_dv)) * dΩ
+end
+
+function res_al_uj(x,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,dΩ)
+  u, div_v = x[:u], dy[:divu]
+  div_j, div_s = x[:divj], dy[:divj]
+  return ∫(ζᵤ*(Πp(u)*div_v) + ζⱼ*(div_j*div_s)) * dΩ
+end
+
+function jac_al_uj(x,dx,dy,α,β,γ,B,σ,f,g,divg,ζᵤ,ζⱼ,Πp,convection,dΩ)
+  du, div_v = dx[:u], dy[:divu]
+  div_dj, div_s = dx[:divj], dy[:divj]
+  return ∫(ζᵤ*(Πp(du)*div_v) + ζⱼ*(div_dj*div_s)) * dΩ
 end
 
 # Boundary conditions

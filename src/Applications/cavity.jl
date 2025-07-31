@@ -142,6 +142,7 @@ function _cavity(;
   uw = VectorValue(0.0, 0.0, 0.0)
   ul = VectorValue(1.0, 0.0, 0.0)
   ji = VectorValue(0.0, 0.0, 0.0)
+  params[:x0] = initial_value
   params[:fespaces] = Dict{Symbol,Any}(
     :order_u => order,
     :order_j => order_j,
@@ -149,8 +150,6 @@ function _cavity(;
     :fluid_disc => fluid_disc,
     :current_disc => current_disc,
   )
-
-  params[:x0] = initial_value
 
   if closed_cavity
     params[:bcs] = Dict{Symbol,Any}(
@@ -164,12 +163,12 @@ function _cavity(;
       :j => Dict(:tags => "insulating", :values => ji),
     )
   end
+  if current_disc == :H1
+    params[:bcs][:φ] = Dict(:tags => "insulating", :values => 0.0)
+  end
 
   if μ > 0
     params[:bcs][:stabilization] = Dict(:μ=>μ)
-  end
-  if current_disc == :H1
-    params[:bcs][:φ] = Dict(:tags => "insulating", :values => 0.0)
   end
 
   if !uses_petsc(params[:solver])
