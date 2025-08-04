@@ -34,7 +34,7 @@ function gmg_coarse_solver(tests)
   end
 end
 
-function gmg_patch_smoothers(tests,weakform;w=0.2)
+function gmg_patch_smoothers(tests,weakform;w=0.2,niter=10)
   nlevs = num_levels(tests)
   smoothers = map(view(tests,1:nlevs-1)) do test
     model = get_model(test)
@@ -51,9 +51,9 @@ function gmg_patch_smoothers(tests,weakform;w=0.2)
       is_nonlinear = true
     )
     if w > 0.0
-      return RichardsonSmoother(solver,10,w)
+      return RichardsonSmoother(solver,niter,w)
     else
-      return FGMRESSolver(10,solver;maxiter=10)
+      return FGMRESSolver(niter,solver;maxiter=niter)
     end
   end
   return smoothers

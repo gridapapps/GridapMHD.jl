@@ -159,12 +159,12 @@ function _cavity(;
     params[:fespaces][:p_constraint] = :zeromean
   else
     params[:bcs] = Dict{Symbol,Any}(
-      :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]), # Bottom wall is Newman
+      :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]), # Bottom is Neumann
       :j => Dict(:tags => "insulating", :values => ji),
     )
   end
   if current_disc == :H1
-    params[:bcs][:φ] = Dict(:tags => "insulating", :values => 0.0)
+    params[:bcs][:φ] = Dict(:tags => "lid", :values => 0.0)
   end
 
   if μ > 0

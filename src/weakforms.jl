@@ -111,7 +111,8 @@ function retrieve_hdiv_fluid_params(model,params)
     Γ_D = boundary(params,Ωf,tag)
     dΓ_D = measure(params,Γ_D)
     n_Γ_D = normal_vector(params,Γ_D)
-    push!(ΓD_params,(u_D,n_Γ_D,dΓ_D))
+    h_Γ_D = get_cell_size(Γ_D)
+    push!(ΓD_params,(u_D,n_Γ_D,h_Γ_D,dΓ_D))
   end
   
   return μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params
@@ -564,8 +565,9 @@ function res_fluid_hdiv_stab(x,dy,μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
   c  = ∫(αΛ*vᵗ⊙uᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
   c += ∫(αΓ*v⋅u)dΓ
 
-  for (u_D, n_Γ_D, dΓ_D) in ΓD_params
-    c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅(u-u_D))*dΓ_D
+  for (u_D, n_Γ_D, h_Γ_D, dΓ_D) in ΓD_params
+    αΓD = μ/h_Γ_D
+    c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅(u-u_D) + αΓD*v⋅u_D)*dΓ_D
   end
 
   return c
@@ -580,7 +582,7 @@ function jac_fluid_hdiv_stab(x,dx,dy,μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
   c  = ∫( αΛ*vᵗ⊙uᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
   c += ∫(αΓ*v⋅u)dΓ
 
-  for (u_D, n_Γ_D, dΓ_D) in ΓD_params
+  for (u_D, n_Γ_D, h_Γ_D, dΓ_D) in ΓD_params
     c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅u)*dΓ_D
   end
 
