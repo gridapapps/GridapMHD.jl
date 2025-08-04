@@ -221,7 +221,7 @@ function _hunt(;
     uh = u0 * ūh
     ph = (ρ * u0^2) * p̄h
     φh = (u0 * B0 * L) * φ̄h
-    jh = σ * B0 * (uh × B̄ - ∇(φh))
+    jh = σ * B0 * (uh × B̄ - ∇(φ̄h))
     # div_jh = σ*B0*((∇×uh)⋅B̄ - Δ(φ̄h)) 
     div_jh = σ*B0*((∇×uh)⋅B̄) 
     div_uh = ∇·uh
