@@ -69,6 +69,7 @@ function petsc_cg_setup(ksp)
   maxits = GridapPETSc.PETSC.PETSC_DEFAULT
 
   pc = Ref{GridapPETSc.PETSC.PC}()
+  @check_error_code GridapPETSc.PETSC.KSPSetFromOptions(ksp[])
   @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPCG)
   @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
   @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCJACOBI)
@@ -82,6 +83,7 @@ function petsc_gmres_amg_setup(ksp)
   dtol = GridapPETSc.PETSC.PETSC_DEFAULT
   maxits = GridapPETSc.PETSC.PETSC_DEFAULT
 
+  @check_error_code GridapPETSc.PETSC.KSPSetFromOptions(ksp[])
   @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPGMRES)
 
   pc = Ref{GridapPETSc.PETSC.PC}()
