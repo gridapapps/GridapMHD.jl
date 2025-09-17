@@ -68,7 +68,8 @@ cavity(
   ),
   ranks_per_level = [np,np],
   ζᵤ = 10.0,
-  solid = true
+  solid = false,
+  convection = :none
 )
 
 # Cavity - H1HDiv - Block solver + GMG

@@ -118,11 +118,11 @@ function add_default_params(_params)
   params = _add_optional(_params,mandatory,optional,_params,"")
   _check_unused(params,mandatory,params,"")
   # Process sub-params
+  params[:fespaces] = params_fespaces(params)
   params[:fluid] = params_fluid(params)
   if !isnothing(params[:solid])
     params[:solid] = params_solid(params)
   end
-  params[:fespaces] = params_fespaces(params)
   params[:bcs] = params_bcs(params)
   params[:solver] = params_solver(params)
   params[:multigrid] = params_multigrid(params)
@@ -249,10 +249,10 @@ function default_solver_params(::Val{:li2019})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
-    :niter          => 20,
-    :niter_ls       => 80,
-    :rtol           => 1e-5,
-    :atol           => 1.e-14,
+    :niter          => 20,     # Maximum Nonlinear iterations
+    :niter_ls       => 80,     # Maximum linear iterations
+    :rtol           => 1e-5,   # Relative tolerance
+    :atol           => 1.e-14, # Absolute tolerance
   )
 end
 
@@ -264,10 +264,10 @@ function default_solver_params(::Val{:badia2024})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
-    :niter          => 20,      # Maximum Nonlinear iterations
-    :niter_ls       => 15,      # Maximum linear iterations
-    :rtol           => 1e-10,    # Relative tolerance
-    :atol           => 1.e-8,  # Absolute tolerance
+    :niter          => 20,    # Maximum Nonlinear iterations
+    :niter_ls       => 15,    # Maximum linear iterations
+    :rtol           => 1e-10, # Relative tolerance
+    :atol           => 1.e-8, # Absolute tolerance
   )
 end
 
@@ -279,10 +279,10 @@ function default_solver_params(::Val{:h1h1blocks})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
-    :niter          => 20,      # Maximum Nonlinear iterations
-    :niter_ls       => 15,      # Maximum linear iterations
-    :rtol           => 1e-10,    # Relative tolerance
-    :atol           => 1.e-8,  # Absolute tolerance
+    :niter          => 20,    # Maximum Nonlinear iterations
+    :niter_ls       => 15,    # Maximum linear iterations
+    :rtol           => 1e-10, # Relative tolerance
+    :atol           => 1.e-8, # Absolute tolerance
   )
 end
 
@@ -334,7 +334,7 @@ function params_fespaces(params::Dict{Symbol,Any})
   if !haskey(params,:fespaces) || isa(params[:fespaces],Nothing)
     params[:fespaces] = Dict{Symbol,Any}()
   end
-  poly = first(get_polytopes(params[:model]))
+  poly = only(get_polytopes(params[:model]))
   mandatory = Dict(
     :order_u => false,
     :order_j => false,
@@ -635,7 +635,10 @@ function params_multigrid(params::Dict{Symbol,Any})
   if isa(params[:multigrid],Nothing) || !haskey(params[:multigrid],:mh)
     @error "Multigrid is used with solver $(solver[:solver]), but params[:multigrid] is missing!"
   end
-  multigrid = params[:multigrid]
+  mandatory = Dict(
+    :mh => true
+  )
+  _check_mandatory(params[:multigrid], mandatory, "[:multigrid]")
 
   # Init some variables
   multigrid[:trials] = Dict{Symbol,Any}()
@@ -669,6 +672,7 @@ Valid keys for `params[:fluid]` are the following.
 -  `:divg=>0.0`: RHS in div(Ohm law) (H1) to get manufactured solutions
 """
 function params_fluid(params::Dict{Symbol,Any})
+  order_u = params[:fespaces][:order_u]
   mandatory = Dict(
     :domain => true,
     :α => true,
@@ -685,14 +689,14 @@ function params_fluid(params::Dict{Symbol,Any})
     :μ => false,
   )
   optional = Dict(
-    :σ => 1.0,
-    :f => VectorValue(0.0,0.0,0.0),
+    :σ  => 1.0,
+    :f  => VectorValue(0.0,0.0,0.0),
     :ζᵤ => 0.0,
     :ζⱼ => 0.0,
-    :g => VectorValue(0.0,0.0,0.0),
+    :g  => VectorValue(0.0,0.0,0.0),
     :divg => 0.0,
     :convection => :newton,
-    :μ => 10.0,
+    :μ => order_u*(order_u+1),
   )
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
   @assert fluid[:convection] in (:none,:newton,:picard)
@@ -714,13 +718,13 @@ Valid keys for `params[:solid]` are the following
 function params_solid(params::Dict{Symbol,Any})
   mandatory = Dict(
     :domain=>true,
-    :σ=>false,
+    :σ => false,
     :ζ => false,
     :g => false,
     :divg => false
   )
   optional = Dict(
-    :σ=>1,
+    :σ => 1,
     :ζ => 0.0,
     :g => VectorValue(0.0,0.0,0.0),
     :divg => 0.0

@@ -59,6 +59,27 @@ function gmg_patch_smoothers(tests,weakform;w=0.2,niter=10)
   return smoothers
 end
 
+function gmg_block_jacobi_smoothers(tests;w=0.2,niter=10)
+  nlevs = num_levels(tests)
+  smoothers = map(view(tests,1:nlevs-1)) do test
+    model = get_model(test)
+    if isa(model,AdaptedDiscreteModelTypes)
+      model = get_model(model)
+    end
+    space = get_fe_space(test)
+    ptopo = Geometry.PatchTopology(ReferenceFE{0},model)
+    solver = PatchBasedSmoothers.BlockJacobiSolver(
+      space, ptopo; assembly = :star,
+    )
+    if w > 0.0
+      return RichardsonSmoother(solver,niter,w)
+    else
+      return FGMRESSolver(niter,solver;maxiter=niter)
+    end
+  end
+  return smoothers
+end
+
 function gmg_patch_prolongations(tests, weakform)
   nlevs = num_levels(tests)
   map(view(linear_indices(tests),1:nlevs-1)) do lev
@@ -92,7 +113,8 @@ function gmg_solver(::Val{:H1H1},::Val{:h1h1blocks},params)
   weakform(model) = weak_form_h1_h1_u(model,params)
   jacs = map(mhl -> weakform(get_model(mhl)), mh)
 
-  smoothers = gmg_patch_smoothers(trials, weakform)
+  #smoothers = gmg_patch_smoothers(trials, weakform)
+  smoothers = gmg_block_jacobi_smoothers(trials)
   prolongations = gmg_patch_prolongations(trials, weakform)
   restrictions = setup_restriction_operators(
     tests, params[:fespaces][:q]; mode = :residual,
@@ -165,7 +187,8 @@ function gmg_solver(::Val{:HDivH1},::Val{:h1h1blocks},params)
   weakform(model) = weak_form_hdiv_h1_u(model,params)
   jacs = map(mhl -> weakform(get_model(mhl)), mh)
 
-  smoothers = gmg_patch_smoothers(trials, weakform)
+  #smoothers = gmg_patch_smoothers(trials, weakform)
+  smoothers = gmg_block_jacobi_smoothers(trials)
   prolongations = setup_prolongation_operators(
     tests,params[:fespaces][:q]; mode = :residual
   )
@@ -222,7 +245,8 @@ function gmg_solver(::Val{:HDivHDiv},::Val{:badia2024},params)
   weakform(model) = weak_form_hdiv_hdiv_uj(model,params)
   jacs = map(mhl -> weakform(get_model(mhl)), mh)
 
-  smoothers = gmg_patch_smoothers(trials, weakform)
+  #smoothers = gmg_patch_smoothers(trials, weakform)
+  smoothers = gmg_block_jacobi_smoothers(trials)
   prolongations = setup_prolongation_operators(
     tests,params[:fespaces][:q];mode=:residual
   )
@@ -308,7 +332,9 @@ function gmg_solver(::Val{:H1HDiv},::Val{:badia2024},params)
   weakform(model) = weak_form_hdiv_hdiv_uj(model,params)
   jacs = map(mhl -> weakform(get_model(mhl)), mh)
 
-  smoothers = gmg_patch_smoothers(trials, weakform)
+  #smoothers = gmg_patch_smoothers(trials, weakform)
+  smoothers = gmg_block_jacobi_smoothers(trials)
+  
   # prolongations_u = gmg_patch_prolongations(trials_u, weakform_u)
   # prolongations_j = setup_prolongation_operators(
   #   tests_j,params[:fespaces][:q];mode=:residual
@@ -318,7 +344,7 @@ function gmg_solver(::Val{:H1HDiv},::Val{:badia2024},params)
   # )
   prolongations = gmg_patch_prolongations(trials, weakform)
   restrictions = setup_restriction_operators(
-    tests,params[:fespaces][:q];mode=:residual,
+    tests,params[:fespaces][:q]; mode=:residual,
     solver = PETScLinearSolver(petsc_gmres_amg_setup)
   )
 
