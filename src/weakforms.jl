@@ -85,17 +85,17 @@ end
 retrieve_hdiv_fluid_params(params) = retrieve_hdiv_fluid_params(params[:model],params)
 
 function retrieve_hdiv_fluid_params(model,params)
-  Ωf  = interior(params,model,params[:fluid][:domain])
+  Ωf = interior(params,model,params[:fluid][:domain])
   μ = params[:fluid][:μ]
 
   Γ = boundary(params,Ωf,nothing)
-  Λ = skeleton(params,Ωf,nothing)
-
   h_Γ = get_cell_size(Γ)
+  n_Γ = normal_vector(params,Γ)
+  dΓ = measure(params,Γ)
+  
+  Λ = skeleton(params,Ωf,nothing)
   h_Λ = get_cell_size(Λ)
   n_Λ = normal_vector(params,Λ)
-
-  dΓ = measure(params,Γ)
   dΛ = measure(params,Λ)
 
   if isa(params[:bcs][:u][:tags],Array)
@@ -115,7 +115,7 @@ function retrieve_hdiv_fluid_params(model,params)
     push!(ΓD_params,(u_D,n_Γ_D,h_Γ_D,dΓ_D))
   end
   
-  return μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params
+  return μ,h_Γ,n_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params
 end
 
 retrieve_solid_params(params) = retrieve_solid_params(params[:model],params)
@@ -556,35 +556,31 @@ function jac_hdiv_hdiv(_x,_dx,_dy, params)
   return r
 end
 
-function res_fluid_hdiv_stab(x,dy,μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
+function res_fluid_hdiv_stab(x,dy,μ,h_Γ,n_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
   u, v = x[:u], dy[:u]
   ∇u, ∇v = x[:∇u], dy[:∇u]
   uᵗ, vᵗ = jump(u⊗n_Λ), jump(v⊗n_Λ)
   αΛ, αΓ = μ/h_Λ, μ/h_Γ
 
-  c  = ∫(αΛ*vᵗ⊙uᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
-  c += ∫(αΓ*v⋅u)dΓ
+  c  = ∫(αΛ*uᵗ⊙vᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
+  c += ∫(αΓ*u⋅v - v⋅(n_Γ⋅∇u) - (n_Γ⋅∇v)⋅u)dΓ
 
   for (u_D, n_Γ_D, h_Γ_D, dΓ_D) in ΓD_params
     αΓD = μ/h_Γ_D
-    c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅(u-u_D) + αΓD*v⋅u_D)*dΓ_D
+    c -= ∫(αΓD*v⋅u_D - (n_Γ_D⋅∇v)⋅u_D)*dΓ_D
   end
 
   return c
 end
 
-function jac_fluid_hdiv_stab(x,dx,dy,μ,h_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
+function jac_fluid_hdiv_stab(x,dx,dy,μ,h_Γ,n_Γ,dΓ,h_Λ,n_Λ,dΛ,ΓD_params)
   u, v = dx[:u], dy[:u]
   ∇u, ∇v = dx[:∇u], dy[:∇u]
   uᵗ, vᵗ = jump(u⊗n_Λ), jump(v⊗n_Λ)
   αΛ, αΓ = μ/h_Λ, μ/h_Γ
 
-  c  = ∫( αΛ*vᵗ⊙uᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
-  c += ∫(αΓ*v⋅u)dΓ
-
-  for (u_D, n_Γ_D, h_Γ_D, dΓ_D) in ΓD_params
-    c -= ∫(v⋅(∇u⋅n_Γ_D) + (∇v⋅n_Γ_D)⋅u)*dΓ_D
-  end
+  c  = ∫( αΛ*uᵗ⊙vᵗ - vᵗ⊙mean(∇u) - mean(∇v)⊙uᵗ)dΛ
+  c += ∫(αΓ*u⋅v - v⋅(n_Γ⋅∇u) - (n_Γ⋅∇v)⋅u)dΓ
 
   return c
 end
