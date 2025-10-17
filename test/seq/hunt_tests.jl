@@ -1,7 +1,8 @@
 module HuntTestsSequential
 
+using SparseMatricesCSR, SparseArrays
+using GridapPETSc
 using GridapMHD: hunt
-using GridapPETSc, SparseMatricesCSR
 
 hunt(
   nc=(4,4),
