@@ -641,6 +641,8 @@ function params_multigrid(params::Dict{Symbol,Any})
   _check_mandatory(params[:multigrid], mandatory, "[:multigrid]")
 
   # Init some variables
+  multigrid = Dict{Symbol,Any}()
+  merge!(multigrid,params[:multigrid])
   multigrid[:trials] = Dict{Symbol,Any}()
   multigrid[:tests] = Dict{Symbol,Any}()
   multigrid[:variables] = getindex([:u,:p,:j,:φ],findall(space_uses_multigrid(solver)))
