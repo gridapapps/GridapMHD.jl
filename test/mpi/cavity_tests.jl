@@ -7,8 +7,13 @@ using Gridap
 
 using GridapMHD: cavity
 
+
+function main(parts)
+
+np = (parts...,1)
+
 # PETSc - SNES + MUMPS
-# cavity(np=4,nc=(4,4,4),backend=:mpi,solver=:petsc)
+cavity(np=np,nc=(4,4,4),backend=:mpi,solver=:petsc)
 
 # Cavity - H1H1 - Block solver + MUMPS
 # np = (2,2,1)
@@ -50,8 +55,7 @@ using GridapMHD: cavity
 # )
 
 # Cavity - HDivH1 - Block solver + GMG
-
-np = (1,1,1)
+# np = (2,2,1)
 cavity(
   nc = (8,8,8),
   np = np,
@@ -113,5 +117,7 @@ cavity(
 #   ζⱼ = 10.0,
 #   solid = true
 # )
+
+end
 
 end # module

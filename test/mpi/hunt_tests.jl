@@ -19,18 +19,18 @@ function main(parts)
     title="hunt",
   )
 
-  # # Default monolithic solver w petsc
-  # hunt(
-  #   nc=(4,4),
-  #   np=parts,
-  #   backend=:mpi,
-  #   L=1.0,
-  #   B=(0.,50.,0.),
-  #   debug=false,
-  #   vtk=true,
-  #   title="hunt",
-  #   solver=:petsc,
-  # )
+  # Default monolithic solver w petsc
+  hunt(
+    nc=(4,4),
+    np=parts,
+    backend=:mpi,
+    L=1.0,
+    B=(0.,50.,0.),
+    debug=false,
+    vtk=true,
+    title="hunt",
+    solver=:petsc,
+  )
 
 end
 
