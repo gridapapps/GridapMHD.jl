@@ -77,9 +77,9 @@ jobs:
         run: |
           using Pkg
           Pkg.add("MPIPreferences")
-          Pkg.add("Gridap#polytopal")
-          Pkg.add("GridapDistributed#polytopal")
-          Pkg.add("GridapSolvers#develop")
+          Pkg.add(name="Gridap",rev="polytopal")
+          Pkg.add(name="GridapDistributed",rev="polytopal")
+          Pkg.add(name="GridapSolvers",rev="develop")
       - name: use MPI system binary 
         shell: julia --color=yes --project=. {0}
         run: |
