@@ -69,6 +69,7 @@ function _hunt(;
   solver = :julia,
   formulation = :cfd,
   initial_value = :zero,
+  convection=:none,
   rt_scaling = false,
   verbose = true,
   BL_adapted = true,
@@ -81,6 +82,7 @@ function _hunt(;
 )
   @assert formulation ∈ [:cfd,:mhd]
   @assert initial_value ∈ [:zero,:solve]
+  @assert convection ∈ [:newton,:picard,:none]
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
