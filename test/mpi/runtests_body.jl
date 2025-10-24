@@ -14,5 +14,8 @@ end
 include("hunt_tests.jl")
 HuntTestsMPI.main(parts)
 
+include("hunt_gmg_tests.jl")
+HuntGMGTestsMPI.main(parts)
+
 include("cavity_tests.jl")
 CavityTestsMPI.main(parts)
