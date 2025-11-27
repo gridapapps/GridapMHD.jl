@@ -304,7 +304,7 @@ function gmg_par_dep(;D=2,
     end
     ue = x -> VectorValue(x[1],-x[2],0.0)
   end
-  title = "$(name)_$(fe_space)$(fe_order)_S_$(scaling)_qdeg_$(qdegree)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
+  title = "$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_w_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
 
   info = Dict{Symbol,Any}()
   info[:title]      = title
