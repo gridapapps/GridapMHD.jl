@@ -234,7 +234,7 @@ function add_cavity_tags!(mh::MultilevelTools.ModelHierarchy, tw, L)
     m = get_model(mhl)
     add_cavity_tags!(m, tw, L)
     mred = get_model_before_redist(mhl)
-    if mred !== m 
+    if ! isnothing(mred) && mred !== m
       add_cavity_tags!(mred, tw, L)
     end
   end
