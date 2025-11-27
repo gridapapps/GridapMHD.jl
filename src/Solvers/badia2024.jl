@@ -37,7 +37,7 @@ function Badia2024Solver(op::FEOperator,params)
   atol = params[:solver][:atol]
   
   m = params[:solver][:niter_ls]
-  l_solver = FGMRESSolver(m,P;rtol=l_rtol,atol=atol,verbose=verbose,name="Global System - FGMRES + Badia2024")
+  l_solver = FGMRESSolver(m,P;maxiter=m,rtol=l_rtol,atol=atol,verbose=verbose,name="Global System - FGMRES + Badia2024")
   #SolverInterfaces.set_depth!(l_solver,2)
   l_solver.log.depth = 2
 
