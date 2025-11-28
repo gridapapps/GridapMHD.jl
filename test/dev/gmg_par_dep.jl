@@ -61,20 +61,21 @@ end
 
 function get_bilinear_form(model,info,β)
   order = info[:FE_order]
+  B = info[:B]
   Ω = Triangulation(model)
   if info[:FESpace] == :RT
     Λ = Skeleton(model)
     Γ = Boundary(Ω)  # Γ = Boundary(model) gives an error with #polytope branches
-    return (u,v) -> biform_dg(u,v,Ω,Λ,Γ,order,get_scaling(info,β))
+    return (u,v) -> biform_dg(u,v,Ω,Λ,Γ,order,B,get_scaling(info,β))
   elseif info[:FESpace] == :Qk
-    return (u,v) -> biform(u,v,Ω,order,get_scaling(info,β))
+    return (u,v) -> biform(u,v,Ω,order,B,get_scaling(info,β))
   else
     error("Only RaviartThomas and Lagrangian FE spaces are implemented")
   end
   return a
 end
 # DG formulation
-function biform_dg(u,v,Ω,Λ,Γ,order,p) 
+function biform_dg(u,v,Ω,Λ,Γ,order,B,p) 
   α,ν,s = p
   μ = order*(order+1)*ν
 
@@ -102,13 +103,13 @@ function biform_dg(u,v,Ω,Λ,Γ,order,p)
   return a
 end
 # H1 formulation
-function biform(u,v,Ω,order,p)
+function biform(u,v,Ω,order,B,p)
   α,ν,s = p
   dΩ = Measure(Ω,2*order)
   return ∫( ν*(∇(v)⊙∇(u)) + s*(v⋅u) + α*(∇⋅v)*(∇⋅u))*dΩ 
 end
 
-function liform_dg(v,Ω,Γ,order,ue,p)
+function liform_dg(v,Ω,Γ,order,ue,uexBxB,p)
   _,ν,s = p
   μ = order*(order+1)*ν
   f(x) =  - ν*Δ(ue)(x) # s*ue(x)
@@ -127,7 +128,7 @@ function liform_dg(v,Ω,Γ,order,ue,p)
   return ∫(v⋅f)dΩ + ∫( (μ/h_Γ)*(v⋅ue) - ν*((n_Γ⋅∇(v))⋅ue))*dΓ
 end
 
-function liform(v,Ω,order,ue,p)
+function liform(v,Ω,order,ue,uexBxB,p)
   _,ν,s = p
   f(x) = s*ue(x) - ν*Δ(ue)(x)
   dΩ = Measure(Ω,2*order)
@@ -154,7 +155,7 @@ function create_model(parts,np_per_level,is_periodic)
     return mh
 end
 
-function gmg_hdiv(parts,t,info,β,mh,ue)
+function gmg_hdiv(parts,t,info,β,mh)
 
     tic!(t;barrier=true)
     k = info[:FE_order]
@@ -170,6 +171,9 @@ function gmg_hdiv(parts,t,info,β,mh,ue)
     else
       error("Only RaviartThomas and Lagrangian FE spaces are implemented")
     end
+    ue = info[:ue]
+    B = info[:B]
+    uexBxB = info[:uexBxB]
     trials = TrialFESpace(tests,ue)
     
     # Bilinear forms at all levels
@@ -184,13 +188,13 @@ function gmg_hdiv(parts,t,info,β,mh,ue)
     V = get_fe_space(tests,1)
     if info[:FESpace] == :RT
       Γ = Boundary(Ω)  # Γ = Boundary(model) gives an error with #polytope branches
-      op = AffineFEOperator(a,v->liform_dg(v,Ω,Γ,k,ue,get_scaling(info,β)),U,V)
+      op = AffineFEOperator(a,v->liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β)),U,V)
       # Nonlinear operator
       # res(u,v) = a(u,v) - liform_dg(v,Ω,Γ,k,β,ue)
       # jac(u0,u,v) = a(u,v)
       # op = FEOperator(res,jac,U,V)
     elseif info[:FESpace] == :Qk
-      op = AffineFEOperator(a,v->liform(v,Ω,k,ue,get_scaling(info,β)),U,V)
+      op = AffineFEOperator(a,v->liform(v,Ω,k,ue,uexBxB,get_scaling(info,β)),U,V)
     else
       error("Only RaviartThomas and Lagrangian FE spaces are implemented")
     end
@@ -303,6 +307,8 @@ function gmg_par_dep(;D=2,
       name = "3D"
     end
     ue = x -> VectorValue(x[1],-x[2],0.0)
+    B = VectorValue(0.0,0.0,1.0)
+    uexBxB = x->(VectorValue(x[1],-x[2],0.)×B)×B    
   end
   title = "H1_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
 
@@ -312,6 +318,9 @@ function gmg_par_dep(;D=2,
   info[:max_params] = npar
   info[:β]          = βs
   info[:D]          = D
+  info[:ue]         = ue
+  info[:B]           = D==3 ? B : nothing
+  info[:uexBxB]      = D==3 ? uexBxB : nothing
   info[:is_periodic]         = is_periodic
   info[:scaling]             = scaling       # :small or :large
   info[:FESpace]             = fe_space      # :RT or :Qk
@@ -354,7 +363,7 @@ function gmg_par_dep(;D=2,
         β=βs[i]
         i_am_main(parts) && println("Running for β=",β)
         for nr=1:nruns
-          error[i,l], niter[i,l] = gmg_hdiv(parts,t,info,β,mh,ue)
+          error[i,l], niter[i,l] = gmg_hdiv(parts,t,info,β,mh)
         end
         map_main(t.data) do data 
           time_setup[i,l] = data["setup"].max
