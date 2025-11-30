@@ -94,7 +94,7 @@ function biform_dg(u,v,Ω,Λ,Γ,order,B,p)
     h_Γ = CellField(map(x->x.^(1/2),map(get_array,local_views(∫(1)dΓ))),Γ)
   end
 
-  a = ∫( ν*(∇(v)⊙∇(u)) + α*(∇⋅v)*(∇⋅u))*dΩ + # + s*(v⋅u)
+  a = ∫( ν*(∇(v)⊙∇(u)) + α*(∇⋅v)*(∇⋅u) + s*((v×B)⋅(u×B)) )*dΩ + # + s*(v⋅u)
       ∫((μ/h_Γ)*(v⋅u) - ν*(v⋅(n_Γ⋅∇(u))+(n_Γ⋅∇(v))⋅u) )*dΓ +
       ∫(
         (μ/h_Λ)*(jump(v⊗n_Λ)⊙jump(u⊗n_Λ)) -
@@ -106,13 +106,13 @@ end
 function biform(u,v,Ω,order,B,p)
   α,ν,s = p
   dΩ = Measure(Ω,2*order)
-  return ∫( ν*(∇(v)⊙∇(u)) + s*(v⋅u) + α*(∇⋅v)*(∇⋅u))*dΩ 
+  return ∫( ν*(∇(v)⊙∇(u)) + α*(∇⋅v)*(∇⋅u) + s*((v×B)⋅(u×B)))*dΩ # + s*(v⋅u)
 end
 
 function liform_dg(v,Ω,Γ,order,ue,uexBxB,p)
   _,ν,s = p
   μ = order*(order+1)*ν
-  f(x) =  - ν*Δ(ue)(x) # s*ue(x)
+  f(x) =  - ν*Δ(ue)(x) - s*uexBxB(x) # s*ue(x)
   # f(x) = s*VectorValue(0.,0.,1.) 
 
   dΩ = Measure(Ω,2*order)
@@ -130,7 +130,7 @@ end
 
 function liform(v,Ω,order,ue,uexBxB,p)
   _,ν,s = p
-  f(x) = s*ue(x) - ν*Δ(ue)(x)
+  f(x) =  - ν*Δ(ue)(x) - s*uexBxB(x) # s*ue(x)
   dΩ = Measure(Ω,2*order)
   return ∫(v⋅f)dΩ
 end
@@ -310,7 +310,7 @@ function gmg_par_dep(;D=2,
     B = VectorValue(0.0,0.0,1.0)
     uexBxB = x->(VectorValue(x[1],-x[2],0.)×B)×B    
   end
-  title = "H1_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
+  title = "H1_BxB_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
 
   info = Dict{Symbol,Any}()
   info[:title]      = title
