@@ -66,9 +66,9 @@ function get_bilinear_form(model,info,β)
   if info[:FESpace] == :RT
     Λ = Skeleton(model)
     Γ = Boundary(Ω)  # Γ = Boundary(model) gives an error with #polytope branches
-    return (u,v) -> biform_dg(u,v,Ω,Λ,Γ,order,B,get_scaling(info,β))
+    return (u0,u,v) -> biform_dg(u,v,Ω,Λ,Γ,order,B,get_scaling(info,β))
   elseif info[:FESpace] == :Qk
-    return (u,v) -> biform(u,v,Ω,order,B,get_scaling(info,β))
+    return (u0,u,v) -> biform(u,v,Ω,order,B,get_scaling(info,β))
   else
     error("Only RaviartThomas and Lagrangian FE spaces are implemented")
   end
@@ -188,11 +188,12 @@ function gmg_hdiv(parts,t,info,β,mh)
     V = get_fe_space(tests,1)
     if info[:FESpace] == :RT
       Γ = Boundary(Ω)  # Γ = Boundary(model) gives an error with #polytope branches
-      op = AffineFEOperator(a,v->liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β)),U,V)
+      # Linear operator
+      # op = AffineFEOperator(a,v->liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β)),U,V)
       # Nonlinear operator
-      # res(u,v) = a(u,v) - liform_dg(v,Ω,Γ,k,β,ue)
-      # jac(u0,u,v) = a(u,v)
-      # op = FEOperator(res,jac,U,V)
+      res(u,v) = a(u,u,v) - liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β))
+      jac(u0,u,v) = a(u0,u,v)
+      op = FEOperator(res,jac,U,V)
     elseif info[:FESpace] == :Qk
       op = AffineFEOperator(a,v->liform(v,Ω,k,ue,uexBxB,get_scaling(info,β)),U,V)
     else
@@ -203,7 +204,7 @@ function gmg_hdiv(parts,t,info,β,mh)
     if info[:projection_solver] == :CG_Jacobi
       projection_solver = CGSolver(
         JacobiLinearSolver();
-        maxiter=20,
+        maxiter=10,
         atol=info[:projection_solver_atol],
         rtol=info[:projection_solver_rtol],
         verbose=i_am_main(parts),
@@ -240,7 +241,7 @@ function gmg_hdiv(parts,t,info,β,mh)
         maxiter=1,
         cycle_type=info[:cycle_type],
         verbose=i_am_main(parts)
-        # ,is_nonlinear=true # Nonlinear solver
+        ,is_nonlinear=true # Nonlinear solver
     )
     gmg.log.depth = 4
 
@@ -255,11 +256,12 @@ function gmg_hdiv(parts,t,info,β,mh)
     
     tic!(t;barrier=true)
     # Nonlinear solver
-    # nl_solver = GridapSolvers.NewtonSolver(solver,maxiter=1,atol=atol,rtol=rtol,verbose=i_am_main(parts))
-    # uh = zero(U)
-    # uh, cache = solve!(uh, nl_solver,op)
+    nl_solver = GridapSolvers.NewtonSolver(solver,maxiter=1,atol=atol,rtol=rtol,verbose=i_am_main(parts))
+    uh = zero(U)
+    uh, cache = solve!(uh, nl_solver,op)
 
-    uh = solve(solver,op)
+    # Linear solver
+    # uh = solve(solver,op)
     toc!(t,"solve")
 
     eh = ue-uh
@@ -310,7 +312,7 @@ function gmg_par_dep(;D=2,
     B = VectorValue(0.0,0.0,1.0)
     uexBxB = x->(VectorValue(x[1],-x[2],0.)×B)×B    
   end
-  title = "H1_BxB_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
+  title = "NL_H1_BxB_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
 
   info = Dict{Symbol,Any}()
   info[:title]      = title
