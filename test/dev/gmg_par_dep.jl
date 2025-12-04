@@ -5,8 +5,11 @@ using PartitionedArrays
 using Gridap
 using Gridap.Helpers
 using Gridap.Geometry
+using Gridap.MultiField
+
 using GridapDistributed
 using GridapSolvers
+using GridapSolvers.BlockSolvers
 using GridapSolvers.MultilevelTools
 using GridapSolvers.PatchBasedSmoothers
 
@@ -186,14 +189,26 @@ function gmg_hdiv(parts,t,info,β,mh)
     a = get_bilinear_form(model,info,β)
     U = get_fe_space(trials,1)
     V = get_fe_space(tests,1)
+
+    X = MultiFieldFESpace([U];style=BlockMultiFieldStyle(1,(1,),(1,)))
+    Y = MultiFieldFESpace([V];style=BlockMultiFieldStyle(1,(1,),(1,)))
+
     if info[:FESpace] == :RT
       Γ = Boundary(Ω)  # Γ = Boundary(model) gives an error with #polytope branches
+
       # Linear operator
       # op = AffineFEOperator(a,v->liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β)),U,V)
       # Nonlinear operator
-      res(u,v) = a(u,u,v) - liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β))
-      jac(u0,u,v) = a(u0,u,v)
-      op = FEOperator(res,jac,U,V)
+
+      # res(u,v) = a(u,u,v) - liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β))
+      # jac(u0,u,v) = a(u0,u,v)
+      # op = FEOperator(res,jac,U,V)
+
+      # Nonlinear block operator
+      res(u,v) = a(u...,u...,v...) - liform_dg(v...,Ω,Γ,k,ue,uexBxB,get_scaling(info,β))
+      jac(u0,u,v) = a(u0...,u...,v...)
+      op = FEOperator(res,jac,X,Y)
+
     elseif info[:FESpace] == :Qk
       op = AffineFEOperator(a,v->liform(v,Ω,k,ue,uexBxB,get_scaling(info,β)),U,V)
     else
@@ -210,7 +225,7 @@ function gmg_hdiv(parts,t,info,β,mh)
         verbose=i_am_main(parts),
         name = "Projection solver (CG_Jacobi)"
       )
-      projection_solver.log.depth = 8
+      projection_solver.log.depth = 12
     else
       projection_solver = LUSolver()
     end
@@ -243,7 +258,7 @@ function gmg_hdiv(parts,t,info,β,mh)
         verbose=i_am_main(parts)
         ,is_nonlinear=true # Nonlinear solver
     )
-    gmg.log.depth = 4
+    gmg.log.depth = 8
 
     atol = info[:solver_atol]
     rtol = info[:solver_rtol]
@@ -252,13 +267,28 @@ function gmg_hdiv(parts,t,info,β,mh)
     elseif info[:solver] == :FGMRES
       solver = FGMRESSolver(2,gmg;m_add=1,maxiter=30,atol=atol,rtol=rtol,verbose=i_am_main(parts),name="System (FGMRES_GMG)")
     end
+    solver.log.depth = 4
     toc!(t,"setup")
     
-    tic!(t;barrier=true)
+    # Block preconditioner
+    blocks = [NonlinearSystemBlock(1);;]
+    P = BlockTriangularSolver(blocks,[solver])
+    l_solver = FGMRESSolver(2,P;maxiter=2,rtol=rtol,atol=atol,verbose=i_am_main(parts),name="Global System - FGMRES + Block")
+    l_solver.log.depth = 2
+
     # Nonlinear solver
-    nl_solver = GridapSolvers.NewtonSolver(solver,maxiter=1,atol=atol,rtol=rtol,verbose=i_am_main(parts))
-    uh = zero(U)
-    uh, cache = solve!(uh, nl_solver,op)
+    # nl_solver = GridapSolvers.NewtonSolver(solver,maxiter=1,atol=atol,rtol=rtol,verbose=i_am_main(parts))
+    nl_solver = GridapSolvers.NewtonSolver(l_solver,maxiter=1,atol=atol,rtol=rtol,verbose=i_am_main(parts))
+
+    # Nonlinear block solve
+    tic!(t;barrier=true)
+    xh = zero(X)
+    xh, cache = solve!(xh, nl_solver,op)
+    uh = xh[1]
+    
+    # Nonlinear solve
+    # uh = zero(U)
+    # uh, cache = solve!(uh, nl_solver,op)
 
     # Linear solver
     # uh = solve(solver,op)
@@ -312,7 +342,7 @@ function gmg_par_dep(;D=2,
     B = VectorValue(0.0,0.0,1.0)
     uexBxB = x->(VectorValue(x[1],-x[2],0.)×B)×B    
   end
-  title = "NL_H1_BxB_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
+  title = "NL_BP_H1_BxB_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
 
   info = Dict{Symbol,Any}()
   info[:title]      = title
