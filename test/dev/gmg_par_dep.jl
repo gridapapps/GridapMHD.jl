@@ -41,7 +41,7 @@ function get_block_jacobi_smoothers(sh)
     ptopo = Geometry.PatchTopology(ReferenceFE{0},model)
     space = get_fe_space(shl)
     solver = PatchBasedSmoothers.BlockJacobiSolver(space, ptopo; assembly=:star)
-    return RichardsonSmoother(solver,10,0.2)
+    return RichardsonSmoother(solver,20,0.2)
   end
   return smoothers
 end
@@ -51,11 +51,11 @@ function get_scaling(info,β)
   if info[:scaling] == :small
     α = 1.0
     ν = 1.0/β
-    s = 1.0/β
+    s = 100.0/β
   elseif info[:scaling] == :large
     α = β
     ν = 1.0
-    s = 1.0
+    s = 100.0
   else
     error("Unknown scaling type")
   end
@@ -115,8 +115,8 @@ end
 function liform_dg(v,Ω,Γ,order,ue,uexBxB,p)
   _,ν,s = p
   μ = order*(order+1)*ν
-  f(x) =  - ν*Δ(ue)(x) - s*uexBxB(x) # s*ue(x)
-  # f(x) = s*VectorValue(0.,0.,1.) 
+  # f(x) =  - ν*Δ(ue)(x) - s*uexBxB(x) # s*ue(x)
+  f(x) = ν*VectorValue(0.,0.,1.) 
 
   dΩ = Measure(Ω,2*order)
   dΓ = Measure(Γ,2*order)
@@ -141,11 +141,13 @@ end
 # Geometry
 function create_model(parts,np_per_level,is_periodic)
     if is_periodic  # 3D periodic
-      num_levels = length(np_per_level)
-      nx = 4*2^(num_levels-1)
-      Lz = 3.0/nx
-      domain = (0,1,0,1,0,Lz)
+      # num_levels = length(np_per_level)
+      # nx = 4*2^(num_levels-1)
+      # Lz = 3.0/nx
+      # domain = (0,1,0,1,0,Lz)
+      # cells = (20,20,3)
       cells = (4,4,3)
+      domain = (0,1,0,1,0,0.1)
       _np_per_level = map(x->(x[1],x[2],1),np_per_level)
       mh = CartesianModelHierarchy(parts,_np_per_level,domain,cells;nrefs = (2,2,1),isperiodic = (false,false,true))
     else
@@ -164,7 +166,9 @@ function gmg_hdiv(parts,t,info,β,mh)
     k = info[:FE_order]
     if info[:FESpace] == :RT
       RTk_FE = ReferenceFE(raviart_thomas,Float64,k-1)
-      tests  = TestFESpace(mh,RTk_FE,dirichlet_tags="boundary")
+      # tests  = TestFESpace(mh,RTk_FE,dirichlet_tags="boundary")
+      Ωh = Triangulation(mh)
+      tests  = TestFESpace(Ωh,RTk_FE,dirichlet_tags="boundary")
     elseif info[:FESpace] == :Qk
       Qk_FE = ReferenceFE(lagrangian,VectorValue{info[:D],Float64},k)
       tests  = TestFESpace(mh,Qk_FE,dirichlet_tags="boundary")
@@ -222,7 +226,7 @@ function gmg_hdiv(parts,t,info,β,mh)
         maxiter=10,
         atol=info[:projection_solver_atol],
         rtol=info[:projection_solver_rtol],
-        verbose=i_am_main(parts),
+        # verbose=i_am_main(parts),
         name = "Projection solver (CG_Jacobi)"
       )
       projection_solver.log.depth = 12
@@ -244,15 +248,19 @@ function gmg_hdiv(parts,t,info,β,mh)
     end
 
     if info[:smoother] == :block_jacobi
-      smoothers = get_block_jacobi_smoothers(tests) 
+      smoothers = get_block_jacobi_smoothers(trials)
     end
+
+    # coarsest_solver = PETScLinearSolver(GridapMHD.petsc_mumps_setup)
+    coarsest_solver = Gridap.Algebra.LUSolver()  # this is the default
 
     # GMG solver
     gmg = GMGLinearSolver(
         trials,tests,biforms,
         prolongations,restrictions,
         pre_smoothers=smoothers,
-        post_smoothers=smoothers,        
+        post_smoothers=smoothers,
+        coarsest_solver=coarsest_solver,
         maxiter=1,
         cycle_type=info[:cycle_type],
         verbose=i_am_main(parts)
@@ -273,7 +281,7 @@ function gmg_hdiv(parts,t,info,β,mh)
     # Block preconditioner
     blocks = [NonlinearSystemBlock(1);;]
     P = BlockTriangularSolver(blocks,[solver])
-    l_solver = FGMRESSolver(2,P;maxiter=2,rtol=rtol,atol=atol,verbose=i_am_main(parts),name="Global System - FGMRES + Block")
+    l_solver = FGMRESSolver(1,P;maxiter=1,rtol=rtol,atol=atol,verbose=i_am_main(parts),name="Global System - FGMRES + Block")
     l_solver.log.depth = 2
 
     # Nonlinear solver
@@ -285,7 +293,7 @@ function gmg_hdiv(parts,t,info,β,mh)
     xh = zero(X)
     xh, cache = solve!(xh, nl_solver,op)
     uh = xh[1]
-    
+
     # Nonlinear solve
     # uh = zero(U)
     # uh, cache = solve!(uh, nl_solver,op)
@@ -301,11 +309,13 @@ function gmg_hdiv(parts,t,info,β,mh)
       println("L2 error = ", e_l2)
     end
 
+    # writevtk(Ω,"solution=$(β)",cellfields=["uh"=>uh])
+
     e_l2, solver.log.num_iters
 end
 
 const βs = [1.0,1.0e2,1.0e4,1.0e6,1.0e8,1.0e10,1.0e12]
-const nlev = 5
+const nlev = 1
 const npar = 7 # length(βs)
 const nruns = 2 # To measure CPU times
 const path = @__DIR__
@@ -313,16 +323,16 @@ const path = @__DIR__
 
 function gmg_par_dep(;D=2,
   is_periodic=false,
-  scaling=:small,
+  scaling=:large,
   fe_space=:RT,
   fe_order=1,
   qdegree=2*fe_order,
   prolongation=:default,
   restriction=:default,
-  projection_solver=:LU,
+  projection_solver=:CG_Jacobi,
   smoother=:block_jacobi,
   cycle_type=:v_cycle,
-  solver=:CG,
+  solver=:FGMRES,
   tolerances=[1e-11,1e-5,1e-12,1e-6],
   )
 
@@ -338,11 +348,13 @@ function gmg_par_dep(;D=2,
       np=(2,2,2)
       name = "3D"
     end
-    ue = x -> VectorValue(x[1],-x[2],0.0)
-    B = VectorValue(0.0,0.0,1.0)
-    uexBxB = x->(VectorValue(x[1],-x[2],0.)×B)×B    
+    ue = x -> VectorValue(0.0,0.0,0.0)
+    B = VectorValue(0.0,1.0,0.0)
+    # B = VectorValue(0.0,0.0,1.0)
+    # ue = x -> VectorValue(x[1],-x[2],0.0)
+    uexBxB = x->(VectorValue(x[1],-x[2],0.)×B)×B
   end
-  title = "NL_BP_H1_BxB_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)"
+  title = "NL_BP_H1_100BxB_MH20_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_20$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)_C_LU"
 
   info = Dict{Symbol,Any}()
   info[:title]      = title
