@@ -13,6 +13,9 @@ using GridapSolvers.BlockSolvers
 using GridapSolvers.MultilevelTools
 using GridapSolvers.PatchBasedSmoothers
 
+using GridapMHD
+using GridapMHD.Meshers
+
 # Smoothers (see GridapSolvers GMG test)
 function get_patch_smoothers_hdiv(sh,biform,qdegree)
   nlevs = num_levels(sh)
@@ -41,45 +44,42 @@ function get_block_jacobi_smoothers(sh)
     ptopo = Geometry.PatchTopology(ReferenceFE{0},model)
     space = get_fe_space(shl)
     solver = PatchBasedSmoothers.BlockJacobiSolver(space, ptopo; assembly=:star)
-    return RichardsonSmoother(solver,20,0.2)
+    return RichardsonSmoother(solver,10,0.2)
   end
   return smoothers
 end
 
 # Formulation
-function get_scaling(info,β)
+function get_scaling(info)
+  ν = info[:ν]
+  γ = info[:γ]
+  ζ = info[:ζ]
   if info[:scaling] == :small
-    α = 1.0
-    ν = 1.0/β
-    s = 100.0/β
-  elseif info[:scaling] == :large
-    α = β
-    ν = 1.0
-    s = 100.0
-  else
-    error("Unknown scaling type")
+    ν = ν/ζ
+    γ = γ/ζ
+    ζ = 1.0
   end
-  return α,ν,s
+  return ν,γ,ζ
 end
 
-function get_bilinear_form(model,info,β)
-  order = info[:FE_order]
-  B = info[:B]
+function get_bilinear_form(model,info)
   Ω = Triangulation(model)
   if info[:FESpace] == :RT
     Λ = Skeleton(model)
     Γ = Boundary(Ω)  # Γ = Boundary(model) gives an error with #polytope branches
-    return (u0,u,v) -> biform_dg(u,v,Ω,Λ,Γ,order,B,get_scaling(info,β))
+    return (u0,u,v) -> biform_dg(u,v,Ω,Λ,Γ,info)
   elseif info[:FESpace] == :Qk
-    return (u0,u,v) -> biform(u,v,Ω,order,B,get_scaling(info,β))
+    return (u0,u,v) -> biform(u,v,Ω,info)
   else
     error("Only RaviartThomas and Lagrangian FE spaces are implemented")
   end
   return a
 end
 # DG formulation
-function biform_dg(u,v,Ω,Λ,Γ,order,B,p) 
-  α,ν,s = p
+function biform_dg(u,v,Ω,Λ,Γ,info) 
+  ν,γ,ζ = get_scaling(info)
+  B = info[:B]
+  order = info[:FE_order]
   μ = order*(order+1)*ν
 
   dΩ = Measure(Ω,2*order)
@@ -97,7 +97,7 @@ function biform_dg(u,v,Ω,Λ,Γ,order,B,p)
     h_Γ = CellField(map(x->x.^(1/2),map(get_array,local_views(∫(1)dΓ))),Γ)
   end
 
-  a = ∫( ν*(∇(v)⊙∇(u)) + α*(∇⋅v)*(∇⋅u) + s*((v×B)⋅(u×B)) )*dΩ + # + s*(v⋅u)
+  a = ∫( ν*(∇(v)⊙∇(u)) + ζ*(∇⋅v)*(∇⋅u) + γ*((v×B)⋅(u×B)) )*dΩ + # + s*(v⋅u)
       ∫((μ/h_Γ)*(v⋅u) - ν*(v⋅(n_Γ⋅∇(u))+(n_Γ⋅∇(v))⋅u) )*dΓ +
       ∫(
         (μ/h_Λ)*(jump(v⊗n_Λ)⊙jump(u⊗n_Λ)) -
@@ -106,17 +106,36 @@ function biform_dg(u,v,Ω,Λ,Γ,order,B,p)
   return a
 end
 # H1 formulation
-function biform(u,v,Ω,order,B,p)
-  α,ν,s = p
+function biform(u,v,Ω,info)
+  ν,γ,ζ = get_scaling(info)
+  B = info[:B]
+  order = info[:FE_order]
   dΩ = Measure(Ω,2*order)
-  return ∫( ν*(∇(v)⊙∇(u)) + α*(∇⋅v)*(∇⋅u) + s*((v×B)⋅(u×B)))*dΩ # + s*(v⋅u)
+  return ∫( ν*(∇(v)⊙∇(u)) + ζ*(∇⋅v)*(∇⋅u) + γ*((v×B)⋅(u×B)))*dΩ 
 end
 
-function liform_dg(v,Ω,Γ,order,ue,uexBxB,p)
-  _,ν,s = p
+function get_force(info)
+  if info[:solution] == :hunt
+    f = x -> VectorValue(0.,0.,1.)
+  elseif info[:solution] == :hunt2
+    γ = info[:γ]
+    f = x -> VectorValue(0.,0.,1.) + γ*VectorValue(1.,0.,0.)
+  elseif info[:solution] == :exact
+    uexBxB = info[:uexBxB]
+    ue = info[:ue]
+    ν,γ,_ = get_scaling(info)
+    f = x -> (-ν*Δ(ue)(x)-γ*uexBxB(x))
+  end
+  return f
+end
+
+function liform_dg(v,Ω,Γ,info)
+  
+  ν,γ,_ = get_scaling(info)
+  order = info[:FE_order]
   μ = order*(order+1)*ν
-  # f(x) =  - ν*Δ(ue)(x) - s*uexBxB(x) # s*ue(x)
-  f(x) = ν*VectorValue(0.,0.,1.) 
+  ue = info[:ue]
+  f = get_force(info)
 
   dΩ = Measure(Ω,2*order)
   dΓ = Measure(Γ,2*order)
@@ -131,25 +150,39 @@ function liform_dg(v,Ω,Γ,order,ue,uexBxB,p)
   return ∫(v⋅f)dΩ + ∫( (μ/h_Γ)*(v⋅ue) - ν*((n_Γ⋅∇(v))⋅ue))*dΓ
 end
 
-function liform(v,Ω,order,ue,uexBxB,p)
-  _,ν,s = p
-  f(x) =  - ν*Δ(ue)(x) - s*uexBxB(x) # s*ue(x)
+function liform(v,Ω,info)
+  f = get_force(info)
+  order = info[:FE_order]
   dΩ = Measure(Ω,2*order)
   return ∫(v⋅f)dΩ
 end
 
 # Geometry
-function create_model(parts,np_per_level,is_periodic)
-    if is_periodic  # 3D periodic
-      # num_levels = length(np_per_level)
-      # nx = 4*2^(num_levels-1)
-      # Lz = 3.0/nx
-      # domain = (0,1,0,1,0,Lz)
-      # cells = (20,20,3)
-      cells = (4,4,3)
-      domain = (0,1,0,1,0,0.1)
+function create_model(parts,np_per_level,info)
+    if info[:is_periodic]  # 3D periodic
+      nc = info[:nc]
+      cells = (nc,nc,3)
+
+      if info[:domain] == :unit
+        domain = (0,1,0,1,0,0.1)
+      elseif info[:domain] == :std
+        domain = (-1,1,-1,1,0,0.1)
+      elseif info[:domain] == :std2
+        domain = (-1,1,-1,1,0,0.2)
+      elseif info[:domain] == :lz
+        num_levels = length(np_per_level)
+        nx = nc*2^(num_levels-1)
+        Lz = 3.0/nx
+        domain = (0,1,0,1,0,Lz)
+      end
+
       _np_per_level = map(x->(x[1],x[2],1),np_per_level)
-      mh = CartesianModelHierarchy(parts,_np_per_level,domain,cells;nrefs = (2,2,1),isperiodic = (false,false,true))
+      if info[:is_stretched]
+        Ha = sqrt(info[:γ])
+        mh = CartesianModelHierarchy(parts,_np_per_level,domain,cells;nrefs = (2,2,1),isperiodic = (false,false,true),map = GridapMHD.Meshers.hunt_stretch_map(1.0,Ha,1,1,info[:is_stretched]))
+      else
+        mh = CartesianModelHierarchy(parts,_np_per_level,domain,cells;nrefs = (2,2,1),isperiodic = (false,false,true))
+      end
     else
       D = length(np_per_level[1])
       domain = (D == 2) ? (0,1,0,1) : (0,1,0,1,0,1)
@@ -160,7 +193,7 @@ function create_model(parts,np_per_level,is_periodic)
     return mh
 end
 
-function gmg_hdiv(parts,t,info,β,mh)
+function gmg_hdiv(parts,t,info,mh)
 
     tic!(t;barrier=true)
     k = info[:FE_order]
@@ -179,18 +212,16 @@ function gmg_hdiv(parts,t,info,β,mh)
       error("Only RaviartThomas and Lagrangian FE spaces are implemented")
     end
     ue = info[:ue]
-    B = info[:B]
-    uexBxB = info[:uexBxB]
     trials = TrialFESpace(tests,ue)
     
     # Bilinear forms at all levels
-    biforms = map(mhl -> get_bilinear_form(get_model(mhl),info,β),mh)
+    biforms = map(mhl -> get_bilinear_form(get_model(mhl),info),mh)
 
     # FE operator (finest level)
     model = get_model(mh,1)
     Ω = Triangulation(model)
     dΩ = Measure(Ω,2*k)
-    a = get_bilinear_form(model,info,β)
+    a = get_bilinear_form(model,info)
     U = get_fe_space(trials,1)
     V = get_fe_space(tests,1)
 
@@ -201,20 +232,20 @@ function gmg_hdiv(parts,t,info,β,mh)
       Γ = Boundary(Ω)  # Γ = Boundary(model) gives an error with #polytope branches
 
       # Linear operator
-      # op = AffineFEOperator(a,v->liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β)),U,V)
+      # op = AffineFEOperator(a,v->liform_dg(v,Ω,Γ,info),U,V)
       # Nonlinear operator
 
-      # res(u,v) = a(u,u,v) - liform_dg(v,Ω,Γ,k,ue,uexBxB,get_scaling(info,β))
+      # res(u,v) = a(u,u,v) - liform_dg(v,Ω,Γ,info)
       # jac(u0,u,v) = a(u0,u,v)
       # op = FEOperator(res,jac,U,V)
 
       # Nonlinear block operator
-      res(u,v) = a(u...,u...,v...) - liform_dg(v...,Ω,Γ,k,ue,uexBxB,get_scaling(info,β))
+      res(u,v) = a(u...,u...,v...) - liform_dg(v...,Ω,Γ,info)
       jac(u0,u,v) = a(u0...,u...,v...)
       op = FEOperator(res,jac,X,Y)
 
     elseif info[:FESpace] == :Qk
-      op = AffineFEOperator(a,v->liform(v,Ω,k,ue,uexBxB,get_scaling(info,β)),U,V)
+      op = AffineFEOperator(a,v->liform(v,Ω,info),U,V)
     else
       error("Only RaviartThomas and Lagrangian FE spaces are implemented")
     end
@@ -309,20 +340,26 @@ function gmg_hdiv(parts,t,info,β,mh)
       println("L2 error = ", e_l2)
     end
 
-    # writevtk(Ω,"solution=$(β)",cellfields=["uh"=>uh])
+    info[:vtk_out] && writevtk(Ω,info[:vtk_name],cellfields=["uh"=>uh])
 
     e_l2, solver.log.num_iters
 end
 
-const βs = [1.0,1.0e2,1.0e4,1.0e6,1.0e8,1.0e10,1.0e12]
-const nlev = 1
-const npar = 7 # length(βs)
+const ζs = [1.0,1.0e2,1.0e4,1.0e6,1.0e8,1.0e10,1.0e12]
+const npar = 7 # length(ζs)
 const nruns = 2 # To measure CPU times
 const path = @__DIR__
-# const ue(x) = VectorValue(x[1],-x[2]) 
 
-function gmg_par_dep(;D=2,
-  is_periodic=false,
+function gmg_par_dep(;D=3,
+  is_periodic=true,
+  is_stretched=false,
+  domain=:std,
+  nlev=5,
+  nc=4,
+  ν=1.0,
+  γ0=1.0,
+  γ_law=:constant, # or :variable,  in this case γ=γ0*ζ
+  solution=:hunt,  # or :exact
   scaling=:large,
   fe_space=:RT,
   fe_order=1,
@@ -334,6 +371,7 @@ function gmg_par_dep(;D=2,
   cycle_type=:v_cycle,
   solver=:FGMRES,
   tolerances=[1e-11,1e-5,1e-12,1e-6],
+  vtk_out=false
   )
 
   if D==2 
@@ -348,24 +386,37 @@ function gmg_par_dep(;D=2,
       np=(2,2,2)
       name = "3D"
     end
-    ue = x -> VectorValue(0.0,0.0,0.0)
-    B = VectorValue(0.0,1.0,0.0)
-    # B = VectorValue(0.0,0.0,1.0)
-    # ue = x -> VectorValue(x[1],-x[2],0.0)
-    uexBxB = x->(VectorValue(x[1],-x[2],0.)×B)×B
+    if solution == :hunt || solution == :hunt2
+      ue = x -> VectorValue(0.0,0.0,0.0)
+      B = VectorValue(0.0,1.0,0.0)
+      uexBxB = x->VectorValue(0.0,0.0,0.0)
+    elseif solution == :exact
+      ue = x -> VectorValue(x[1],-x[2],0.0)
+      B = VectorValue(0.0,0.0,1.0)
+      uexBxB = x->(VectorValue(x[1],-x[2],0.)×B)×B
+    end
   end
-  title = "NL_BP_H1_100BxB_MH20_$(name)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_20$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)_C_LU"
+  is_stretched ? mesh_type = "stretched" : mesh_type = "uniform"
+  γ_law == :constant ? γ_law_str = "γ$(γ0)" : γ_law_str = "γ$(γ0)xζ"
+  title = "NL_BP_$(name)_$(domain)_domain_$(mesh_type)_nc$(nc)_$(solution)_$(γ_law_str)_$(fe_space)$(fe_order)_scal_$(scaling)_qdeg_$(qdegree)_$(solver)_$(cycle_type)_S_10$(smoother)_P_$(prolongation)_R_$(restriction)_Ps_$(projection_solver)_C_LU"
 
   info = Dict{Symbol,Any}()
   info[:title]      = title
   info[:max_levels] = nlev
   info[:max_params] = npar
-  info[:β]          = βs
   info[:D]          = D
+  info[:nc]         = nc
+  info[:ζs]         = ζs
+  info[:ν]          = ν
+  info[:γ_law]      = γ_law      # :constant or :variable
+  info[:γ]          = γ0
+  info[:solution]   = solution    # :hunt or :exact
   info[:ue]         = ue
   info[:B]           = D==3 ? B : nothing
   info[:uexBxB]      = D==3 ? uexBxB : nothing
   info[:is_periodic]         = is_periodic
+  info[:is_stretched]        = is_stretched
+  info[:domain]              = domain
   info[:scaling]             = scaling       # :small or :large
   info[:FESpace]             = fe_space      # :RT or :Qk
   info[:FE_order]            = fe_order
@@ -377,10 +428,10 @@ function gmg_par_dep(;D=2,
   info[:solver_atol]         = tolerances[1]
   info[:solver_rtol]         = tolerances[2]
   info[:projection_solver]   = projection_solver
-  # info[:projection_solver] = :CG_Jacobi
   info[:projection_solver_atol] = tolerances[3]  # for :CG_Jacobi
   info[:projection_solver_rtol] = tolerances[4]  # for :CG_Jacobi
   info[:solver] = solver
+  info[:vtk_out] = vtk_out
 
   niter = Matrix{Int}(undef,npar,nlev)
   error = Matrix{Float64}(undef,npar,nlev)
@@ -397,17 +448,21 @@ function gmg_par_dep(;D=2,
       push!(np_per_level,np)
       for nr=1:nruns
         tic!(t;barrier=true)
-        global mh = create_model(parts,np_per_level,is_periodic)
+        global mh = create_model(parts,np_per_level,info)
         toc!(t,"model")
       end
       map_main(t.data) do data 
         time_model[l] = data["model"].max
       end
       for i=1:npar
-        β=βs[i]
-        i_am_main(parts) && println("Running for β=",β)
+        info[:ζ] = info[:ζs][i]
+        if info[:γ_law] == :variable
+           info[:γ] = γ0*info[:ζ]
+        end
+        i_am_main(parts) && println("Running for ζ=",info[:ζ])
+        info[:vtk_name] = "solution_$i"
         for nr=1:nruns
-          error[i,l], niter[i,l] = gmg_hdiv(parts,t,info,β,mh)
+          error[i,l], niter[i,l] = gmg_hdiv(parts,t,info,mh)
         end
         map_main(t.data) do data 
           time_setup[i,l] = data["setup"].max
@@ -425,7 +480,7 @@ function gmg_par_dep(;D=2,
       save(joinpath(path,"$title.bson"),info)
       # Print 
       for i=1:npar
-        println("For β=",βs[i]," the number of iterations per level: ",niter[i,:])
+        println("For ζ=",ζs[i]," the number of iterations per level: ",niter[i,:])
       end
     end
   end
