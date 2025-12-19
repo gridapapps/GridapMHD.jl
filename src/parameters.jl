@@ -526,8 +526,8 @@ function params_current_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:φ_conformity] = :L2
     elseif disc == :H1
       feparams[:reffe_j] = LagrangianRefFE(VectorValue{3,Float64},poly,k)
-      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k;space=:Q)
-      feparams[:order_φ] = k
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k+1;space=:Q)
+      feparams[:order_φ] = k+1
       feparams[:j_conformity] = :L2
       feparams[:φ_conformity] = :H1
     else
