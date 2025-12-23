@@ -8,7 +8,7 @@ end
 function gmg_solver(
   trials,tests,weakforms,restrictions,prolongations,smoothers; 
   name = "GMG Solver", gmg_maxiter = 3, gmg_cycle_type = :v_cycle,
-  maxiter = 10, atol = 1.e-6, rtol = 1.e-10
+  maxiter = 100, atol = 1.e-6, rtol = 1.e-10
 )
   ranks = get_level_parts(trials,1)
   coarsest_solver = PETScLinearSolver(petsc_mumps_setup)

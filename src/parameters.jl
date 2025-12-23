@@ -262,7 +262,7 @@ function default_solver_params(::Val{:badia2024})
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
-    :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
+    :solver_postpro => ((cache,info) -> BlockSolver_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 20,    # Maximum Nonlinear iterations
     :niter_ls       => 15,    # Maximum linear iterations
@@ -277,7 +277,7 @@ function default_solver_params(::Val{:h1h1blocks})
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
-    :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
+    :solver_postpro => ((cache,info) -> BlockSolver_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
     :niter          => 20,    # Maximum Nonlinear iterations
     :niter_ls       => 15,    # Maximum linear iterations
@@ -318,6 +318,23 @@ function gridap_postpro(cache,info)
 
   info[:ls_iters] = log.num_iters
   info[:ls_residuals] = log.residuals[1:log.num_iters+1]
+end
+
+function BlockSolver_postpro(cache,info)
+  ls = cache.ns.solver
+  log = ls.log
+
+  info[:ls1_iters] = log.num_iters
+  info[:ls1_residuals] = log.residuals[1:log.num_iters+1]
+
+  if isa(ls.Pr.solvers[1],FGMRESSolver)
+    ls2 = ls.Pr.solvers[1]
+    log2 = ls2.log
+    info[:ls2_iters] = log2.num_iters
+    info[:ls2_residuals] = log2.residuals[1:log2.num_iters+1]
+  else
+    println("BlockSolver 1 is not FGMRESSolver, its type is $(typeof(ls.Pr.solvers[1]))")
+  end
 end
 
 """
@@ -509,8 +526,8 @@ function params_current_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:φ_conformity] = :L2
     elseif disc == :H1
       feparams[:reffe_j] = LagrangianRefFE(VectorValue{3,Float64},poly,k)
-      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k;space=:Q)
-      feparams[:order_φ] = k
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k+1;space=:Q)
+      feparams[:order_φ] = k+1
       feparams[:j_conformity] = :L2
       feparams[:φ_conformity] = :H1
     else
