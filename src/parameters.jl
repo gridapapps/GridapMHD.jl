@@ -266,7 +266,7 @@ function default_solver_params(::Val{:badia2024})
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
     :niter          => 20,    # Maximum Nonlinear iterations
     :niter_ls       => 15,    # Maximum linear iterations
-    :rtol           => 1e-10, # Relative tolerance
+    :rtol           => 1e-6, # Relative tolerance
     :atol           => 1.e-8, # Absolute tolerance
   )
 end
@@ -281,7 +281,7 @@ function default_solver_params(::Val{:h1h1blocks})
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
     :niter          => 20,    # Maximum Nonlinear iterations
     :niter_ls       => 15,    # Maximum linear iterations
-    :rtol           => 1e-10, # Relative tolerance
+    :rtol           => 1e-6, # Relative tolerance
     :atol           => 1.e-8, # Absolute tolerance
   )
 end
