@@ -72,14 +72,14 @@ jobs:
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
       
-      - name: add MPIPreferences and external packages
-        shell: julia --color=yes --project=. {0}
-        run: |
-          using Pkg
-          Pkg.add("MPIPreferences")
-          Pkg.add(name="Gridap",rev="polytopal")
-          Pkg.add(name="GridapDistributed",rev="polytopal")
-          Pkg.add(name="GridapSolvers",rev="develop")
+      # - name: add MPIPreferences and external packages
+      #   shell: julia --color=yes --project=. {0}
+      #   run: |
+      #     using Pkg
+      #     Pkg.add("MPIPreferences")
+      #     Pkg.add(name="Gridap",rev="polytopal")
+      #     Pkg.add(name="GridapDistributed",rev="polytopal")
+      #     Pkg.add(name="GridapSolvers",rev="develop")
       - name: use MPI system binary 
         shell: julia --color=yes --project=. {0}
         run: |

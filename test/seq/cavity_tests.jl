@@ -47,7 +47,8 @@ cavity(
   ),
   ζᵤ = 10.0,
   ζⱼ = 10.0,
-  solid = true,
+  # solid = true, # this gives an error when adding terms in weakforms.jl line 437:
+                  # AssertionError: This map is type-unstable
 )
 
 cavity(
