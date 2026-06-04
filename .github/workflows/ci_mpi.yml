@@ -27,13 +27,13 @@ jobs:
           # Install gmsh-sdk from sources
           CURR_DIR=$(pwd)
           PACKAGE=gmsh
-          VERSION=4.13-1
+          VERSION=4.13.1
           INSTALL_ROOT=/opt
           TAR_FILE=$PACKAGE-$VERSION-Linux64-sdk.tgz
           URL="https://gmsh.info/bin/Linux"
           ROOT_DIR=/tmp
           wget -q $URL/$TAR_FILE -O $ROOT_DIR/$TAR_FILE
-          tar xzf $ROOT_DIR/$TAR_FILE -C $INSTALL_ROOT --strip-components=1
+          tar xzf $ROOT_DIR/$TAR_FILE -C $INSTALL_ROOT
           rm -rf $ROOT_DIR/$TAR_FILE
           cd $CURR_DIR
       - name: Install p4est
