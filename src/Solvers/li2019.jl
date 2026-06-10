@@ -10,7 +10,7 @@
 """
 function Li2019Solver(op::FEOperator,params)
 
-  α1 = params[:fluid][:ζ] + params[:fluid][:β]
+  α1 = params[:fluid][:ζᵤ] + params[:fluid][:β]
   inv_α1 = 1.0/α1
 
   # Preconditioner
@@ -61,7 +61,7 @@ end
 function precond(params,k)
   dΩf, α, β, γ, σf, f, B, ζ, g = retrieve_fluid_params(params)
   solid = params[:solid]
-  dΩs, σs = retrieve_solid_params(params)
+  σs, g, divg, ζ, dΩs = retrieve_solid_params(params)
 
   function a_u(u,du,dv)
     r = a_mhd_u_u(du,dv,β,dΩf) + n_dc_mhd_u_u(u,du,dv,α,dΩf) + ∫(γ⋅(du×B)⋅(dv×B)) * dΩf
@@ -115,31 +115,31 @@ function li2019_Fk(dΩ,params)
   return a_fk
 end
 
-function li2019_laplacian(dΩ,params)
-  p_conformity = params[:fespaces][:p_conformity]
+# function li2019_laplacian(dΩ,params)
+#   p_conformity = params[:fespaces][:p_conformity]
 
-  model = params[:model]
-  Γ  = Boundary(model)
-  Λ  = Skeleton(model)
+#   model = params[:model]
+#   Γ  = Boundary(model)
+#   Λ  = Skeleton(model)
 
-  k  = params[:fespaces][:k]
-  dΓ = Measure(Γ,2*k)
-  dΛ = Measure(Λ,2*k)
+#   k  = params[:fespaces][:k]
+#   dΓ = Measure(Γ,2*k)
+#   dΛ = Measure(Λ,2*k)
 
-  n_Γ = get_normal_vector(Γ)
-  n_Λ = get_normal_vector(Λ)
+#   n_Γ = get_normal_vector(Γ)
+#   n_Λ = get_normal_vector(Λ)
 
-  h_e_Λ = get_cell_size(Λ)
-  h_e_Γ = get_cell_size(Γ)
+#   h_e_Λ = get_cell_size(Λ)
+#   h_e_Γ = get_cell_size(Γ)
 
-  β = 100.0
-  function a_Δp(u,v)
-    r = ∫(∇(u)⋅∇(v))*dΩ
-    if p_conformity == :L2
-      r += ∫(-jump(u⋅n_Λ)⋅mean(∇(v)) - mean(∇(u))⋅jump(v⋅n_Λ) + β/h_e_Λ*jump(u⋅n_Λ)⋅jump(v⋅n_Λ))*dΛ
-      r += ∫(-(∇(u)⋅n_Γ)⋅v - u⋅(∇(v)⋅n_Γ) + β/h_e_Γ*(u⋅n_Γ)⋅(v⋅n_Γ))*dΓ
-    end
-    return r
-  end
-  return a_Δp
-end
+#   β = 100.0
+#   function a_Δp(u,v)
+#     r = ∫(∇(u)⋅∇(v))*dΩ
+#     if p_conformity == :L2
+#       r += ∫(-jump(u⋅n_Λ)⋅mean(∇(v)) - mean(∇(u))⋅jump(v⋅n_Λ) + β/h_e_Λ*jump(u⋅n_Λ)⋅jump(v⋅n_Λ))*dΛ
+#       r += ∫(-(∇(u)⋅n_Γ)⋅v - u⋅(∇(v)⋅n_Γ) + β/h_e_Γ*(u⋅n_Γ)⋅(v⋅n_Γ))*dΓ
+#     end
+#     return r
+#   end
+#   return a_Δp
+# end

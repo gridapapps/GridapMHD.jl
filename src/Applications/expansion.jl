@@ -54,7 +54,8 @@ function _expansion(;
   Ha = 1.0,
   cw = 0.028,
   τ  = 100,
-  ζ  = 0.0,   # Augmented Lagrangian weight  
+  ζᵤ=0.0, # Augmented Lagrangian weights  
+  ζⱼ=0.0, # 
   μ  = 0,     # Stabilization weight
   order = 2,
   order_j = order,
@@ -136,7 +137,8 @@ function _expansion(;
     :γ => γ,
     :f => VectorValue(0.0,0.0,0.0),
     :B => VectorValue(0.0,1.0,0.0),
-    :ζ => ζ,
+    :ζᵤ => ζᵤ,
+    :ζⱼ => ζⱼ,
     :convection => convection,
   )
 

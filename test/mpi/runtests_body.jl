@@ -11,8 +11,11 @@ else
   MPI.Abort(MPI.COMM_WORLD,0)
 end
 
-# include("hunt_tests.jl")
-# HuntTestsMPI.main(parts)
+include("hunt_tests.jl")
+HuntTestsMPI.main(parts)
 
-include("hunt_li2019_tests.jl")
-HuntLi2019TestsMPI.main(parts)
+include("hunt_gmg_tests.jl")
+HuntGMGTestsMPI.main(parts)
+
+include("cavity_tests.jl")
+CavityTestsMPI.main(parts)

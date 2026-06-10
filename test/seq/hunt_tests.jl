@@ -1,7 +1,8 @@
 module HuntTestsSequential
 
+using SparseMatricesCSR, SparseArrays
+using GridapPETSc
 using GridapMHD: hunt
-using GridapPETSc, SparseMatricesCSR
 
 hunt(
   nc=(4,4),
@@ -9,8 +10,8 @@ hunt(
   B=(0.,50.,0.),
   debug=true,
   vtk=true,
-  title="hunt",
-  solver=:julia,
+  title="hunt-debug",
+  solver=:julia
 )
 
 hunt(
@@ -19,9 +20,31 @@ hunt(
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt",
+  title="hunt-H1HDiv", # default
+  solver=:julia
+)
+
+hunt(
+  nc=(10,10),
+  L=1.0,
+  B=(0.,50.,0.),
+  debug=false,
+  vtk=true,
+  title="hunt-H1H1",
   solver=:julia,
-  fluid_disc = :RT,
+  fluid_disc = :Qk_dPkm1,
+  current_disc = :H1
+)
+
+hunt(
+  nc=(10,10),
+  L=1.0,
+  B=(0.,50.,0.),
+  debug=false,
+  vtk=true,
+  title="hunt-HDivHDiv",
+  solver=:julia,
+  fluid_disc = :RT
 )
 
 hunt(
@@ -32,7 +55,7 @@ hunt(
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt",
+  title="hunt-mpi-backend",
   solver=:julia,
 )
 
@@ -44,7 +67,7 @@ hunt(
   B=(0.,50.,0.),
   debug=false,
   vtk=true,
-  title="hunt",
+  title="hunt-partitioned",
   solver=:julia,
 )
 
@@ -62,6 +85,36 @@ hunt(
   BL_adapted=false,
   kmap_x = 3,
   kmap_y = 3
+)
+
+hunt(
+  nc=(8,8),
+  fluid_disc = :Qk_dPkm1,
+  current_disc = :H1,
+  solver = Dict(
+    :solver => :h1h1blocks,
+    :matrix_type    => SparseMatrixCSC{Float64,Int},
+    :vector_type    => Vector{Float64},
+    :block_solvers  => [:julia,:julia,:julia],
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+  ),
+  ζᵤ = 10.0,
+  ζⱼ = 10.0,
+)
+
+hunt(
+  nc=(8,8),
+  fluid_disc = :RT,
+  current_disc = :H1,
+  solver = Dict(
+    :solver => :h1h1blocks,
+    :matrix_type    => SparseMatrixCSC{Float64,Int},
+    :vector_type    => Vector{Float64},
+    :block_solvers  => [:julia,:julia,:julia],
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+  ),
+  ζᵤ = 10.0,
+  ζⱼ = 10.0,
 )
 
 end # module

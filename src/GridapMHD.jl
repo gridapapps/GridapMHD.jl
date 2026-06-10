@@ -1,5 +1,7 @@
 module GridapMHD
 
+__precompile__(false)
+
 using Random
 using LinearAlgebra
 using SparseArrays, SparseMatricesCSR, BlockArrays, FillArrays
@@ -27,8 +29,18 @@ using GridapSolvers
 using GridapSolvers.SolverInterfaces, GridapSolvers.MultilevelTools, GridapSolvers.PatchBasedSmoothers
 using GridapSolvers.LinearSolvers, GridapSolvers.NonlinearSolvers, GridapSolvers.BlockSolvers
 
+using GridapSolvers.PatchBasedSmoothers: CoarsePatchTopology
+
 # Mesh generation
 include("Meshers/meshers.jl")
+
+# MHD problem
+include("gridap_extras.jl")
+include("utils.jl")
+include("geometry.jl")
+include("fespaces.jl")
+include("parameters.jl")
+include("weakforms.jl")
 
 # Solvers
 include("Solvers/gridap.jl")
@@ -36,13 +48,9 @@ include("Solvers/petsc.jl")
 include("Solvers/gmg.jl")
 include("Solvers/li2019.jl")
 include("Solvers/badia2024.jl")
+include("Solvers/h1h1blocks.jl")
 
 # Main driver
-include("gridap_extras.jl")
-include("utils.jl")
-include("geometry.jl")
-include("parameters.jl")
-include("weakforms.jl")
 include("main.jl")
 
 # Applications

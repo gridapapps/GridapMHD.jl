@@ -118,12 +118,12 @@ function add_default_params(_params)
   params = _add_optional(_params,mandatory,optional,_params,"")
   _check_unused(params,mandatory,params,"")
   # Process sub-params
+  params[:fespaces] = params_fespaces(params)
   params[:fluid] = params_fluid(params)
   if !isnothing(params[:solid])
     params[:solid] = params_solid(params)
   end
   params[:bcs] = params_bcs(params)
-  params[:fespaces] = params_fespaces(params)
   params[:solver] = params_solver(params)
   params[:multigrid] = params_multigrid(params)
   if !isnothing(params[:transient])
@@ -167,6 +167,7 @@ function display_params(params)
 end
 
 function params_to_string(params)
+  PT = Union{Number,String,Symbol,Nothing} # Printable Types
   msg = String[]
   for (key,value) in params
     if isa(value,Dict)
@@ -176,7 +177,9 @@ function params_to_string(params)
         push!(msg,"  $m")
       end
       push!(msg,"  } \n")
-    elseif isa(value,Union{Number,String,Symbol,Nothing})
+    elseif isa(value,Vector{<:PT})
+      push!(msg,"  > $key => [$(join(value,", "))] \n")
+    elseif isa(value,PT)
       push!(msg,"  > $key => $value \n")
     end
   end
@@ -246,10 +249,10 @@ function default_solver_params(::Val{:li2019})
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
     :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_gmres_schwarz,:petsc_cg_jacobi,:petsc_cg_jacobi],
-    :niter          => 20,
-    :niter_ls       => 80,
-    :rtol           => 1e-5,
-    :atol           => 1.e-14,
+    :niter          => 20,     # Maximum Nonlinear iterations
+    :niter_ls       => 80,     # Maximum linear iterations
+    :rtol           => 1e-5,   # Relative tolerance
+    :atol           => 1.e-14, # Absolute tolerance
   )
 end
 
@@ -259,12 +262,27 @@ function default_solver_params(::Val{:badia2024})
     :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
     :vector_type    => Vector{PetscScalar},
     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
-    :solver_postpro => ((cache,info) -> gridap_postpro(cache,info)),
+    :solver_postpro => ((cache,info) -> BlockSolver_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_cg_jacobi],
-    :niter          => 20,      # Maximum Nonlinear iterations
-    :niter_ls       => 15,      # Maximum linear iterations
-    :rtol           => 1e-5,    # Relative tolerance
-    :atol           => 1.e-14,  # Absolute tolerance
+    :niter          => 20,    # Maximum Nonlinear iterations
+    :niter_ls       => 15,    # Maximum linear iterations
+    :rtol           => 1e-6, # Relative tolerance
+    :atol           => 1.e-8, # Absolute tolerance
+  )
+end
+
+function default_solver_params(::Val{:h1h1blocks})
+  return Dict(
+    :solver => :h1h1blocks,
+    :matrix_type    => SparseMatrixCSR{0,PetscScalar,PetscInt},
+    :vector_type    => Vector{PetscScalar},
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+    :solver_postpro => ((cache,info) -> BlockSolver_postpro(cache,info)),
+    :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
+    :niter          => 20,    # Maximum Nonlinear iterations
+    :niter_ls       => 15,    # Maximum linear iterations
+    :rtol           => 1e-6, # Relative tolerance
+    :atol           => 1.e-8, # Absolute tolerance
   )
 end
 
@@ -274,6 +292,7 @@ uses_petsc(::Val{:julia}) = false
 uses_petsc(::Val{:petsc}) = true
 uses_petsc(::Val{:li2019}) = true
 uses_petsc(::Val{:badia2024}) = true
+uses_petsc(::Val{:h1h1blocks}) = true
 
 uses_multigrid(solver::Dict) = any(space_uses_multigrid(solver))
 space_uses_multigrid(solver::Dict) = space_uses_multigrid(Val(solver[:solver]),solver)
@@ -281,6 +300,7 @@ space_uses_multigrid(::Val{:julia},solver) = fill(false,4)
 space_uses_multigrid(::Val{:petsc},solver) = fill(false,4)
 space_uses_multigrid(::Val{:li2019},solver) = map(s -> s==:gmg, solver[:block_solvers])
 space_uses_multigrid(::Val{:badia2024},solver) = map(s -> s==:gmg, solver[:block_solvers])[[1,2,1,3]]
+space_uses_multigrid(::Val{:h1h1blocks},solver) = map(s -> s==:gmg, solver[:block_solvers])
 
 function snes_postpro(cache,info)
   snes = cache.snes[]
@@ -300,6 +320,23 @@ function gridap_postpro(cache,info)
   info[:ls_residuals] = log.residuals[1:log.num_iters+1]
 end
 
+function BlockSolver_postpro(cache,info)
+  ls = cache.ns.solver
+  log = ls.log
+
+  info[:ls1_iters] = log.num_iters
+  info[:ls1_residuals] = log.residuals[1:log.num_iters+1]
+
+  if isa(ls.Pr.solvers[1],FGMRESSolver)
+    ls2 = ls.Pr.solvers[1]
+    log2 = ls2.log
+    info[:ls2_iters] = log2.num_iters
+    info[:ls2_residuals] = log2.residuals[1:log2.num_iters+1]
+  else
+    println("BlockSolver 1 is not FGMRESSolver, its type is $(typeof(ls.Pr.solvers[1]))")
+  end
+end
+
 """
 Valid keys for `params[:fespaces]` are the following:
 
@@ -314,7 +351,7 @@ function params_fespaces(params::Dict{Symbol,Any})
   if !haskey(params,:fespaces) || isa(params[:fespaces],Nothing)
     params[:fespaces] = Dict{Symbol,Any}()
   end
-  poly = first(get_polytopes(params[:model]))
+  poly = only(get_polytopes(params[:model]))
   mandatory = Dict(
     :order_u => false,
     :order_j => false,
@@ -338,7 +375,7 @@ function params_fespaces(params::Dict{Symbol,Any})
   # Add discretization parameters
   params_fluid_discretization(fespaces[:fluid_disc],poly,fespaces)
   params_current_discretization(fespaces[:current_disc],poly,fespaces)
-  params[:fespaces][:formulation] = select_formulation(fespaces)
+  fespaces[:formulation] = select_formulation(fespaces)
 
   # Integration
   fespaces[:k] = max(fespaces[:order_u],fespaces[:order_j],fespaces[:order_p],fespaces[:order_φ]) # Maximal polynomial degree
@@ -371,10 +408,20 @@ const FLUID_DISCRETIZATIONS = (;
     :Pk_dPkm1, # Scott-Vogelius
     :SV,       # Scott-Vogelius with macro-elements
     :RT,       # Raviart-Thomas
+    :BDM,      # Brezzi-Douglas-Marini
   )
 )
 
-has_hdiv_fluid_disc(params) = params[:fespaces][:fluid_disc] ∈ (:RT, :BDM)
+function fluid_is_pressure_robust(params)
+  u_conf = params[:fespaces][:u_conformity]
+  isequal(u_conf,:HDiv) && return true
+  
+  @assert isequal(u_conf,:H1)
+  u_disc = params[:fespaces][:fluid_disc]
+  in(u_disc,(:SV,:Pk_dPkm1)) && return true
+
+  return false
+end
 
 function params_fluid_discretization(disc::Symbol,poly::Polytope,feparams)
   D = num_dims(poly)
@@ -433,6 +480,12 @@ function params_fluid_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:order_p] = k-1
       feparams[:u_conformity] = :HDiv
       feparams[:p_conformity] = :L2
+    elseif disc == :BDM # Brezzi-Douglas-Marini
+      feparams[:reffe_u] = BDMRefFE(Float64,poly,k)
+      feparams[:reffe_p] = LagrangianRefFE(Float64,poly,k-1;space=:P)
+      feparams[:order_p] = k-1
+      feparams[:u_conformity] = :HDiv
+      feparams[:p_conformity] = :L2
     else
       @notimplemented "
         Fluid discretization $disc not implemented for tetrahedra. 
@@ -473,8 +526,8 @@ function params_current_discretization(disc::Symbol,poly::Polytope,feparams)
       feparams[:φ_conformity] = :L2
     elseif disc == :H1
       feparams[:reffe_j] = LagrangianRefFE(VectorValue{3,Float64},poly,k)
-      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k;space=:Q)
-      feparams[:order_φ] = k
+      feparams[:reffe_φ] = LagrangianRefFE(Float64,poly,k+1;space=:Q)
+      feparams[:order_φ] = k+1
       feparams[:j_conformity] = :L2
       feparams[:φ_conformity] = :H1
     else
@@ -528,6 +581,11 @@ function select_formulation(feparams::Dict)
     # Current gets eliminated from the system in favor of φ ∈ H1
     @assert φ_conf == :H1
     return :H1H1
+  elseif u_conf == :HDiv && j_conf == :L2
+    # Non-conforming divergence-free fluid, H1 potential
+    # Current gets eliminated from the system in favor of φ ∈ H1
+    @assert φ_conf == :H1
+    return :HDivH1
   else
     @error "Unsupported fluid/current discretizations: u_conf = $u_conf, j_conf = $j_conf."
   end
@@ -594,9 +652,14 @@ function params_multigrid(params::Dict{Symbol,Any})
   if isa(params[:multigrid],Nothing) || !haskey(params[:multigrid],:mh)
     @error "Multigrid is used with solver $(solver[:solver]), but params[:multigrid] is missing!"
   end
-  multigrid = params[:multigrid]
+  mandatory = Dict(
+    :mh => true
+  )
+  _check_mandatory(params[:multigrid], mandatory, "[:multigrid]")
 
   # Init some variables
+  multigrid = Dict{Symbol,Any}()
+  merge!(multigrid,params[:multigrid])
   multigrid[:trials] = Dict{Symbol,Any}()
   multigrid[:tests] = Dict{Symbol,Any}()
   multigrid[:variables] = getindex([:u,:p,:j,:φ],findall(space_uses_multigrid(solver)))
@@ -622,9 +685,13 @@ Valid keys for `params[:fluid]` are the following.
 # Optional keys
 -  `:f=>VectorValue(0,0,0)`: Value of the parameter `f`.
 -  `:σ=>1`: Value of the parameter `σ`.
--  `:ζ=>0`: Value of the augmented lagrangian weight.
+-  `:ζᵤ=>0`: Value of the augmented lagrangian weight for u.
+-  `:ζⱼ=>0`: Value of the augmented lagrangian weight for j.
+-  `:g=>VectorValue(0,0,0)`: RHS in Ohm law (Hdiv) to get manufactured solutions
+-  `:divg=>0.0`: RHS in div(Ohm law) (H1) to get manufactured solutions
 """
 function params_fluid(params::Dict{Symbol,Any})
+  order_u = params[:fespaces][:order_u]
   mandatory = Dict(
     :domain => true,
     :α => true,
@@ -633,16 +700,22 @@ function params_fluid(params::Dict{Symbol,Any})
     :B => true,
     :f => false,
     :σ => false,
-    :ζ => false,
+    :ζᵤ => false,
+    :ζⱼ => false,
     :g => false,
+    :divg => false,
     :convection => false,
+    :μ => false,
   )
   optional = Dict(
-    :σ => 1.0,
-    :f => VectorValue(0,0,0),
-    :ζ => 0.0,
-    :g => VectorValue(0,0,0),
-    :convection => :newton
+    :σ  => 1.0,
+    :f  => VectorValue(0.0,0.0,0.0),
+    :ζᵤ => 0.0,
+    :ζⱼ => 0.0,
+    :g  => VectorValue(0.0,0.0,0.0),
+    :divg => 0.0,
+    :convection => :newton,
+    :μ => order_u*(order_u+1),
   )
   fluid = _check_mandatory_and_add_optional(params[:fluid],mandatory,optional,params,"[:fluid]")
   @assert fluid[:convection] in (:none,:newton,:picard)
@@ -664,9 +737,17 @@ Valid keys for `params[:solid]` are the following
 function params_solid(params::Dict{Symbol,Any})
   mandatory = Dict(
     :domain=>true,
-    :σ=>false,
+    :σ => false,
+    :ζ => false,
+    :g => false,
+    :divg => false
   )
-  optional = Dict(:σ=>1)
+  optional = Dict(
+    :σ => 1,
+    :ζ => 0.0,
+    :g => VectorValue(0.0,0.0,0.0),
+    :divg => 0.0
+  )
   solid = _check_mandatory_and_add_optional(params[:solid],mandatory,optional,params,"[:solid]")
   solid
 end
@@ -694,28 +775,28 @@ Valid keys for `params[:bcs]` are the following
    See  [`params_bcs_thin_wall`](@ref) for further details.
 """
 function params_bcs(params)
+  has_j = params[:fespaces][:formulation] ∈ (:H1HDiv,:HDivHDiv)
   mandatory = Dict(
     :u => true,
-    :j => true,
-    :φ => false,
+    :j => has_j,
+    :φ => !has_j,
     :t => false,
     :thin_wall => false,
-    :f => false,
-    :B => false,
     :stabilization => false,
   )
   optional = Dict(
+    :j => [],
     :φ => [],
     :t => [],
     :thin_wall => [],
-    :f => [],
-    :B => [],
     :stabilization => [],
   )
   bcs = _check_mandatory_and_add_optional(params[:bcs],mandatory,optional,params,"[:bcs]")
   # Sub params
   bcs[:u] = params_bcs_u(params)
-  bcs[:j] = params_bcs_j(params)
+  if bcs[:j] !== optional[:φ]
+    bcs[:j] = params_bcs_j(params)
+  end
   if bcs[:φ] !== optional[:φ]
     bcs[:φ] = params_bcs_φ(params)
   end
@@ -755,8 +836,9 @@ function params_bcs_u(params::Dict{Symbol,Any})
   u
 end
 
-zero_values(tags) = VectorValue(0,0,0)
-zero_values(tags::Vector) = map(zero_values,tags)
+zero_values(T,tags) = zero(T)
+zero_values(T,tags::Vector) = zero_values.(T,tags)
+zero_values(tags) = zero_values(VectorValue{3,Float64},tags)
 
 """
 Valid keys for `params[:bcs][:j]` are the following
@@ -770,16 +852,16 @@ Valid keys for `params[:bcs][:j]` are the following
 """
 function params_bcs_j(params::Dict{Symbol,Any})
   mandatory = Dict(
-    :tags=>true,
-    :values=>false,
+    :tags => true,
+    :values => false,
   )
   _check_mandatory(params[:bcs][:j],mandatory,"[:bcs][:j]")
   optional = Dict(
-    :values=>zero_values(params[:bcs][:j][:tags]),
+    :values => zero_values(params[:bcs][:j][:tags]),
   )
   j = _add_optional(params[:bcs][:j],mandatory,optional,params,"[:bcs][:j]")
   _check_unused(j,mandatory,params,"[:bcs][:j]")
-  j
+  return j
 end
 
 """
@@ -792,12 +874,27 @@ Valid keys for the dictionaries in `params[:bcs][:φ]` are the following.
 - `:value`: Value of the electric potential to be imposed weakly.
 """
 function params_bcs_φ(params::Dict{Symbol,Any})
-  mandatory = Dict(
-    :domain=>true,
-    :value=>true,
-  )
-  optional = Dict()
-  _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
+  has_j = params[:fespaces][:formulation] ∈ (:H1HDiv,:HDivHDiv)
+  if has_j # Weak boundary conditions
+    mandatory = Dict(
+      :domain => true,
+      :value => true,
+    )
+    optional = Dict()
+    return _check_mandatory_and_add_optional_weak(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
+  else # Strong boundary conditions
+    mandatory = Dict(
+      :tags => true,
+      :values => false,
+    )
+    _check_mandatory(params[:bcs][:φ],mandatory,"[:bcs][:φ]")
+    optional = Dict(
+      :values => zero_values(Float64,params[:bcs][:φ][:tags]),
+    )
+    φ = _add_optional(params[:bcs][:φ],mandatory,optional,params,"[:bcs][:φ]")
+    _check_unused(φ,mandatory,params,"[:bcs][:φ]")
+    return φ
+  end
 end
 
 """
@@ -905,7 +1002,7 @@ function params_transient(params::Dict{Symbol,Any})
   optional = Dict(
     :solver => :theta,
   )
-  transient = _check_mandatory_and_add_optional_weak(params[:transient],mandatory,optional,params,"[:transient]")
+  transient = _check_mandatory_and_add_optional(params[:transient],mandatory,optional,params,"[:transient]")
   if isa(transient[:solver],Symbol)
     transient[:solver] = default_solver_params(transient[:solver])
   else

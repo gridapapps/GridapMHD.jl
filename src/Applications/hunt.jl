@@ -47,8 +47,9 @@ function _hunt(;
   σ=1.0,
   B=(0.0,10.0,0.0),
   f=(0.0,0.0,1.0),
-  ζ  = 0.0, # Augmented Lagrangian weight  
-  μ  = 0,   # Stabilization weight
+  ζᵤ=0.0, # Augmented Lagrangian weights  
+  ζⱼ=0.0, # 
+  μ =0,   # Stabilization weight
   L=1.0,
   u0=1.0,
   B0=norm(VectorValue(B)),
@@ -59,7 +60,7 @@ function _hunt(;
   order_j = order,
   nsums = 10,
   vtk=true,
-  title = "test",
+  title = "Hunt",
   path  = datadir(),
   debug = false,
   res_assemble = false,
@@ -68,6 +69,7 @@ function _hunt(;
   solver = :julia,
   formulation = :cfd,
   initial_value = :zero,
+  convection=:none,
   rt_scaling = false,
   verbose = true,
   BL_adapted = true,
@@ -80,6 +82,7 @@ function _hunt(;
 )
   @assert formulation ∈ [:cfd,:mhd]
   @assert initial_value ∈ [:zero,:solve]
+  @assert convection ∈ [:newton,:picard,:none]
 
   info = Dict{Symbol,Any}()
   params = Dict{Symbol,Any}(
@@ -150,7 +153,8 @@ function _hunt(;
     :γ=>γ,
     :f=>f̄,
     :B=>B̄,
-    :ζ=>ζ,
+    :ζᵤ => ζᵤ,
+    :ζⱼ => ζⱼ
   )
 
   params[:fespaces] = Dict{Symbol,Any}(
@@ -163,9 +167,12 @@ function _hunt(;
 
   if tw > 0.0
     σ_Ω = solid_conductivity(σ̄1,σ̄2,Ω,get_cell_gids(model),get_face_labeling(model))
-    params[:solid] = Dict(:domain=>"solid",:σ=>σ_Ω)
+    params[:solid] = Dict(
+      :domain=>"solid",
+      :σ=>σ_Ω,
+      :ζ => ζⱼ
+      )
     params[:fluid][:domain] = "fluid"
-    params[:fespaces][:φ_constraint] = :zeromean
   end
 
   # Boundary conditions
@@ -174,6 +181,10 @@ function _hunt(;
     :u => Dict(:tags=>"noslip"),
     :j => Dict(:tags=>"insulating"),
   )
+
+  if current_disc == :H1
+    params[:bcs][:φ] = Dict(:tags => "conducting")
+  end
 
   params[:x0] = initial_value
 
@@ -199,14 +210,24 @@ function _hunt(;
   # Rescale quantities
 
   tic!(t,barrier=true)
-  ūh,p̄h,j̄h,φ̄h = xh
-  uh = u0*ūh
-  ph = (ρ*u0^2)*p̄h
-  jh = (σ*u0*B0)*j̄h
-  φh = (u0*B0*L)*φ̄h
-
-  div_jh = ∇·jh
-  div_uh = ∇·uh
+  if current_disc != :H1
+    ūh, p̄h, j̄h, φ̄h = xh
+    uh = u0 * ūh
+    ph = (ρ * u0^2) * p̄h
+    jh = (σ * u0 * B0) * j̄h
+    φh = (u0 * B0 * L) * φ̄h
+    div_jh = ∇·jh
+    div_uh = ∇·uh
+  else
+    ūh, p̄h, φ̄h = xh
+    uh = u0 * ūh
+    ph = (ρ * u0^2) * p̄h
+    φh = (u0 * B0 * L) * φ̄h
+    jh = σ * B0 * (uh × B̄ - ∇(φ̄h))
+    # div_jh = σ*B0*((∇×uh)⋅B̄ - Δ(φ̄h)) 
+    div_jh = σ*B0*((∇×uh)⋅B̄) 
+    div_uh = ∇·uh
+  end
 
   if L == 1.0
     Ω_phys = Ω
@@ -263,7 +284,7 @@ function _hunt(;
   info[:ncells] = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
-  info[:ndofs_j] = length(get_free_dof_values(j̄h))
+  current_disc != :H1 ? info[:ndofs_j] = length(get_free_dof_values(j̄h)) : nothing
   info[:ndofs_φ] = length(get_free_dof_values(φ̄h))
   info[:ndofs] = length(get_free_dof_values(xh))
   info[:Re] = Re

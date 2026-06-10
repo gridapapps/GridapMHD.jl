@@ -41,7 +41,8 @@ function _cavity(;
   ν = 1.0,
   ρ = 1.0,
   σ = 1.0,
-  ζ = 0.0,   # Augmented Lagrangian weight  
+  ζᵤ = 0.0,   # Augmented Lagrangian weights 
+  ζⱼ = 0.0, 
   μ = 0,     # Stabilization weight
   B = VectorValue(0.0, 0.0, 10.0),
   f = VectorValue(0.0, 0.0, 0.0),
@@ -60,6 +61,7 @@ function _cavity(;
   verbose=true,
   vtk=true,
   convection=:newton,
+  solid = false,
   closed_cavity=true,
   adaptivity_method = 0,
   fluid_disc = ifelse(iszero(adaptivity_method),:Qk_dPkm1,:SV),
@@ -94,7 +96,7 @@ function _cavity(;
   params[:solver] = solver
 
   # Model
-  model = cavity_mesh(parts,params,nc,np,L,ranks_per_level,adaptivity_method)
+  model = cavity_mesh(parts,params,nc,np,L,ranks_per_level,adaptivity_method,solid)
 
   # Reduced quantities
   Re = u0 * L / ν
@@ -123,14 +125,24 @@ function _cavity(;
     :γ => γ,
     :f => f̄,
     :B => B̄,
-    :ζ => ζ,
+    :ζᵤ => ζᵤ,
+    :ζⱼ => ζⱼ,
     :convection => convection,
   )
+  if solid
+    params[:fluid][:domain] = "fluid"
+    params[:solid] = Dict(
+      :domain => "solid",
+      :σ => σ,
+      :ζⱼ => ζⱼ,
+    )
+  end
 
   # FESpaces and Boundary conditions
   uw = VectorValue(0.0, 0.0, 0.0)
   ul = VectorValue(1.0, 0.0, 0.0)
   ji = VectorValue(0.0, 0.0, 0.0)
+  params[:x0] = initial_value
   params[:fespaces] = Dict{Symbol,Any}(
     :order_u => order,
     :order_j => order_j,
@@ -138,8 +150,6 @@ function _cavity(;
     :fluid_disc => fluid_disc,
     :current_disc => current_disc,
   )
-
-  params[:x0] = initial_value
 
   if closed_cavity
     params[:bcs] = Dict{Symbol,Any}(
@@ -149,9 +159,12 @@ function _cavity(;
     params[:fespaces][:p_constraint] = :zeromean
   else
     params[:bcs] = Dict{Symbol,Any}(
-      :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]), # Bottom wall is Newman
+      :u => Dict(:tags => ["wall", "lid"], :values => [uw, ul]), # Bottom is Neumann
       :j => Dict(:tags => "insulating", :values => ji),
     )
+  end
+  if current_disc == :H1
+    params[:bcs][:φ] = Dict(:tags => "lid", :values => 0.0)
   end
 
   if μ > 0
@@ -173,13 +186,23 @@ function _cavity(;
   if vtk
     tic!(t, barrier=true)
     Ω = Interior(model)
-    ūh, p̄h, j̄h, φ̄h = xh
-    uh = u0 * ūh
-    ph = (ρ * u0^2) * p̄h
-    jh = (σ * u0 * B0) * j̄h
-    φh = (u0 * B0 * L) * φ̄h
-    div_jh = ∇·jh
-    div_uh = ∇·uh
+    if current_disc != :H1
+      ūh, p̄h, j̄h, φ̄h = xh
+      uh = u0 * ūh
+      ph = (ρ * u0^2) * p̄h
+      jh = (σ * u0 * B0) * j̄h
+      φh = (u0 * B0 * L) * φ̄h
+      div_jh = ∇·jh
+      div_uh = ∇·uh
+    else
+      ūh, p̄h, φ̄h = xh
+      uh = u0 * ūh
+      ph = (ρ * u0^2) * p̄h
+      φh = (u0 * B0 * L) * φ̄h
+      jh = σ * (uh × B - ∇(φh))
+      div_jh = σ*((∇×uh)⋅B - Δ(φh)) 
+      div_uh = ∇·uh
+    end
     writevtk(
       Ω, joinpath(path,title), order=max(order,order_j), 
       cellfields=["uh" => uh, "ph" => ph, "jh" => jh, "phi" => φh, "div_jh" => div_jh, "div_uh" => div_uh],
@@ -191,7 +214,7 @@ function _cavity(;
   info[:ncells]  = num_cells(model)
   info[:ndofs_u] = length(get_free_dof_values(ūh))
   info[:ndofs_p] = length(get_free_dof_values(p̄h))
-  info[:ndofs_j] = length(get_free_dof_values(j̄h))
+  info[:ndofs_j] = (current_disc != :H1) ? length(get_free_dof_values(j̄h)) : 0
   info[:ndofs_φ] = length(get_free_dof_values(φ̄h))
   info[:ndofs]   = sum([info[:ndofs_u], info[:ndofs_p], info[:ndofs_j], info[:ndofs_φ]])
   info[:Re]      = Re
@@ -200,44 +223,66 @@ function _cavity(;
   return info, t
 end
 
-function add_cavity_tags!(model::CartesianDiscreteModel)
+function add_cavity_tags!(model::GridapDistributed.DistributedDiscreteModel, tw, L)
+  map(local_views(model)) do model
+    add_cavity_tags!(model, tw, L)
+  end
+end
+
+function add_cavity_tags!(mh::MultilevelTools.ModelHierarchy, tw, L)
+  map(mh) do mhl
+    m = get_model(mhl)
+    add_cavity_tags!(m, tw, L)
+    mred = get_model_before_redist(mhl)
+    if ! isnothing(mred) && mred !== m
+      add_cavity_tags!(mred, tw, L)
+    end
+  end
+end
+
+function add_cavity_tags!(model::DiscreteModel, tw, L)
+  topo = get_grid_topology(model)
   labels = get_face_labeling(model)
-  add_cavity_tags!(labels)
+  add_tag_from_tags!(labels, "top", [22])
+  add_tag_from_tags!(labels, "bottom", [21])
+  add_tag_from_tags!(labels, "sides", vcat(collect(1:20),collect(23:26)))
+
+  if isnothing(tw) # Only fluid
+    add_tag_from_tags!(labels, "lid", ["top"])
+    add_tag_from_tags!(labels, "cavity", ["sides","bottom"])
+    add_tag_from_tags!(labels, "insulating", "boundary")
+  else # Solid and fluid
+    # The solid is the first layer of cells touching either the bottom or the sides
+    solid_mask(x) = (x[1] < tw[1]) || (x[1] > L - tw[1]) || (x[2] < tw[2]) || (x[2] > L - tw[2]) || (x[3] < tw[3])
+    cell_to_issolid = lazy_map(solid_mask,lazy_map(mean, get_cell_coordinates(model)))
+    cell_to_color = Gridap.Arrays.collect1d(map(x -> ifelse(x,1,2), cell_to_issolid))
+    merge!(labels,Geometry.face_labeling_from_cell_tags(topo,cell_to_color,["solid","fluid"]))
+
+    Geometry.add_tag_from_tags_intersection!(labels,"cavity",["solid","fluid"])
+    Geometry.add_tag_from_tags_setdiff!(labels,"lid",["top"],["solid"])
+    add_tag_from_tags!(labels, "insulating", "boundary")
+  end
 end
 
-function add_cavity_tags!(model::GridapDistributed.DistributedDiscreteModel)
-  map(add_cavity_tags!, local_views(model))
+function cavity_mesh(parts,params,nc::Int,np,L,ranks_per_level,adaptivity_method,solid)
+  return cavity_mesh(parts,params,(nc,nc,nc),np,L,ranks_per_level,adaptivity_method,solid)
 end
 
-function add_cavity_tags!(labels)
-  Γl = [22]
-  Γb = [21]
-  Γw = vcat(collect(1:20),collect(23:26))
-  add_tag_from_tags!(labels, "lid", Γl)
-  add_tag_from_tags!(labels, "bottom", Γb)
-  add_tag_from_tags!(labels, "wall", Γw)
-  add_tag_from_tags!(labels, "cavity", ["wall","bottom"])
-  add_tag_from_tags!(labels, "insulating", "boundary")
+function cavity_mesh(parts,params,nc::Tuple,np::Int,L,ranks_per_level,adaptivity_method,solid)
+  return cavity_mesh(parts,params,nc,(np,1,1),L,ranks_per_level,adaptivity_method,solid)
 end
 
-function cavity_mesh(parts,params,nc::Int,np,L,ranks_per_level,simplexify)
-  return cavity_mesh(parts,params,(nc,nc,nc),np,L,ranks_per_level,simplexify)
-end
-
-function cavity_mesh(parts,params,nc::Tuple,np::Int,L,ranks_per_level,simplexify)
-  return cavity_mesh(parts,params,nc,(np,1,1),L,ranks_per_level,simplexify)
-end
-
-function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivity_method)
+function cavity_mesh(parts,params,nc::Tuple,np::Tuple,L,ranks_per_level,adaptivity_method,solid)
   domain = (0.0,L,0.0,L,0.0,L)
+  tw = solid ? L ./ nc : nothing
   if isnothing(ranks_per_level) # Single grid
     model = CartesianDiscreteModel(parts,np,domain,nc)
-    add_cavity_tags!(model)
+    add_cavity_tags!(model,tw,L)
   else # Multigrid
     mh = CartesianModelHierarchy(
-      parts,np_per_level,domain,nc;
-      add_labels! = add_cavity_tags!,
+      parts,ranks_per_level,domain,nc
     )
+    add_cavity_tags!(mh,tw,L)
     params[:multigrid] = Dict{Symbol,Any}(
       :mh => mh,
       :num_refs_coarse => 0,

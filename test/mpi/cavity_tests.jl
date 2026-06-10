@@ -2,10 +2,122 @@ module CavityTestsMPI
 
 using GridapPETSc
 using SparseMatricesCSR
+using SparseArrays
+using Gridap
 
 using GridapMHD: cavity
 
+
+function main(parts)
+
+np = (parts...,1)
+
 # PETSc - SNES + MUMPS
-cavity(np=4,nc=(4,4,4),backend=:mpi,solver=:petsc)
+cavity(np=np,nc=(4,4,4),backend=:mpi,solver=:petsc)
+
+# Cavity - H1H1 - Block solver + MUMPS
+# np = (2,2,1)
+# cavity(
+#   nc = (4,4,4),
+#   np = np,
+#   backend = :mpi,
+#   fluid_disc = :Qk_dPkm1,
+#   current_disc = :H1,
+#   solver = Dict(
+#     :solver => :h1h1blocks,
+#     :matrix_type    => SparseMatrixCSR{0,Float64,Int},
+#     :vector_type    => Vector{Float64},
+#     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
+#     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+#   ),
+#   ζᵤ = 10.0,
+#   solid = true
+# )
+
+# Cavity - H1H1 - Block solver + GMG
+# np = (1,1,1)
+# cavity(
+#   nc = (8,8,8),
+#   np = np,
+#   backend = :mpi,
+#   fluid_disc = :Qk_dPkm1,
+#   current_disc = :H1,
+#   solver = Dict(
+#     :solver => :h1h1blocks,
+#     :matrix_type    => SparseMatrixCSC{Float64,Int},
+#     :vector_type    => Vector{Float64},
+#     :block_solvers  => [:gmg,:petsc_cg_jacobi,:petsc_gmres_amg],
+#     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+#   ),
+#   ranks_per_level = [np,np],
+#   ζᵤ = 10.0,
+#   solid = true
+# )
+
+# Cavity - HDivH1 - Block solver + GMG
+# np = (2,2,1)
+cavity(
+  nc = (8,8,8),
+  np = np,
+  backend = :mpi,
+  fluid_disc = :RT,
+  current_disc = :H1,
+  order = 1,
+  solver = Dict(
+    :solver => :h1h1blocks,
+    :matrix_type    => SparseMatrixCSC{Float64,Int},
+    :vector_type    => Vector{Float64},
+    :block_solvers  => [:gmg,:petsc_cg_jacobi,:petsc_gmres_amg],
+    :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+  ),
+  ranks_per_level = [np,np],
+  ζᵤ = 10.0,
+  solid = false,
+  convection = :none
+)
+
+# Cavity - H1HDiv - Block solver + GMG
+# np = (2,2,1)
+# cavity(
+#   nc = (8,8,8),
+#   np = np,
+#   backend = :mpi,
+#   fluid_disc = :Qk_dPkm1,
+#   current_disc = :RT,
+#   solver = Dict(
+#     :solver => :badia2024,
+#     :matrix_type    => SparseMatrixCSC{Float64,Int},
+#     :vector_type    => Vector{Float64},
+#     :block_solvers  => [:gmg,:petsc_cg_jacobi,:petsc_cg_jacobi],
+#     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+#   ),
+#   ranks_per_level = [np,np],
+#   ζᵤ = 10.0,
+#   ζⱼ = 10.0,
+#   solid = true
+# )
+
+# Cavity - HDivHDiv - Block solver + GMG
+# np = (2,2,1)
+# cavity(
+#   nc = (8,8,8),
+#   np = np,
+#   backend = :mpi,
+#   fluid_disc = :RT,
+#   current_disc = :RT,
+#   solver = Dict(
+#     :solver => :badia2024,
+#     :matrix_type    => SparseMatrixCSC{Float64,Int},
+#     :vector_type    => Vector{Float64},
+#     :block_solvers  => [:gmg,:petsc_cg_jacobi,:petsc_cg_jacobi],
+#     :petsc_options  => "-ksp_error_if_not_converged true -ksp_converged_reason",
+#   ),
+#   ranks_per_level = [np,np],
+#   ζᵤ = 10.0,
+#   ζⱼ = 10.0,
+#   solid = true
+# )
+
+end
 
 end # module

@@ -1,6 +1,7 @@
 
 const DiscreteModelTypes = Union{Gridap.DiscreteModel,GridapDistributed.DistributedDiscreteModel}
 const TriangulationTypes = Union{Gridap.Triangulation,GridapDistributed.DistributedTriangulation}
+const AdaptedDiscreteModelTypes = Union{Gridap.Adaptivity.AdaptedDiscreteModel,GridapDistributed.DistributedAdaptedDiscreteModel}
 
 function setup_geometry!(params)
   params[:geometry] = Dict{Symbol,Any}(
@@ -12,29 +13,33 @@ function setup_geometry!(params)
     :other      => Dict{UInt64,Any}(),
   )
 
-  Ω = interior(params,nothing)
-  params[:Ω] = Ω
-
-  fluid = params[:fluid]
-  Ωf = interior(params,fluid[:domain])
-  params[:Ωf] = Ωf
-
-  solid = params[:solid]
-  Ωs = !isnothing(solid) ? interior(params,solid[:domain]) : nothing
-  params[:Ωs] = Ωs
+  model = params[:model]
+  params[:Ω] = interior(params,model,nothing)
+  params[:Ωf] = interior(params,model,params[:fluid][:domain])
+  if has_solid(params)
+    params[:Ωs] = interior(params,model,params[:solid][:domain])
+  else
+    params[:Ωs] = nothing
+  end
 
   if uses_multigrid(params[:solver])
-    params[:multigrid][:Ω]  = params[:multigrid][:mh]
-    params[:multigrid][:Ωf] = params[:multigrid][:mh]
-    params[:multigrid][:Ωs] = params[:multigrid][:mh]
+    mh = params[:multigrid][:mh]
+    params[:multigrid][:Ω] = interior(params,mh,nothing)
+    params[:multigrid][:Ωf] = interior(params,mh,params[:fluid][:domain])
+    if has_solid(params)
+      params[:multigrid][:Ωs] = interior(params,mh,params[:solid][:domain])
+    else
+      params[:multigrid][:Ωs] = nothing
+    end
   end
+
 end
 
 domain_hash(domain::Union{Nothing,DiscreteModelTypes,TriangulationTypes}) = objectid(domain)
 domain_hash(domain::Union{String,Vector{String}}) = hash(join(domain))
 
 domain_hash(model,domain::Union{String,Vector{String}}) = hash(join(domain),objectid(model))
-domain_hash(model,domain) = domain_hash(domain)
+domain_hash(model,domain) = hash(domain_hash(domain),objectid(model))
 
 interior(params::Dict,domain) = interior(params,params[:model],domain)
 
@@ -49,6 +54,21 @@ function interior(params::Dict,model,domain)
     interiors[key] = trian
   end
   return trian
+end
+
+function interior(params::Dict,model::ModelHierarchy,domain)
+  th = map(model) do mh
+    if has_redistribution(mh)
+      cparts, _ = GridapDistributed.get_old_and_new_parts(mh.red_glue,Val(false))
+      trian     = i_am_in(cparts) ? interior(params,get_model_before_redist(mh),domain) : nothing
+      trian_red = interior(params,get_model(mh),domain)
+    else
+      trian = interior(params,get_model(mh),domain)
+      trian_red = nothing
+    end
+    MultilevelTools.TriangulationHierarchyLevel(mh.level,trian,trian_red,mh)
+  end
+  return th
 end
 
 boundary(params::Dict,domain) = boundary(params,params[:model],domain)
