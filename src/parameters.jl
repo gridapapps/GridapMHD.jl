@@ -280,7 +280,7 @@ function default_solver_params(::Val{:h1h1blocks})
     :solver_postpro => ((cache,info) -> BlockSolver_postpro(cache,info)),
     :block_solvers  => [:petsc_mumps,:petsc_cg_jacobi,:petsc_gmres_amg],
     :niter          => 20,    # Maximum Nonlinear iterations
-    :niter_ls       => 15,    # Maximum linear iterations
+    :niter_ls       => 20,    # Maximum linear iterations
     :rtol           => 1e-6, # Relative tolerance
     :atol           => 1.e-8, # Absolute tolerance
   )

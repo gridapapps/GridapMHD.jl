@@ -44,11 +44,11 @@ function _cavity(;
   ζᵤ = 0.0,   # Augmented Lagrangian weights 
   ζⱼ = 0.0, 
   μ = 0,     # Stabilization weight
-  B = VectorValue(0.0, 0.0, 10.0),
+  B = (0.0, 0.0, 10.0),
   f = VectorValue(0.0, 0.0, 0.0),
   L = 1.0,
   u0 = 1.0,
-  B0 = norm(B),
+  B0 = norm(VectorValue(B)),
   order = 2,
   order_j = order,
   formulation = :mhd,
@@ -103,7 +103,7 @@ function _cavity(;
   Ha = B0 * L * sqrt(σ / (ρ * ν))
   N = Ha^2 / Re
   f̄ = (L / (ρ * u0^2)) * f
-  B̄ = (1 / B0) * B
+  B̄ = (1 / B0) * VectorValue(B)
 
   if formulation == :cfd # Option 1 (CFD)
     α = 1.0
@@ -199,8 +199,8 @@ function _cavity(;
       uh = u0 * ūh
       ph = (ρ * u0^2) * p̄h
       φh = (u0 * B0 * L) * φ̄h
-      jh = σ * (uh × B - ∇(φh))
-      div_jh = σ*((∇×uh)⋅B - Δ(φh)) 
+      jh = σ * (uh × VectorValue(B) - ∇(φh))
+      div_jh = σ*((∇×uh)⋅VectorValue(B) - Δ(φh)) 
       div_uh = ∇·uh
     end
     writevtk(
